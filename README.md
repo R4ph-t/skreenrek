@@ -35,4 +35,20 @@ MCP server. Use `--claude`, `--codex` or `--cursor` to select clients explicitly
 `~/.local/bin`, `--json` for per-agent results, and `--remove` to remove the connections setup added. Existing
 configs get a `.skreenrek-backup` before their first edit. Other servers and settings stay in place.
 
-Skreenrek is ad-hoc signed. macOS may ask for Screen Recording and Accessibility again after an upgrade.
+Skreenrek is ad-hoc signed, so macOS forgets its permissions after an upgrade. See
+[Troubleshooting permissions](#troubleshooting-permissions).
+
+## Troubleshooting permissions
+
+- **Screen Recording is allowed but Skreenrek still says it's off.** macOS applies a Screen Recording grant only to a
+  new process. Click Quit & Reopen in the setup window, or quit Skreenrek from the menu bar and open it again.
+- **Where to allow a missing permission.** Choose "Permissions needed…" in the Skreenrek menu (it shows whenever
+  Screen Recording or Accessibility is missing), or run `skreenrek doctor` to see what is missing.
+- **Grants stop working after `brew upgrade`.** The Homebrew build is ad-hoc signed (`codesign --sign -`), and every
+  rebuild changes the signature, so macOS no longer matches the old grants to the new app. Reset them, then open
+  Skreenrek and allow both again:
+
+  ```sh
+  tccutil reset ScreenCapture it.fraime.skreenrek
+  tccutil reset Accessibility it.fraime.skreenrek
+  ```
