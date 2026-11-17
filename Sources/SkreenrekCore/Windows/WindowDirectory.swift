@@ -105,6 +105,15 @@ public struct WindowDirectory: Sendable {
         }
     }
 
+    /// `windows` in the order of `zOrder` (front to back). Windows missing from it keep their order, at the back.
+    public static func ordered(_ windows: [WindowInfo], byZOrder zOrder: [WindowID]) -> [WindowInfo] {
+        var rank: [WindowID: Int] = [:]
+        for (index, id) in zOrder.enumerated() where rank[id] == nil { rank[id] = index }
+        return windows.enumerated().sorted { a, b in
+            (rank[a.element.id] ?? Int.max, a.offset) < (rank[b.element.id] ?? Int.max, b.offset)
+        }.map(\.element)
+    }
+
     /// The display holding the largest part of `frame`. A frame on no display gets the nearest one; nil only when
     /// there are no displays.
     public static func display(for frame: PointRect, in displays: [DisplayInfo]) -> DisplayInfo? {
