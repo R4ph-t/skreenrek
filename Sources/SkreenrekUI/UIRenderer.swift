@@ -50,8 +50,28 @@ public enum UIRenderer {
             try save(DropdownPreview(MenuModel.sizeSubmenu(base.sizeChoice).entries), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
             try save(settingsView(), "settings", "default")
+            try save(host(PickerLabel(title: "Safari — localhost:3000", detail: UIStrings.Picker.detail(RenderSamples.size)),
+                          size: NSSize(width: 280, height: 56)), "picker", "label")
+            try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
+            for region in [false, true] {
+                let canvas = PickerCanvas(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+                var display = RenderSamples.display
+                display.visibleFrame = PointRect(x: 0, y: 0, width: 800, height: 600)
+                canvas.display = display
+                var model = PickerModel(windows: [RenderSamples.safari], displays: [display], ownPid: -1)
+                model.hover(CGPoint(x: 200, y: 200))
+                if region { model.beginDrag(CGPoint(x: 100, y: 100)); model.drag(to: CGPoint(x: 500, y: 400)) }
+                canvas.update(model, pointer: CGPoint(x: 500, y: 400))
+                try save(canvas, "picker", region ? "region" : "window")
+            }
         }
         return written
+    }
+
+    static func host<V: View>(_ view: V, size: NSSize) -> NSView {
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        return hosting
     }
 
     /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).

@@ -190,6 +190,40 @@ public enum UIStrings {
         }
     }
 
+    public enum Picker {
+        public static let alreadyOpen = "The window picker is already open."
+        public static let hint = "Click a window, or drag to pick a region."
+        public static let escape = "Esc to cancel"
+        public static let cancel = "Cancel"
+        public static func detail(_ size: PixelSize) -> String { "\(size) · Click to pick" }
+        public static func voiceOver(app: String, title: String, size: PixelSize) -> String {
+            "\(app), \(title), \(size.width) by \(size.height) pixels. Press Return to pick."
+        }
+    }
+
+    public enum HUD {
+        public static let dismiss = "Dismiss"
+        public static let stop = "Stop"
+        public static let showDetails = "Show Details"
+        public static func saved(_ duration: Double) -> String { "Saved · \(TimeFormat.minutesSeconds(duration))" }
+        public static func stopped(_ reason: String) -> String { "Stopped: \(reason)" }
+        public static func voiceOver(target: String, seconds: Int) -> String {
+            "Recording \(target), \(Icon.spokenDuration(seconds))"
+        }
+    }
+
+    public enum Onboarding {
+        public static let title = "Set up Skreenrek"
+        public static let introduction = "Skreenrek records windows for your coding agents. It needs two permissions. Everything stays on this Mac."
+        public static let accessibilityNote = "Without Accessibility you can still record, but windows keep their current size."
+        public static let continueButton = "Continue"
+        public static let agentsTitle = "Connect your agents"
+        public static let agentsIntroduction = "Adds the Skreenrek MCP server and the record-window skill to each agent you pick. You can change this later in Settings."
+        public static let skip = "Skip"
+        public static let connect = "Connect"
+        public static func step(_ number: Int) -> String { "Step \(number) of 2" }
+    }
+
     // MARK: - Settings
 
     public enum Agents {
@@ -226,6 +260,9 @@ public enum UIStrings {
 
     /// Every fixed string above, for the copy audit.
     public static let allFixed: [String] = [
+        Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
+        Onboarding.title, Onboarding.introduction, Onboarding.accessibilityNote, Onboarding.continueButton,
+        Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
         Agents.title, Agents.connect, Agents.remove,
         productName, Icon.idle, Icon.writing, Icon.regionTarget,
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,

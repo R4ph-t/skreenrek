@@ -28,6 +28,8 @@ import Testing
                 }
             }
             expected += [
+                "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
+                "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
                 "settings-default-\(appearance)@2x.png",
             ]

@@ -74,6 +74,6 @@ enum AppSeams {
         return ControllerSeams(
             catalog: catalog, resizer: AXWindowResizer(catalog: catalog), frameSource: SCStreamFrameSource(),
             mouse: NSEventMouseSource(clock: clock), clock: clock, permissions: SystemPermissionProbe(),
-            disk: VolumeDiskSpaceProbe(), encoder: .requireHardware)
+            disk: VolumeDiskSpaceProbe(), picker: PickerOverlay(catalog: catalog), encoder: .requireHardware)
     }
 }
