@@ -78,7 +78,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let onboardingModel = OnboardingModel(
             permissions: permissions, requester: requester, defaults: defaults,
             agents: installer.connections().map { OnboardingAgent(agent: $0.agent, detected: $0.detected) },
-            install: { installer.run(agents: $0) }, relaunch: { AppRelauncher.relaunch() })
+            install: { installer.run(agents: $0) }, relaunch: { AppRelauncher.relaunch() },
+            openSettings: { NSWorkspace.shared.open(PrivacyPane.url($0)) })
         let onboarding = OnboardingWindowController(model: onboardingModel)
         self.onboarding = onboarding
         let panel = SettingsPanelState(permissions: permissions, loginItem: MainAppLoginItem(), agents: agents)
@@ -89,13 +90,14 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                     guard let model else { return }
                     Task { await model.perform(.chooseOutputFolder) }
                 },
-                openPrivacyPane: { [requester] in requester.request($0) },
+                // The rows' "Open System Settings…" opens the pane. The prompts belong to onboarding.
+                openPrivacyPane: { NSWorkspace.shared.open(PrivacyPane.url($0)) },
                 settingsChanged: { [weak model] in
                     guard let model else { return }
                     Task { await model.pushSettings() }
                 }))
         effects.showSettings = { [weak settingsWindow] in settingsWindow?.show() }
-        effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show(missingPermission: true) }
+        effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
         self.settingsWindow = settingsWindow
         let menu = MenuController(model: model)
@@ -112,10 +114,10 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         }
         Task {
             await host.controller.setPermissionFailureHandler { [weak onboarding] _ in
-                Task { @MainActor in onboarding?.show(missingPermission: true) }
+                Task { @MainActor in onboarding?.show() }
             }
             await model.start()
-            if !onboardingModel.completed { onboarding.show() }
+            if onboardingModel.shouldShowAtLaunch { onboarding.show() }
         }
     }
 

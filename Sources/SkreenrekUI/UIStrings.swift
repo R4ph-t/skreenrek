@@ -47,6 +47,7 @@ public enum UIStrings {
             case .recordingFailed(.diskLow): "less than 2 GB free"
             case .recordingFailed(.notWritable): "the output folder isn't writable"
             case .permissionDenied(.screenRecording): "Screen Recording is off"
+            case .permissionDenied(.directCapture): "direct capture isn't approved"
             case .permissionDenied(.accessibility): "Accessibility is off"
             case .notExact: "the size isn't exact"
             default: sentenceFragment(error.message)
@@ -149,6 +150,8 @@ public enum UIStrings {
         public static let screenRecordingOff = "Screen Recording is off"
         public static let screenRecordingDetail =
             "Allow Skreenrek in System Settings › Privacy & Security, then reopen it."
+        public static let directCaptureOff = "Direct capture isn't approved"
+        public static let directCaptureDetail = "Finish setup so macOS asks about its private window picker first."
         public static let cantResize = "Can't resize windows"
         public static let cantResizeDetail = "Allow Skreenrek in Accessibility settings to set exact sizes."
         public static let notExact = "Size isn't exact"
@@ -220,13 +223,43 @@ public enum UIStrings {
 
     public enum Onboarding {
         public static let title = "Set up Skreenrek"
-        public static let introduction = "Skreenrek records windows for your coding agents. It needs two permissions. Everything stays on this Mac."
+        public static let introduction = "Skreenrek records windows for your coding agents. It needs three permissions. Everything stays on this Mac."
         public static let accessibilityNote = "Without Accessibility you can still record, but windows keep their current size."
         public static let continueButton = "Continue"
+        public static let done = "Done"
         public static let quitAndReopen = "Quit & Reopen"
         /// macOS applies a Screen Recording grant only to a new process, so the running app keeps reading "missing".
         public static let relaunchNote =
             "After you allow Skreenrek in System Settings, quit and reopen it so macOS applies the change."
+
+        /// The direct-capture step: macOS 15's "bypass the system private window picker" prompt.
+        public static let directCapture = "Direct Capture"
+        public static let directCaptureDetail = "Required. Records without the system window picker."
+
+        /// What each step's button asks macOS for, and the sentence under the row.
+        public static func allow(_ permission: Permission) -> String {
+            switch permission {
+            case .screenRecording: "Allow Screen Recording"
+            case .directCapture: "Allow Direct Capture"
+            case .accessibility: "Allow Accessibility"
+            }
+        }
+        public static let askAgain = "Ask Again"
+        /// VoiceOver, for a permission in the step progress that isn't allowed yet.
+        public static let notAllowed = "Not allowed"
+        public static func explanation(_ permission: Permission) -> String {
+            switch permission {
+            case .screenRecording:
+                "macOS asks once. Turn on Skreenrek in System Settings, then quit and reopen it."
+            case .directCapture:
+                "macOS asks if Skreenrek can skip its private window picker. Click Allow. It asks again about once a month."
+            case .accessibility:
+                accessibilityNote
+            }
+        }
+        /// The direct-capture step before Screen Recording is in effect.
+        public static let directCaptureWaiting = "Allow Screen Recording first."
+
         public static let agentsTitle = "Connect your agents"
         public static let agentsIntroduction = "Adds the Skreenrek MCP server and the record-window skill to each agent you pick. You can change this later in Settings."
         public static let skip = "Skip"
@@ -234,7 +267,7 @@ public enum UIStrings {
         public static let cliDetail = "Links skreenrek into ~/.local/bin"
         public static let notInstalled = "Not installed"
         public static func found(_ agent: AgentClient) -> String { "Found ~/.\(agent.rawValue)" }
-        public static func step(_ number: Int) -> String { "Step \(number) of 2" }
+        public static func step(_ number: Int, of total: Int) -> String { "Step \(number) of \(total)" }
     }
 
     // MARK: - Settings
@@ -337,7 +370,11 @@ public enum UIStrings {
     public static let allFixed: [String] = [
         Picker.pick, Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
         Onboarding.title, Onboarding.introduction, Onboarding.accessibilityNote, Onboarding.continueButton,
-        Onboarding.quitAndReopen, Onboarding.relaunchNote,
+        Onboarding.quitAndReopen, Onboarding.relaunchNote, Onboarding.done, Onboarding.directCapture,
+        Onboarding.directCaptureDetail, Onboarding.directCaptureWaiting,
+        Onboarding.allow(.screenRecording), Onboarding.allow(.directCapture), Onboarding.allow(.accessibility),
+        Onboarding.askAgain, Onboarding.notAllowed, Onboarding.explanation(.screenRecording),
+        Onboarding.explanation(.directCapture),
         Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
         Onboarding.cliDetail, Onboarding.notInstalled,
         Agents.title, Agents.connect, Agents.remove,
@@ -351,7 +388,7 @@ public enum UIStrings {
         Errors.recordingStopped, Errors.screenRecordingOff, Errors.screenRecordingDetail, Errors.cantResize,
         Errors.cantResizeDetail, Errors.notExact, Errors.couldntSave, Errors.somethingWentWrong,
         Errors.copyErrorDetails, Errors.openPrivacySettings, Errors.openAccessibilitySettings, Errors.pickAnotherSize,
-        Errors.chooseOutputFolder,
+        Errors.chooseOutputFolder, Errors.directCaptureOff, Errors.directCaptureDetail,
         Alerts.discardTitle, Alerts.discardMessage, Alerts.discard, Alerts.cancel, Alerts.quitTitle,
         Alerts.stopAndQuit,
         CustomSize.title, CustomSize.width, CustomSize.height, CustomSize.px, CustomSize.times, CustomSize.setSize,

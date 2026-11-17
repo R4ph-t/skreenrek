@@ -28,7 +28,8 @@ public protocol UIEffects: AnyObject {
 public enum PrivacyPane {
     public static func url(_ permission: Permission) -> URL {
         switch permission {
-        case .screenRecording:
+        // macOS 15 lists the private window picker bypass in the same Screen & System Audio Recording pane.
+        case .screenRecording, .directCapture:
             URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
         case .accessibility:
             URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -94,7 +95,7 @@ public final class AppModel {
             snapshot: snapshot, actionError: actionError, lastClipTitle: tracker.title,
             sizeChoice: settings.sizeChoice, display: snapshot.display ?? effects.mainDisplay(),
             cursor: settings.cursor, events: settings.events,
-            permissionsMissing: permissions.map { $0.screenRecording != .allowed || $0.accessibility != .allowed }
+            permissionsMissing: permissions.map { !$0.canCapture || $0.accessibility != .allowed }
                 ?? false)
     }
 

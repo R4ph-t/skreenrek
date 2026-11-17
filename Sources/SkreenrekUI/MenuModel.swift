@@ -420,6 +420,10 @@ public struct ErrorPresentation: Sendable, Hashable {
             fixes = [
                 MenuItemModel(UIStrings.Errors.openPrivacySettings, action: .openPrivacySettings(.screenRecording))
             ]
+        case .permissionDenied(.directCapture):
+            title = UIStrings.Errors.directCaptureOff
+            detail = UIStrings.Errors.directCaptureDetail
+            fixes = [MenuItemModel(UIStrings.Menu.permissionsNeeded, action: .showPermissions)]
         case .permissionDenied(.accessibility):
             title = UIStrings.Errors.cantResize
             detail = UIStrings.Errors.cantResizeDetail
