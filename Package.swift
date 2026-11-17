@@ -21,8 +21,10 @@ let package = Package(
                 "SkreenrekCore", "SkreenrekControl",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]),
+        .target(name: "SkreenrekUI", dependencies: ["SkreenrekControl", "SkreenrekCore"]),
         .executableTarget(
-            name: "skreenrek", dependencies: ["SkreenrekCore", "SkreenrekSystem", "SkreenrekControl", "SkreenrekCLI"]),
+            name: "skreenrek",
+            dependencies: ["SkreenrekCore", "SkreenrekSystem", "SkreenrekControl", "SkreenrekCLI", "SkreenrekUI"]),
         .testTarget(name: "SkreenrekCoreTests", dependencies: ["SkreenrekCore", "SkreenrekTesting"]),
         .testTarget(name: "SkreenrekSystemTests", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
         .testTarget(
@@ -30,6 +32,9 @@ let package = Package(
         .testTarget(
             name: "SkreenrekCLITests",
             dependencies: ["SkreenrekCLI", "SkreenrekControl", "SkreenrekCore", "SkreenrekTesting"]),
+        .testTarget(
+            name: "SkreenrekUITests",
+            dependencies: ["SkreenrekUI", "SkreenrekControl", "SkreenrekCore", "SkreenrekTesting"]),
     ],
     swiftLanguageModes: [.v6]
 )

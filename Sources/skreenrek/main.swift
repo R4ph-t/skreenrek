@@ -4,12 +4,28 @@ import SkreenrekCLI
 import SkreenrekControl
 import SkreenrekCore
 import SkreenrekSystem
+import SkreenrekUI
 
-switch LaunchMode.decide(arguments: Array(CommandLine.arguments.dropFirst()), stdinIsTTY: isatty(STDIN_FILENO) == 1) {
+let commandLine = Array(CommandLine.arguments.dropFirst())
+
+// Hidden: renders the menu-bar UI to PNGs at 2× in light and dark, for Designer. It draws with AppKit on the main
+// thread, so it runs here rather than in the CLI.
+if commandLine.count == 4, commandLine[0] == "debug", commandLine[1] == "render-ui", commandLine[2] == "--out" {
+    let folder = URL(fileURLWithPath: (commandLine[3] as NSString).expandingTildeInPath, isDirectory: true)
+    do {
+        let written = try MainActor.assumeIsolated { try UIRenderer.renderAll(to: folder) }
+        for file in written { print(file.url.path) }
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("error: Couldn't render the UI: \(error)\n".utf8))
+        exit(1)
+    }
+}
+
+switch LaunchMode.decide(arguments: commandLine, stdinIsTTY: isatty(STDIN_FILENO) == 1) {
 case .app:
-    // The headless app (the controller and the control socket with the real seams) until the menu-bar UI arrives in
-    // 08.
-    MainActor.assumeIsolated { HeadlessApp.run() }
+    // The menu-bar app: the controller, the control socket and the menu bar (LSUIElement-style, no Dock icon).
+    MainActor.assumeIsolated { MenuBarApp.run(seams: AppSeams.real()) }
 case .help:
     runCLI(["--help"])
 case .cli(let arguments):
@@ -51,24 +67,13 @@ extension CLIEnvironment {
 }
 
 @MainActor
-enum HeadlessApp {
-    static func run() -> Never {
+enum AppSeams {
+    static func real() -> ControllerSeams {
         let clock = HostTimeClock()
         let catalog = SCWindowCatalog()
-        let seams = ControllerSeams(
+        return ControllerSeams(
             catalog: catalog, resizer: AXWindowResizer(catalog: catalog), frameSource: SCStreamFrameSource(),
             mouse: NSEventMouseSource(clock: clock), clock: clock, permissions: SystemPermissionProbe(),
             disk: VolumeDiskSpaceProbe(), encoder: .requireHardware)
-        let host = HeadlessHost(seams: seams)
-        do {
-            try host.start()
-        } catch {
-            FileHandle.standardError.write(Data("error: \(error)\n".utf8))
-            exit(1)
-        }
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
-        withExtendedLifetime(host) { app.run() }
-        exit(0)
     }
 }
