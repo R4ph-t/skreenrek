@@ -143,6 +143,15 @@ The CLI parser and output formats (06), MCP (07), UI (08, 10), launching the app
   Requests run at user-initiated priority: at default priority, test tasks polling with `Task.yield()` starved the
   server's tasks and hung the suite, so the tests wait on events (`ObservedSink.waitForAppends`,
   `waitForEndWaiters`, the snapshot stream, `FakeWindowPicker.waitForPick`) instead of polling.
+- **No test can hang.** On a loaded machine the suite used to stall in `record.stop`: 03's offline `ClipWriter`
+  waits for the encoder by blocking its thread on a semaphore, and a dozen control tests recording in parallel took
+  every Swift concurrency thread (seen in a stack sample: all in `ClipWriter.isReady` → `waitBlocking`). The control
+  tests now record into `NullSink` (never blocks; `SkreenrekTesting`), and only the end-to-end test encodes a real MP4.
+  Every test wait goes through `within(_:seconds:)` (a 30 s real-time watchdog that fails the test instead of
+  hanging; it never drives timing), client calls carry a timeout (`record.wait` and `pick` included), and every
+  control suite has a `.timeLimit` backstop. Five full `swift test` runs with every core saturated passed with no
+  hang; the socket perf numbers stayed under 25 ms / 60 ms / 6 ms. One of those runs failed 03's
+  `PerfFinalizeTests` budget (2.5 s vs 1.5 s) under that artificial load; that budget is 03's and is unchanged here.
 - **Perf (measured locally, Apple silicon, software encoder).** Request → first frame median 5 ms (budget 250); the
   response arrives before or with the first frame, checked on the median of the 5 runs (≤ 50 ms after it): under the
   full `make check` load one run's answer once reached the test 412 ms late while its frame was already written 6 ms

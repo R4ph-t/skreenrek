@@ -23,6 +23,54 @@ enum ControlFixtures {
         frame: PointRect(x: 200, y: 300, width: 320, height: 200), displayId: 1, onScreen: true)
 }
 
+/// A test wait that took longer than its watchdog.
+struct WaitTimedOut: Error, CustomStringConvertible {
+    var what: String
+    var seconds: Double
+    var description: String { "Gave up after \(seconds) s waiting for \(what)." }
+}
+
+/// Runs `body`, failing with `WaitTimedOut` after `seconds` of real time instead of hanging. The watchdog only bounds
+/// the wait; it never drives the test's timing. A body still stuck is cancelled and left behind.
+func within<T: Sendable>(
+    _ what: String, seconds: Double = 30, _ body: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    let gate = ResumeOnce<T>()
+    return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, any Error>) in
+        gate.set(continuation)
+        let task = Task {
+            do {
+                gate.finish(.success(try await body()))
+            } catch {
+                gate.finish(.failure(error))
+            }
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
+            if gate.finish(.failure(WaitTimedOut(what: what, seconds: seconds))) { task.cancel() }
+        }
+    }
+}
+
+/// Resumes a continuation once, from whichever side finishes first.
+private final class ResumeOnce<T: Sendable>: Sendable {
+    private let state = Mutex<(continuation: CheckedContinuation<T, any Error>?, done: Bool)>((nil, false))
+
+    func set(_ continuation: CheckedContinuation<T, any Error>) {
+        state.withLock { $0.continuation = continuation }
+    }
+
+    @discardableResult
+    func finish(_ result: Result<T, any Error>) -> Bool {
+        let continuation = state.withLock { s -> CheckedContinuation<T, any Error>? in
+            guard !s.done else { return nil }
+            s.done = true
+            return s.continuation
+        }
+        continuation?.resume(with: result)
+        return continuation != nil
+    }
+}
+
 /// A short folder for a test's socket and clips (Unix socket paths hold at most 104 bytes).
 struct ShortTemp {
     let root: URL
@@ -118,9 +166,11 @@ final class Harness: Sendable {
     /// - Parameters:
     ///   - source: default 31 frames at 30 fps from host time 0, delivered at once.
     ///   - realTime: true for the perf suites (real clock, real-time writer).
+    ///   - encode: write a real MP4 with `ClipWriter`; default off (a `NullSink`), because offline encoding blocks a
+    ///     thread per recording and starves the concurrency pool when many tests record at once.
     init(
         source: SyntheticFrameSource = SyntheticFrameSource(count: 31, fps: 30), clock: any HostClock = ManualClock(),
-        picker: FakeWindowPicker = FakeWindowPicker(), realTime: Bool = false,
+        picker: FakeWindowPicker = FakeWindowPicker(), realTime: Bool = false, encode: Bool = false,
         windows: [WindowInfo] = [ControlFixtures.safari, ControlFixtures.terminal]
     ) {
         self.source = source
@@ -131,7 +181,7 @@ final class Harness: Sendable {
         let seams = ControllerSeams(
             catalog: catalog, resizer: resizeGate, frameSource: source, mouse: mouse, clock: clock,
             permissions: permissions, disk: disk, picker: picker, ownPid: 99, encoder: .software,
-            realTimeWriter: realTime, makeSink: sinks.factory(clock: clock))
+            realTimeWriter: realTime, makeSink: sinks.factory(clock: clock, encode: encode || realTime))
         host = HeadlessHost(
             seams: seams, settings: ControllerSettings(outputFolder: temp.output, fps: .fps30), socketPath: temp.socket)
     }
@@ -149,17 +199,23 @@ final class Harness: Sendable {
 
     /// Waits (without sleeping or polling) until the current recording has appended `count` slots. Call it after
     /// `record.start` answered, so the clip writer exists.
-    func waitForSlots(_ count: Int) async {
-        guard let sink = sinks.latest else {
-            Issue.record("No recording has started.")
-            return
-        }
-        await sink.waitForAppends(count)
+    func waitForSlots(_ count: Int) async throws {
+        let sink = try #require(sinks.latest, "No recording has started.")
+        try await within("\(count) slots") { await sink.waitForAppends(count) }
     }
 
     /// Waits until the controller's state is `state`, from its snapshot stream (no polling).
-    func waitForState(_ state: ControllerState) async {
-        for await snapshot in await controller.snapshots() where snapshot.state == state { return }
+    func waitForState(_ state: ControllerState) async throws {
+        let controller = controller
+        try await within("state \(state)") {
+            for await snapshot in await controller.snapshots() where snapshot.state == state { return }
+        }
+    }
+
+    /// Waits until `count` callers wait in `record.wait`.
+    func waitForEndWaiters(_ count: Int = 1) async throws {
+        let controller = controller
+        try await within("\(count) record.wait callers") { await controller.waitForEndWaiters(count) }
     }
 
     func stop() {

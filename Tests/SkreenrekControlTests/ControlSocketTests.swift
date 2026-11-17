@@ -7,9 +7,9 @@ import SkreenrekTesting
 import Testing
 
 /// The whole flow over a real Unix socket against a `HeadlessHost` with fakes.
-@Suite struct ControlFlowTests {
+@Suite(.timeLimit(.minutes(2))) struct ControlFlowTests {
     @Test func windowsThenStartWithASizeThenStopWritesTheThreeFiles() async throws {
-        let h = try Harness().start()
+        let h = try Harness(encode: true).start()
         defer { h.stop() }
         let client = try await h.client(.mcp, name: "Claude Code")
 
@@ -28,10 +28,10 @@ import Testing
         #expect(start.recordingId.hasSuffix("_safari"))
         #expect(h.source.startCalls.map(\.size) == [PixelSize(width: 1440, height: 900)])
 
-        await h.waitForSlots(15)
+        try await h.waitForSlots(15)
         h.mouse.send(MouseEvent(type: .down, button: 0, clickCount: 1, location: CGPoint(x: 480, y: 305), hostTime: 0.5))
         h.mouse.send(MouseEvent(type: .up, button: 0, clickCount: 1, location: CGPoint(x: 480, y: 305), hostTime: 0.6))
-        await h.waitForSlots(30)
+        try await h.waitForSlots(30)
 
         let reply = try await client.send(.recordStop)
         let stop = try reply.decode(StopBody.self)
@@ -119,7 +119,7 @@ import Testing
         #expect(refused.first?.message == "Skreenrek is already recording Safari.")
         #expect(refused.first?.hint == "Run: skreenrek stop")
         #expect(h.source.startCalls.count == 1)
-        await h.waitForSlots(1)
+        try await h.waitForSlots(1)
         _ = try await a.call(.recordStop, as: StopBody.self)
     }
 
@@ -186,7 +186,7 @@ import Testing
         defer { h.stop() }
         h.permissions.accessibility = .missing
         let client = try await h.client()
-        _ = try await client.call(.pick, params: PickParams(), as: PickBody.self)
+        _ = try await client.call(.pick, params: PickParams(), as: PickBody.self, timeout: 30)
         let before = try await client.call(.status, as: StatusBody.self)
 
         let error = try await client.expectError(.resize, params: ResizeParams(app: "Safari", width: 1440, height: 900))
@@ -207,7 +207,7 @@ import Testing
         let h = try Harness(picker: FakeWindowPicker(result: .window(WindowID(4127)))).start()
         defer { h.stop() }
         let client = try await h.client()
-        let picked = try await client.call(.pick, params: PickParams(timeoutSeconds: 5), as: PickBody.self)
+        let picked = try await client.call(.pick, params: PickParams(timeoutSeconds: 5), as: PickBody.self, timeout: 30)
         #expect(picked == .window(WindowEntry(ResolvedWindow(window: ControlFixtures.safari, display: ControlFixtures.retina))))
         #expect(h.picker.timeouts == [5])
         #expect(try await client.call(.status, as: StatusBody.self).state == .armed)
@@ -230,7 +230,7 @@ import Testing
         h.resizeGate.close()
         async let resized = resizer.call(
             .resize, params: ResizeParams(app: "Safari", width: 1440, height: 900), as: Readback.self)
-        await h.resizeGate.waitForHeldCall()
+        try await within("the held resize") { await h.resizeGate.waitForHeldCall() }
 
         let start = try await other.expectError(.recordStart, params: StartParams(app: "Terminal"))
         #expect(start.exit == 6)
@@ -287,8 +287,8 @@ import Testing
         let waiter = try await h.client()
         let start = try await starter.call(
             .recordStart, params: StartParams(app: "Safari", durationSeconds: 1), as: StartBody.self)
-        async let wait = waiter.call(.recordWait, as: EndBody.self)
-        await h.controller.waitForEndWaiters(1)
+        async let wait = waiter.call(.recordWait, as: EndBody.self, timeout: 30)
+        try await h.waitForEndWaiters(1)
         clock.advance(to: 1 + RecordingSession.defaultTickGrace)
         let ended = try await wait
         guard case .saved(let body) = ended else {
@@ -308,10 +308,10 @@ import Testing
         let client = try await h.client()
         let waiter = try await h.client()
         let start = try await client.call(.recordStart, params: StartParams(app: "Safari"), as: StartBody.self)
-        await h.waitForSlots(5)
-        async let wait = waiter.call(.recordWait, as: EndBody.self)
+        try await h.waitForSlots(5)
+        async let wait = waiter.call(.recordWait, as: EndBody.self, timeout: 30)
         // record.wait is waiting before the discard goes out.
-        await h.controller.waitForEndWaiters(1)
+        try await h.waitForEndWaiters(1)
         let discarded = try await client.call(.recordDiscard, as: DiscardBody.self)
         #expect(discarded.discarded)
         #expect(try await wait == .discarded)
@@ -329,7 +329,7 @@ import Testing
         let client = try await h.client()
         _ = try await client.call(.recordStart, params: StartParams(app: "Safari"), as: StartBody.self)
         // The source ends on its own; the recording may be over before any request gets there.
-        await h.waitForState(.error)
+        try await h.waitForState(.error)
         let error = try #require(try await client.call(.status, as: StatusBody.self).error)
         #expect(error.exit == 7)
         #expect(error.code == "recording_failed")
@@ -354,7 +354,7 @@ import Testing
         defer { h.stop() }
         let client = try await h.client()
         _ = try await client.call(.recordStart, params: StartParams(app: "Terminal", events: false), as: StartBody.self)
-        await h.waitForSlots(10)
+        try await h.waitForSlots(10)
         let stop = try await client.call(.recordStop, as: StopBody.self)
         #expect(stop.files.events == nil)
         #expect(!stop.snippet.contains("events.json"))
@@ -366,8 +366,8 @@ import Testing
         let h = try Harness(picker: picker).start()
         defer { h.stop() }
         let client = try await h.client(.menu)
-        async let picked = client.call(.pick, params: PickParams(), as: PickBody.self)
-        await picker.waitForPick()
+        async let picked = client.call(.pick, params: PickParams(), as: PickBody.self, timeout: 30)
+        try await within("a pick") { await picker.waitForPick() }
         picker.answer(.window(WindowID(5001)))
         guard case .window(let entry) = try await picked else {
             Issue.record("not a window")
@@ -391,8 +391,8 @@ import Testing
         let h = try Harness(picker: FakeWindowPicker(result: .cancelled)).start()
         defer { h.stop() }
         let client = try await h.client()
-        #expect(try await client.call(.pick, params: PickParams(), as: PickBody.self) == .cancelled)
-        let reply = try await client.send(.pick, params: PickParams())
+        #expect(try await client.call(.pick, params: PickParams(), as: PickBody.self, timeout: 30) == .cancelled)
+        let reply = try await client.send(.pick, params: PickParams(), timeout: 30)
         #expect(String(decoding: reply.line, as: UTF8.self).contains(#""result":{"cancelled":true}"#))
         #expect(try await client.call(.status, as: StatusBody.self).state == .idle)
         let error = try await client.expectError(.recordStart, params: StartParams())
@@ -502,7 +502,7 @@ import Testing
 }
 
 /// The controller's snapshot stream, for the UI.
-@Suite struct ControllerSnapshotTests {
+@Suite(.timeLimit(.minutes(2))) struct ControllerSnapshotTests {
     @Test func snapshotsGoIdleRecordingWritingIdle() async throws {
         let h = try Harness().start()
         defer { h.stop() }
@@ -524,14 +524,15 @@ import Testing
         #expect(recording.window?.id == WindowID(4127))
         #expect(recording.size == PixelSize(width: 1280, height: 800))
         #expect(recording.fps == .fps30)
-        await h.waitForSlots(10)
+        try await h.waitForSlots(10)
         _ = try await client.call(.recordStop, as: StopBody.self)
-        #expect(await collector.value == [.idle, .recording, .writing, .idle])
+        let states = try await within("the snapshot stream") { await collector.value }
+        #expect(states == [.idle, .recording, .writing, .idle])
     }
 }
 
 /// The wire protocol's error paths.
-@Suite struct ControlProtocolTests {
+@Suite(.timeLimit(.minutes(2))) struct ControlProtocolTests {
     @Test func malformedJSONIsUsageAndTheConnectionStaysUsable() async throws {
         let h = try Harness().start()
         defer { h.stop() }
@@ -609,7 +610,7 @@ import Testing
 }
 
 /// The socket file, its folder, stale sockets and peers.
-@Suite struct ControlServerTests {
+@Suite(.timeLimit(.minutes(2))) struct ControlServerTests {
     @Test func theFolderIs0700AndTheSocket0600() throws {
         let h = try Harness().start()
         defer { h.stop() }
@@ -699,7 +700,7 @@ import Testing
     }
 }
 
-@Suite struct ControlPathsTests {
+@Suite(.timeLimit(.minutes(2))) struct ControlPathsTests {
     @Test func theDefaultIsInApplicationSupportAndTheEnvironmentOverridesIt() {
         let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
         #expect(

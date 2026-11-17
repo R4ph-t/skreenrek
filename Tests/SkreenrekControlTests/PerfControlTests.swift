@@ -9,7 +9,7 @@ import Testing
 // for a hosted macOS virtual machine); each test prints what it measured.
 
 /// The control perf suites run one at a time, so they don't take CPU from each other.
-@Suite(.serialized) struct ControlPerfSuites {
+@Suite(.serialized, .timeLimit(.minutes(3))) struct ControlPerfSuites {
     /// A harness on the real clock whose source has a frame ready at every start, then one every 1/30 s.
     static func realTimeHarness() throws -> Harness {
         let clock = HostTimeClock()
@@ -37,7 +37,7 @@ import Testing
                 _ = try await client.call(.recordStart, params: StartParams(app: "Safari"), as: StartBody.self)
                 let answered = h.clock.now()
                 let sink = try #require(h.sinks.latest)
-                await sink.waitForAppends(1)
+                try await within("the first frame") { await sink.waitForAppends(1) }
                 let firstFrame = try #require(sink.firstAppendTime)
                 let ms = (firstFrame - sent) * 1000
                 let lagMs = (answered - firstFrame) * 1000
@@ -69,7 +69,7 @@ import Testing
             let client = try await h.client()
             _ = try await client.call(.recordStart, params: StartParams(app: "Safari"), as: StartBody.self)
             // 10 s of real time at 30 fps.
-            await h.waitForSlots(300)
+            try await h.waitForSlots(300)
             let sent = h.clock.now()
             let stop = try await client.call(.recordStop, as: StopBody.self)
             let ms = (h.clock.now() - sent) * 1000
@@ -94,7 +94,7 @@ import Testing
             defer { h.stop() }
             let recorder = try await h.client(.mcp, name: "Claude Code")
             _ = try await recorder.call(.recordStart, params: StartParams(app: "Safari"), as: StartBody.self)
-            await h.waitForSlots(15)
+            try await h.waitForSlots(15)
             let poller = try await h.client()
             var samples: [Double] = []
             for _ in 0..<20 {
