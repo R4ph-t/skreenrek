@@ -105,7 +105,7 @@ public actor RecordingSession {
         target: CaptureTarget, size: PixelSize, options: RecordingOptions, folder: URL,
         origin: RecordingOrigin = RecordingOrigin(startedBy: .cli), startedAt: Date = Date()
     ) async throws {
-        guard phase == .idle else { throw SkreenrekError.wrongState(.alreadyRecording) }
+        guard phase == .idle else { throw SkreenrekError.wrongState(.alreadyRecording(app: nil)) }
         phase = .recording
         startCallTime = clock.now()
         let fps = options.fps

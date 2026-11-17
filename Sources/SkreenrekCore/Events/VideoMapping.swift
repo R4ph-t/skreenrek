@@ -42,11 +42,3 @@ public struct VideoMapping: Sendable, Hashable {
         return Int(value.rounded())
     }
 }
-
-/// AppKit's bottom-left screen space ↔ top-left global points, for a single point (the cursor).
-public enum CursorGeometry {
-    /// Flips an AppKit point (origin at the primary display's bottom-left) to top-left global pt.
-    public static func topLeft(fromAppKit point: CGPoint, primaryDisplayHeight: Double) -> CGPoint {
-        CGPoint(x: point.x, y: primaryDisplayHeight - point.y)
-    }
-}
