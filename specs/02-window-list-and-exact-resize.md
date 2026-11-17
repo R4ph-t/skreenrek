@@ -1,6 +1,6 @@
 # 02: Window list and exact resize with read-back
 
-Status: Ready · Branch: – · Depends on: 01 (scaffold) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
