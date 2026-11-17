@@ -1,6 +1,6 @@
 # 10: Window picker overlay, recording HUD and permissions onboarding
 
-Status: Queued (herdr) · Branch: – · Depends on: 08 (menu bar), 09 (agent setup) · Estimate: 6–8 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Done · Branch: lane/10-picker-hud-and-onboarding · Depends on: 08 (menu bar), 09 (agent setup) · Estimate: 6–8 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -77,4 +77,29 @@ Editing, trimming, pause/resume, keystroke capture, a notarized build.
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- `PickerModel` owns front-to-back hover/keyboard selection, exclusions, display-local even-pixel region snapping,
+  copy and VoiceOver text. The menu, CLI and MCP share `PickerOverlay`; picking only arms the target. Label/chip
+  decorations pass pointer events through so a drag can start over the label. The keyboard registrations and bounded
+  picker timeout are removed on selection, cancellation or timeout.
+- Built the overlay-level default: one nonactivating, non-key panel per display at `mainMenu - 1`, above floating
+  windows and below the menu bar and screen saver. Panels cover the visible screen area, leaving the menu bar and
+  Dock usable. The hover uses an inside 2 pt accent stroke (3 pt with Increase Contrast), 18% tint and a 10 pt corner
+  radius; AppKit's window catalogue does not expose individual windows' corner radii.
+- `HUDModel` and `HUDPlacement` keep state, monotonic saved deadlines, hover extension and per-display dragged
+  positions separate from presentation. The 36 pt HUD and region outline never take key/main status. Settings and
+  the active recording's `hud` option suppress both; region capture excludes Skreenrek by PID even without a bundle
+  ID. Reduce Motion uses the static writing symbol and no fade; Increase Contrast thickens strokes and the HUD border.
+- `OnboardingModel` persists the current step and completion. The window polls the read-only probe every second
+  while open; only Screen Recording gates Continue. A separate requester runs only from onboarding/Settings buttons.
+  Permission rejections open step 1 while control clients retain exit 3. The real window catalogue checks permission
+  before asking ScreenCaptureKit for content, preventing an implicit prompt from an agent request.
+- Connect passes only checked, detected clients to spec 09's installer (an empty selection never invokes its
+  all-detected default). Failed installs stay on step 2 with the installer's details; Skip finishes without installing.
+- Every dropdown status row reserves a 16 pt trailing inset. Long detail text uses the existing two-line/64 pt layout,
+  including `armednotexact`, with the copy unchanged.
+- `debug render-ui` covers window/keyboard/region/empty picker states, contrast variants, all four HUD states plus
+  Reduce Motion/contrast and region outlines, and both onboarding steps with every permission combination, in light
+  and dark at 2×. Tests check geometry, transparency, dimensions, copy, exclusion, persistence, installer selection,
+  control error delivery and status wrapping. All test waits have watchdogs; live capture tests remain opt-in.
+- Validation uses `make check` on the Devin macOS VM, including offscreen renders and synthetic video tests. No app
+  launch, real capture, permission request or manual smoke test is required or performed for this lane.
