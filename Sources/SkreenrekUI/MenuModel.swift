@@ -203,8 +203,8 @@ public enum MenuModel {
     static let idleRow = StatusRow(
         symbol: StatusIconModel.Symbol.idle, title: UIStrings.Menu.ready, detail: UIStrings.Menu.noWindowPicked)
 
-    /// `viewfinder` · window title · `1280 × 800 px · exact size`, or `… · not exact (min width 1286 px)`. A window
-    /// that was picked but not resized yet shows its size alone.
+    /// `viewfinder` · window title · `1280 × 800 px · exact size`, or `… · not exact (min width 1286 px)`.
+    /// A window that was picked but not resized yet shows its size alone.
     static func armedRow(_ context: MenuContext) -> StatusRow {
         let snapshot = context.snapshot
         let size = snapshot.size?.description ?? ""
@@ -213,7 +213,8 @@ public enum MenuModel {
             let note =
                 readback.exact
                 ? UIStrings.Menu.exactSize
-                : UIStrings.Menu.notExact(ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+                : UIStrings.Menu.notExact(
+                    ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
             detail = [size, note].filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
         }
         return StatusRow(
@@ -258,7 +259,8 @@ public enum MenuModel {
             .header(UIStrings.Menu.lastClip),
             .status(
                 StatusRow(
-                    symbol: StatusIconModel.Symbol.lastClip, title: title ?? fallback ?? clip.recording.id, emphasized: false,
+                    symbol: StatusIconModel.Symbol.lastClip, title: title ?? fallback ?? clip.recording.id,
+                    emphasized: false,
                     detail: lastClipDetail(clip, timeZone: context.timeZone, locale: context.locale))),
             .item(MenuItemModel(UIStrings.Menu.showInFinder, action: .showInFinder(path: clip.files.clip))),
             .item(MenuItemModel(UIStrings.Menu.copyFilePath, action: .copyFilePath(path: clip.files.clip))),
@@ -303,7 +305,8 @@ public enum MenuModel {
         var entries: [MenuEntry] = [
             .item(
                 MenuItemModel(
-                    UIStrings.Menu.keepCurrentSize, action: .chooseSize(.keepCurrent), checked: choice == .keepCurrent)),
+                    UIStrings.Menu.keepCurrentSize, action: .chooseSize(.keepCurrent),
+                    checked: choice == .keepCurrent)),
             .separator,
         ]
         for preset in SizePresets.all {
@@ -316,7 +319,8 @@ public enum MenuModel {
         entries.append(.separator)
         entries.append(
             .item(
-                MenuItemModel(UIStrings.Menu.customSize, action: .customSize, checked: !isPreset && choice != .keepCurrent)))
+                MenuItemModel(
+                    UIStrings.Menu.customSize, action: .customSize, checked: !isPreset && choice != .keepCurrent)))
         let detail = choice.pixelSize?.description ?? UIStrings.Menu.keepCurrentSize
         return SubmenuModel(title: UIStrings.Menu.size, detail: detail, entries: entries)
     }
@@ -359,7 +363,9 @@ public struct ErrorPresentation: Sendable, Hashable {
         let title: String
         var detail = error.message
         var fixes: [MenuItemModel] = []
-        let showClip = lastClip.map { MenuItemModel(UIStrings.Menu.showInFinder, action: .showInFinder(path: $0.files.clip)) }
+        let showClip = lastClip.map {
+            MenuItemModel(UIStrings.Menu.showInFinder, action: .showInFinder(path: $0.files.clip))
+        }
         let copyDetails = MenuItemModel(
             UIStrings.Errors.copyErrorDetails, action: .copyErrorDetails(UIStrings.Errors.details(error)))
         switch error {

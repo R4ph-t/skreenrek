@@ -1,6 +1,6 @@
 # 08: Menu-bar icon, dropdown, Settings and the ⌃⌘⎋ stop shortcut
 
-Status: Queued (herdr) · Branch: – · Depends on: 05 (controller) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/08-menu-bar-dropdown-and-settings · Depends on: 05 (controller) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -84,4 +84,58 @@ Picker overlay, recording HUD and onboarding (10); Agents rows (09); Sparkle upd
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Layout.** `Sources/SkreenrekUI`: `UIStrings` (every string), `MenuContext` + `StatusIconModel` + `MenuModel` +
+  `CustomSizeModel` (pure), `SettingsStore` (`UserDefaults`, injectable), `AppModel` (main-actor state and actions over
+  the controller, with a `UIEffects` seam for Finder, pasteboard, alerts and panels), and thin AppKit/SwiftUI
+  renderers: `MenuController` (`NSStatusItem` + `NSMenu`), `StatusRowView`, `SettingsView`, `CustomSizeView`,
+  `StopHotKey` (Carbon), `SystemEffects`, `MenuBarApp`, `UIRenderer`. Tests: `Tests/SkreenrekUITests` (64 tests).
+- **Dispatch.** `skreenrek app` now runs the menu-bar app (controller, control server, menu bar, `.accessory`
+  activation policy) instead of the headless host. Hidden `skreenrek debug render-ui --out DIR` is added to
+  `main.swift` as two small branches; 06 owns the full dispatch rule and can fold them into its parser.
+- **Open questions, built with the defaults:** `NSMenu`, not `MenuBarExtra`; the ⌃⌘⎋ hot key is registered only
+  while recording, and a failed registration is logged (the menu item still stops).
+- **Errors the menu shows.** The controller only holds recording failures, so `AppModel` keeps the error from an
+  action the menu started (pick, resize, record) as `actionError`. Both clear after the menu opens and closes once,
+  or on the next action. Rows not in the error-copy table: `recording_failed` with another cause uses "Recording
+  stopped" + Show in Finder · Copy Error Details; any other error uses "Something went wrong", its message and Copy
+  Error Details (which copies the CLI's `error:` / `hint:` lines). "Pick Another Size…" opens Custom Size….
+- **Icon sentences.** Beyond the spec's examples: durations over a minute read `1 minute 5 seconds`; a region reads
+  "a screen region"; the error reason is the cause in lower case (`the window closed`, `less than 2 GB free`, `the
+  output folder isn't writable`, `Screen Recording is off`, …). Tooltip and VoiceOver are pushed on each state
+  change and every 10 s while recording; the elapsed `m:ss` beside the symbol updates every second (a common-mode
+  timer, so it moves while the menu is open). Recording uses `record.circle.fill` with a hierarchical system-red
+  tint; every other state is a template image.
+- **Size.** The Size row shows the current choice right-aligned (`1280 × 800 px`, or "Keep Current Size"). The
+  choice persists (`nextSize`; not a Settings row). Picking a window does not resize it; choosing a size while armed
+  resizes immediately with `allowInexact`, so a size the app can't reach shows in the status row as `… · not exact
+  (min width 1286 px)`. Record Window resizes first to the chosen size unless the armed read-back already asked for
+  it; that resize is strict, so an unreachable size shows the "Size isn't exact" row. A just-picked window without a
+  read-back shows its size alone (no "exact size" claim). Custom Size… is a small panel rather than a sheet (a
+  menu-bar app has no window to hang a sheet on); it validates with `SizeRequest`, so odd sizes on 2× are refused
+  with the CLI's wording.
+- **States without copy in the design spec.** Writing: `arrow.down.circle` · "Saving clip…" (the HUD's wording) ·
+  `0:42 · 1280 × 800 px · 60 fps`, the origin row, then Open Output Folder · Settings… · Quit. MCP with no client
+  name: "Started over MCP". The Last Clip section is hidden while recording and writing. Quit reads "Quit
+  Skreenrek ⌘Q" in every state.
+- **Last Clip.** The title is remembered from the recording's window (`LastClipTracker`), falling back to the
+  read-back, then the clip ID. The time is the clip's local start time in the Mac's short time style. The format
+  suffix reads the codec from `recording.codec` (labels H.264 / HEVC / ProRes, ready for 12's `prores`) and the
+  container from the clip's file extension (`.mov` → MOV, anything else → MP4), since `StopBody` has no container
+  field before 12. A non-default suffix makes the detail too long for one line at 12 pt, so that row wraps to 64 pt.
+- **Metrics.** 300 pt menu; status rows 48 pt (64 pt when the detail wraps), 8 pt vertical padding, 16 pt symbol
+  column at 12 pt, text at 32 pt, running to 4 pt from the right edge so `1286 × 800 px · not exact (min width
+  1286 px)` fits on one line in SF Pro. Native `NSMenu` items keep AppKit's own row height (it can't be set); the
+  rendered dropdowns use 24 pt. `NSMenu` has no default-item API, so Stop Recording is flagged `isDefault` in the
+  model and is the first actionable item.
+- **Alerts.** Discard: [Cancel] [Discard], Discard destructive, Return doesn't discard, Esc cancels. Quit while
+  recording: [Cancel] [Stop and Quit] → stop and save, then quit; quitting while a clip is written waits for it.
+- **Settings.** Checkbox toggles, segmented frame rate, output folder shown with `~`. Open at login failures show
+  "Skreenrek couldn't be added to your login items." (or "removed from") under the row; an unbundled build always
+  fails here. Permission rows read the probe (never prompt) and refresh when Skreenrek becomes active again. Footer:
+  "Skreenrek 0.1.0". The dropdown's Frame Rate, Show Cursor and Write Click Events write the same stored values as
+  Settings; every change is pushed to `controller.updateSettings`.
+- **`render-ui`.** Writes `menubaricon-<state>`, `statusrow-<state>`, `dropdown-<state>` for 13 states (idle,
+  lastclip, lastclipmov, armed, armednotexact, recording, writing, and the six error rows), `submenu-size`,
+  `submenu-framerate` and `settings-default`, each `-light` and `-dark@2x.png`. An offscreen `NSMenu` can't be drawn,
+  so dropdowns are composed from the same `MenuEntry` list and `StatusRowView`, on a solid stand-in for the menu
+  material (radius 10).

@@ -170,7 +170,8 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     @Test func lastClipTitleFallsBackToTheReadback() {
         var snapshot = UIFixtures.idle
         snapshot.lastClip = RenderSamples.clip()
-        #expect(lines(UIFixtures.context(snapshot)).contains { $0.hasPrefix("[play.rectangle] Safari — localhost:3000") })
+        #expect(
+            lines(UIFixtures.context(snapshot)).contains { $0.hasPrefix("[play.rectangle] Safari — localhost:3000") })
     }
 
     @Test func lastClipDetailDefaultFormatHasNoSuffix() {
@@ -243,8 +244,8 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         let menu = rows(.recordingFailed(.windowClosed(at: 31)))
         #expect(
             Array(menu.prefix(4)) == [
-                "[exclamationmark.triangle] Recording stopped | The window closed at 0:31. The clip up to that point was "
-                    + "saved.",
+                "[exclamationmark.triangle] Recording stopped | The window closed at 0:31. "
+                    + "The clip up to that point was saved.",
                 "Show in Finder",
                 "Copy Error Details",
                 "---",
@@ -278,8 +279,8 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         let menu = rows(error, armed: true)
         #expect(
             Array(menu.prefix(2)) == [
-                "[exclamationmark.triangle] Size isn't exact | Safari can't be narrower than 1286 px. It is 1286 × 800 "
-                    + "px now.",
+                "[exclamationmark.triangle] Size isn't exact | Safari can't be narrower than 1286 px. "
+                    + "It is 1286 × 800 px now.",
                 "Pick Another Size…",
             ])
         #expect(menu.contains("Pick Another Window…"))
@@ -314,8 +315,12 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
                     "error: The window closed at 0:31. The clip up to that point was saved.\n"
                         + "hint:  Find the partial clip with: skreenrek last"),
             ])
-        #expect(ErrorPresentation(.notExact(app: "A", requested: UIFixtures.size, actual: UIFixtures.size,
-            reason: .steps), lastClip: nil).fixes.map(\.action) == [.customSize])
+        #expect(
+            ErrorPresentation(
+                .notExact(
+                    app: "A", requested: UIFixtures.size, actual: UIFixtures.size,
+                    reason: .steps), lastClip: nil
+            ).fixes.map(\.action) == [.customSize])
         #expect(
             ErrorPresentation(.recordingFailed(.notWritable), lastClip: nil).fixes.map(\.action) == [
                 .chooseOutputFolder

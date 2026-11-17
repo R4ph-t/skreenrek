@@ -277,9 +277,10 @@ final class MenuBarIconPreview: NSView {
 
     init(_ icon: StatusIcon) {
         self.icon = icon
-        let titleWidth = icon.elapsed.map {
-            ceil((" " + $0 as NSString).size(withAttributes: [.font: MenuMetrics.elapsedFont]).width)
-        } ?? 0
+        let titleWidth =
+            icon.elapsed.map {
+                ceil((" " + $0 as NSString).size(withAttributes: [.font: MenuMetrics.elapsedFont]).width)
+            } ?? 0
         super.init(frame: NSRect(x: 0, y: 0, width: 16 + 16 + titleWidth, height: Self.height))
         setAccessibilityLabel(icon.sentence)
     }
@@ -382,7 +383,8 @@ final class SeparatorPreview: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.separatorColor.setFill()
         NSRect(
-            x: MenuMetrics.trailingPadding, y: floor(bounds.midY), width: bounds.width - MenuMetrics.trailingPadding * 2,
+            x: MenuMetrics.trailingPadding, y: floor(bounds.midY),
+            width: bounds.width - MenuMetrics.trailingPadding * 2,
             height: 1
         ).fill()
     }

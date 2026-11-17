@@ -68,7 +68,8 @@ import Testing
         for x in stride(from: 0, to: rep.pixelsWide, by: stepX) {
             for y in stride(from: 0, to: rep.pixelsHigh, by: stepY) {
                 guard let c = rep.colorAt(x: x, y: y), c.alphaComponent > 0 else { continue }
-                let key = UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8
+                let key =
+                    UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8
                     | UInt32(c.blueComponent * 255)
                 colors.insert(key)
                 if colors.count > 1 { return true }

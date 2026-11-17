@@ -36,7 +36,8 @@ public enum StatusIconModel {
         switch state {
         case .idle:
             return StatusIcon(
-                symbol: Symbol.idle, tinted: false, elapsed: nil, sentence: UIStrings.Icon.idle, accessibilityKey: "idle")
+                symbol: Symbol.idle, tinted: false, elapsed: nil, sentence: UIStrings.Icon.idle,
+                accessibilityKey: "idle")
         case .armed:
             let sentence = UIStrings.Icon.armed(target: context.spokenTarget, size: context.snapshot.size)
             return StatusIcon(

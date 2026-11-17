@@ -2,9 +2,9 @@ import Carbon.HIToolbox
 import Foundation
 import os
 
-/// The global ⌃⌘⎋ stop shortcut: a Carbon hot key (no Accessibility needed), registered only while a recording runs so
-/// it never shadows macOS's own ⌃⌘⎋ at other times. If registration fails, the menu item still works and the failure
-/// is logged.
+/// The global ⌃⌘⎋ stop shortcut: a Carbon hot key (no Accessibility needed), registered only while a recording
+/// runs so it never shadows macOS's own ⌃⌘⎋ at other times. If registration fails, the menu item still works and
+/// the failure is logged.
 @MainActor
 final class StopHotKey {
     private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "hotkey")
@@ -34,7 +34,8 @@ final class StopHotKey {
         let status = RegisterEventHotKey(
             UInt32(kVK_Escape), UInt32(controlKey | cmdKey), id, GetApplicationEventTarget(), 0, &ref)
         guard status == noErr, let ref else {
-            Self.log.error("Couldn't register the ⌃⌘⎋ stop shortcut (\(status, privacy: .public)); the menu still stops.")
+            Self.log.error(
+                "Couldn't register the ⌃⌘⎋ stop shortcut (\(status, privacy: .public)); the menu still stops.")
             return
         }
         hotKey = ref

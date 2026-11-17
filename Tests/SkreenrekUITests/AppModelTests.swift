@@ -156,7 +156,8 @@ struct MenuHarness {
         h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
         try await h.perform(.pickWindow)
         try await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
-        #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+        #expect(
+            h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
         #expect(h.model.context.error == nil)
     }
 
@@ -202,11 +203,12 @@ struct MenuHarness {
         try await h.perform(.record)
         // Record resized first to the chosen size, then stopped at the permission.
         #expect(h.resizer.calls.count == 1)
-        #expect(h.model.entries.prefix(2).map(\.line) == [
-            "[exclamationmark.triangle] Screen Recording is off | Allow Skreenrek in System Settings › Privacy & "
-                + "Security, then reopen it.",
-            "Open Privacy Settings…",
-        ])
+        #expect(
+            h.model.entries.prefix(2).map(\.line) == [
+                "[exclamationmark.triangle] Screen Recording is off | Allow Skreenrek in System Settings › Privacy & "
+                    + "Security, then reopen it.",
+                "Open Privacy Settings…",
+            ])
         try await h.perform(.openPrivacySettings(.screenRecording))
         #expect(h.effects.opened == [PrivacyPane.url(.screenRecording)])
     }
