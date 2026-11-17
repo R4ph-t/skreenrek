@@ -40,11 +40,13 @@ struct RecordingHUDView: View {
         case .hidden: EmptyView()
         case .recording(let target, let seconds):
             HStack(spacing: 12) {
-                symbol("record.circle.fill").foregroundStyle(Color(nsColor: .systemRed))
-                // Reserve four minute digits so crossing 9:59 never moves Stop during a click.
-                Text(TimeFormat.minutesSeconds(599_999)).hidden()
-                    .overlay(alignment: .trailing) { Text(TimeFormat.minutesSeconds(Double(seconds))) }
-                    .font(.system(size: 12, design: .monospaced))
+                // The time sits 8 pt after the symbol in a slot fitted to the current string. Monospaced digits keep
+                // that width fixed from 0:00 to 9:59, so it grows only once, at 10:00.
+                HStack(spacing: 8) {
+                    symbol("record.circle.fill").foregroundStyle(Color(nsColor: .systemRed))
+                    Text(TimeFormat.minutesSeconds(Double(seconds)))
+                        .font(.system(size: 12, design: .monospaced)).monospacedDigit()
+                }
                 Divider().frame(height: 16)
                 Button(action: stop) {
                     Label(UIStrings.HUD.stop, systemImage: "stop.fill")
@@ -104,6 +106,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     private var target: PointRect?
     private var programmaticMove = false
     private var renderedKind: HUDState.Kind?
+    private var renderedTimeLength: Int?
     private var placedTarget: PointRect?
     private var placedDisplay: DisplayInfo?
     private var fading = false
@@ -166,6 +169,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             outline?.orderOut(nil)
             timer?.invalidate(); timer = nil
             renderedKind = nil
+            renderedTimeLength = nil
             guard panel.isVisible, !fading else { return }
             if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 panel.orderOut(nil)
@@ -198,9 +202,15 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             }
             RunLoop.main.add(timer, forMode: .common); self.timer = timer
         }
-        let kindChanged = renderedKind != model.state.kind
-        if kindChanged {
+        // The time slot is fitted to its string, so the HUD is rebuilt and re-fitted when the string gets longer
+        // (once, at 10:00) as well as when the state's kind changes.
+        let timeLength: Int? =
+            if case .recording(_, let seconds) = model.state { TimeFormat.minutesSeconds(Double(seconds)).count }
+            else { nil }
+        let rebuild = renderedKind != model.state.kind || renderedTimeLength != timeLength
+        if rebuild {
             renderedKind = model.state.kind
+            renderedTimeLength = timeLength
             let view = NSHostingView(rootView: RecordingHUDView(
                 presentation: presentation,
                 stop: { [weak self] in self?.stop() },
@@ -213,7 +223,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             panel.contentView = view
         }
         if let display, let target, let view = panel.contentView,
-           kindChanged || placedDisplay != display || (placedTarget != target && placement.remembered[display.id] == nil) {
+           rebuild || placedDisplay != display || (placedTarget != target && placement.remembered[display.id] == nil) {
             programmaticMove = true
             panel.setFrame(geometry.appKit(fromTopLeft: placement.frame(target: target, display: display, width: view.frame.width)), display: true)
             programmaticMove = false
