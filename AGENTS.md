@@ -24,7 +24,7 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
 - **Seams.** Window listing, window resizing, the frame source, the mouse event source, the clock, permission checks,
   disk space, app launching and the window picker are protocols in `SkreenrekCore` (or the target that owns them).
   Real implementations live in `SkreenrekSystem`/`SkreenrekUI` and stay thin: no logic that a fake can't exercise.
-- **Tests never need a permission.** `swift test` runs on a GitHub-hosted macos-15 runner with no Screen Recording or
+- **Tests never need a permission.** `swift test` runs in the lane's worktree on Raph's Mac with no Screen Recording or
   Accessibility grant. Tests use the fakes in `SkreenrekTesting`, never import ScreenCaptureKit, and never call
   `CGRequestScreenCaptureAccess`, `CGPreflightScreenCaptureAccess` or `AXIsProcessTrustedWithOptions`.
   Video tests push synthetic `CVPixelBuffer`s through the real AVAssetWriter pipeline and check the real `.mp4` with
@@ -47,8 +47,8 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
 - Tests that need Screen Recording or Accessibility permission are opt-in live tests (above). The factory does not run
   them, and merging never waits on them.
 - `make check` is the factory's gate: an offline lint of `.factory/project.conf`, then `swift build` and `swift test`
-  once `Package.swift` exists. CI runs it on macOS 15 (check name: `factory check`). New warnings count as failures in
-  review.
+  once `Package.swift` exists. There is no GitHub CI (Raph's call, 2026-11-17): a PR merges when `make check` passes in
+  its lane worktree on Raph's Mac at the PR head. New warnings count as failures in review.
 - Never commit secrets, keys, team ids or personal paths, and never read `.release.env`, `.env`, key or cert files.
 - Designer's spec is in `docs/design-spec.md`. When a spec says 'from the design spec', use that file verbatim;
   don't block on Notion.
