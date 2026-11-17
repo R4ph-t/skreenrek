@@ -82,6 +82,7 @@ A Homebrew cask, a notarized DMG and Sparkle (after v1, when a Developer ID exis
   backups of existing files are retained. A private ownership ledger in Application Support records what setup
   added; removal restores an unchanged config byte for byte, or removes just the owned entry after unrelated edits.
   Config files are never deleted; a newly created config becomes empty TOML or an empty JSON object on removal.
+  Deleted configs stay absent during removal, and default removal includes ledger-owned orphaned connections.
 - Defaults where no exact setup copy/schema was specified: JSON is an array of `{agent, success, message, warnings}`;
   human output is one `✓`/`✗` line per selection. No flags selects detected agent folders; `--cli` alone only links
   the command. A missing PATH entry is a warning, not a failed install. Settings also includes Command-line tool.

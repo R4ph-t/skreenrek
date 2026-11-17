@@ -172,24 +172,26 @@ public struct AgentInstaller: Sendable {
             }
             let command = Self.stableExecutable(executablePath)
             let server: String
+            let installedConfig: String
             if agent == .codex {
                 guard try !TOMLConfig.hasServer(original ?? ""), try TOMLConfig.block(in: original ?? "") == nil else {
                     throw AgentSetupError("A skreenrek MCP server already exists. Leave it unchanged and remove it before connecting.")
                 }
                 server = try TOMLConfig.server(command: command)
                 let text = original ?? ""
-                config = text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + server
-                try TOMLConfig.validate(config)
+                installedConfig = text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + server
+                try TOMLConfig.validate(installedConfig)
             } else {
                 guard try JSONConfig.server(in: original ?? "{}") == nil else {
                     throw AgentSetupError("A skreenrek MCP server already exists. Leave it unchanged and remove it before connecting.")
                 }
                 let data = try JSONSerialization.data(withJSONObject: ["command": command, "args": ["mcp"]], options: [.sortedKeys, .withoutEscapingSlashes])
                 server = String(decoding: data, as: UTF8.self)
-                config = try JSONConfig.edit(original ?? "{}\n", server: server)
+                installedConfig = try JSONConfig.edit(original ?? "{}\n", server: server)
             }
+            config = installedConfig
             newSkill = Data(RecordWindowSkill.text.utf8)
-            updated[agent.rawValue] = Entry(originalConfig: original, installedConfig: config, originalSkill: skill, installedServer: server)
+            updated[agent.rawValue] = Entry(originalConfig: original, installedConfig: installedConfig, originalSkill: skill, installedServer: server)
         }
         // Prepare both backups before editing either artifact. Keep originals on any failed transaction.
         try backup(configURL)
@@ -288,10 +290,11 @@ public struct AgentInstaller: Sendable {
     private func readData(_ url: URL) throws -> Data? { exists(url) ? try Data(contentsOf: url) : nil }
     private func read(_ url: URL) throws -> String? {
         guard let data = try readData(url) else { return nil }
-        guard let text = String(data: data, encoding: .utf8) else {
+        guard String(data: data, encoding: .utf8) != nil else {
             throw AgentSetupError("The agent config isn't UTF-8. Leave it unchanged and save it as UTF-8 before connecting.")
         }
-        return text
+        // String(data:encoding:) strips a leading BOM. Decode the validated bytes without changing them.
+        return String(decoding: data, as: UTF8.self)
     }
     private func load() throws -> Ledger {
         try safe(ledgerURL)
