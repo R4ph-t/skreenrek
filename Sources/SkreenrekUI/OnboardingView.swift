@@ -5,27 +5,38 @@ import SwiftUI
 public struct OnboardingView: View {
     @Bindable var model: OnboardingModel
     public init(model: OnboardingModel) { self.model = model }
+    /// One fixed size for both steps: 24 pt margins, and the footer 24 pt below step 2's agent rows.
+    public static let size = CGSize(width: 520, height: 400)
+    static let footerGap: CGFloat = 24
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(model.step == 1 ? UIStrings.Onboarding.title : UIStrings.Onboarding.agentsTitle)
-                .font(.system(size: 13, weight: .semibold))
-            Text(model.step == 1 ? UIStrings.Onboarding.introduction : UIStrings.Onboarding.agentsIntroduction)
-                .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
-            if model.step == 1 { permissions } else { agents }
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(model.step == 1 ? UIStrings.Onboarding.title : UIStrings.Onboarding.agentsTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(model.step == 1 ? UIStrings.Onboarding.introduction : UIStrings.Onboarding.agentsIntroduction)
+                    .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                if model.step == 1 { permissions } else { agents }
+            }
+            // The footer sits 24 pt below step 2's content, the taller step; step 1 keeps the same window size.
+            Spacer(minLength: Self.footerGap)
             HStack {
                 Text(UIStrings.Onboarding.step(model.step)).font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
                 if model.step == 1 {
+                    if model.needsRelaunch {
+                        Button(UIStrings.Onboarding.quitAndReopen) { model.quitAndReopen() }
+                    }
                     Button(UIStrings.Onboarding.continueButton) { model.continueToAgents() }
-                        .keyboardShortcut(.defaultAction).disabled(!model.canContinue)
+                        .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                        .disabled(!model.canContinue)
                 } else {
                     Button(UIStrings.Onboarding.skip) { model.skip() }
-                    Button(UIStrings.Onboarding.connect) { model.connect() }.keyboardShortcut(.defaultAction)
+                    Button(UIStrings.Onboarding.connect) { model.connect() }
+                        .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                 }
             }
         }
-        .padding(24).frame(width: 520).frame(minHeight: 496)
+        .padding(24).frame(width: Self.size.width).frame(minHeight: Self.size.height)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -42,6 +53,10 @@ public struct OnboardingView: View {
             }
             .padding(.horizontal, 12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
             Text(UIStrings.Onboarding.accessibilityNote).font(.system(size: 12)).foregroundStyle(.secondary)
+            if model.needsRelaunch {
+                Text(UIStrings.Onboarding.relaunchNote).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
     private var agents: some View {
@@ -86,7 +101,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView(model: model)))
             window.title = UIStrings.Onboarding.title
             window.styleMask = [.titled, .closable]
-            window.setContentSize(NSSize(width: 520, height: 496))
+            window.setContentSize(OnboardingView.size)
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()

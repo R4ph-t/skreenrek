@@ -8,6 +8,8 @@ import SwiftUI
 public final class SystemEffects: UIEffects {
     /// Opens the Settings window.
     public var showSettings: () -> Void = {}
+    /// Opens onboarding on its permissions step.
+    public var showOnboardingPermissions: () -> Void = {}
     private var sizePanel: NSPanel?
 
     public init() {}
@@ -28,6 +30,10 @@ public final class SystemEffects: UIEffects {
 
     public func openSettings() {
         showSettings()
+    }
+
+    public func showPermissions() {
+        showOnboardingPermissions()
     }
 
     public func confirmDiscard() async -> Bool {
@@ -132,5 +138,36 @@ public enum Alerts {
         alert.addButton(withTitle: UIStrings.Alerts.stopAndQuit)
         alert.addButton(withTitle: UIStrings.Alerts.cancel)
         return alert
+    }
+}
+
+/// Quit & Reopen. macOS applies a Screen Recording grant only to a new process, so onboarding relaunches the app: a
+/// detached shell waits for this process to exit (so the new one can take the control socket), then runs
+/// `open -n` on the bundle (or starts the bare executable outside a bundle), and the app terminates.
+@MainActor
+enum AppRelauncher {
+    static let script = """
+        while /bin/kill -0 "$1" 2>/dev/null; do /bin/sleep 0.2; done
+        if [ -d "$2" ]; then /usr/bin/open -n "$2"; else "$2" </dev/null >/dev/null 2>&1 & fi
+        """
+
+    static func relaunch() {
+        let bundle = Bundle.main.bundleURL
+        let target =
+            bundle.pathExtension == "app" ? bundle.path : (Bundle.main.executablePath ?? CommandLine.arguments[0])
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        let pid = String(ProcessInfo.processInfo.processIdentifier)
+        process.arguments = ["-c", script, "skreenrek-relaunch", pid, target]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            // Without the helper the app would just quit; stay open so the user can quit and reopen by hand.
+            return
+        }
+        NSApp.terminate(nil)
     }
 }

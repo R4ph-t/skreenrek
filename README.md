@@ -13,11 +13,17 @@ Requires macOS 15 Sequoia or later and Xcode 16 or later. v1 builds from source 
 
 ```sh
 brew tap r4ph-t/skreenrek https://github.com/R4ph-t/skreenrek
+brew trust r4ph-t/skreenrek
 brew install --HEAD skreenrek
-mkdir -p ~/Applications
-ln -sfn "$(brew --prefix skreenrek)/Skreenrek.app" ~/Applications/Skreenrek.app
-open ~/Applications/Skreenrek.app
+rm -rf /Applications/Skreenrek.app && cp -R "$(brew --prefix)/opt/skreenrek/Skreenrek.app" /Applications/
+open /Applications/Skreenrek.app
 ```
+
+The app is copied, not linked, because Spotlight, Launchpad and the Finder Applications view skip symlinks. Until
+there is a cask, redo the `rm -rf … && cp -R …` line after each `brew upgrade`.
+
+Newer Homebrew refuses to load a formula from a third-party tap until you trust it, hence `brew trust`. To update
+to the latest commit, run `brew upgrade --fetch-HEAD skreenrek`.
 
 Open the app once to grant Screen Recording and Accessibility. Then connect detected agents:
 
@@ -31,4 +37,20 @@ MCP server. Use `--claude`, `--codex` or `--cursor` to select clients explicitly
 `~/.local/bin`, `--json` for per-agent results, and `--remove` to remove the connections setup added. Existing
 configs get a `.skreenrek-backup` before their first edit. Other servers and settings stay in place.
 
-Skreenrek is ad-hoc signed. macOS may ask for Screen Recording and Accessibility again after an upgrade.
+Skreenrek is ad-hoc signed, so macOS forgets its permissions after an upgrade. See
+[Troubleshooting permissions](#troubleshooting-permissions).
+
+## Troubleshooting permissions
+
+- **Screen Recording is allowed but Skreenrek still says it's off.** macOS applies a Screen Recording grant only to a
+  new process. Click Quit & Reopen in the setup window, or quit Skreenrek from the menu bar and open it again.
+- **Where to allow a missing permission.** Choose "Permissions needed…" in the Skreenrek menu (it shows whenever
+  Screen Recording or Accessibility is missing), or run `skreenrek doctor` to see what is missing.
+- **Grants stop working after `brew upgrade`.** The Homebrew build is ad-hoc signed (`codesign --sign -`), and every
+  rebuild changes the signature, so macOS no longer matches the old grants to the new app. Reset them, then open
+  Skreenrek and allow both again:
+
+  ```sh
+  tccutil reset ScreenCapture it.fraime.skreenrek
+  tccutil reset Accessibility it.fraime.skreenrek
+  ```

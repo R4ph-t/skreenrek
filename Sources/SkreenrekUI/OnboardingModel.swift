@@ -24,16 +24,20 @@ public final class OnboardingModel {
     public let agents: [OnboardingAgent]
     public var selected: Set<AgentClient>
     public private(set) var results: [AgentSetupResult] = []
+    /// The permissions requested in this run of the app.
+    public private(set) var requested: Set<Permission> = []
     @ObservationIgnored private let permissions: any PermissionProbe
     @ObservationIgnored private let requester: any PermissionRequester
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let install: ([AgentClient]) -> [AgentSetupResult]
+    @ObservationIgnored private let relaunch: () -> Void
     @ObservationIgnored public var didComplete: (() -> Void)?
 
     public init(permissions: any PermissionProbe, requester: any PermissionRequester, defaults: UserDefaults,
-                agents: [OnboardingAgent], install: @escaping ([AgentClient]) -> [AgentSetupResult]) {
+                agents: [OnboardingAgent], install: @escaping ([AgentClient]) -> [AgentSetupResult],
+                relaunch: @escaping () -> Void = {}) {
         self.permissions = permissions; self.requester = requester; self.defaults = defaults
-        self.agents = agents; self.install = install
+        self.agents = agents; self.install = install; self.relaunch = relaunch
         selected = Set(agents.filter(\.detected).map(\.agent))
         step = defaults.integer(forKey: "onboarding.step") == 2 ? 2 : 1
         completed = defaults.bool(forKey: "onboarding.completed")
@@ -45,7 +49,20 @@ public final class OnboardingModel {
         screenRecording = permissions.screenRecording
         accessibility = permissions.accessibility
     }
-    public func request(_ permission: Permission) { requester.request(permission); refresh() }
+    public func request(_ permission: Permission) {
+        requested.insert(permission)
+        requester.request(permission)
+        refresh()
+    }
+    /// A permission was requested and still reads missing. macOS keeps Screen Recording "missing" in the running
+    /// process even after the user allows it, so polling can't flip it: the app has to relaunch.
+    public var needsRelaunch: Bool {
+        requested.contains { permission in
+            (permission == .screenRecording ? screenRecording : accessibility) == .missing
+        }
+    }
+    /// Quit & Reopen: relaunches the app, which keeps the onboarding step.
+    public func quitAndReopen() { relaunch() }
     public func continueToAgents() {
         refresh()
         guard canContinue else { return }

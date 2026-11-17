@@ -17,9 +17,13 @@ import Testing
                         #expect(label.frame.maxX - 2 <= view.bounds.width - 16)
                     }
                     if sample.name == "armednotexact" {
-                        #expect(view.frame.height == 64)
-                        #expect(labels.last?.maximumNumberOfLines == 2)
-                        #expect(labels.last?.stringValue == "1286 × 800 px · not exact (min width 1286 px)")
+                        // One line: the reason lives in the tooltip and the VoiceOver label.
+                        #expect(view.frame.height == 48)
+                        #expect(labels.last?.stringValue == "1286 × 800 px · not exact")
+                        let reason =
+                            "Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800."
+                        #expect(view.toolTip == reason)
+                        #expect(view.accessibilityLabel()?.hasSuffix(reason) == true)
                     }
                 }
             }

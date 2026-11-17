@@ -68,6 +68,7 @@ final class RecordingEffects: UIEffects {
     var sizeAnswer: PixelSize?
     var sizeAsked: [(PixelSize?, Double)] = []
     var quitCalls = 0
+    var permissionsShown = 0
 
     func revealInFinder(_ path: String) { revealed.append(path) }
     func open(_ url: URL) { opened.append(url) }
@@ -84,6 +85,7 @@ final class RecordingEffects: UIEffects {
     }
     func scale(of display: DisplayID?) -> Double { 2 }
     func quit() { quitCalls += 1 }
+    func showPermissions() { permissionsShown += 1 }
 }
 
 /// An `AppModel` over the real controller with the fakes.
@@ -109,7 +111,7 @@ struct MenuHarness {
             permissions: permissions, disk: FakeDiskSpaceProbe(), picker: picker, ownPid: 99, encoder: .software)
         controller = SkreenrekController(seams: seams)
         let store = SettingsStore(defaults: UserDefaults(suiteName: defaultsName)!)
-        model = AppModel(controller: controller, settings: store, effects: effects)
+        model = AppModel(controller: controller, settings: store, effects: effects, permissions: permissions)
     }
 
     /// Performs an action, then takes the controller's snapshot (as the stream would deliver it).
@@ -161,7 +163,8 @@ struct MenuHarness {
             await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
             #expect(
                 h.firstLine
-                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact")
+            #expect(h.model.context.sizeChoice == .size(PixelSize(width: 1280, height: 800)))
             #expect(h.model.context.error == nil)
         }
     }

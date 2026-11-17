@@ -12,6 +12,8 @@ public protocol UIEffects: AnyObject {
     func open(_ url: URL)
     func copy(_ text: String)
     func openSettings()
+    /// Opens onboarding on step 1 (the permissions), even after onboarding was completed.
+    func showPermissions()
     /// The "Discard this recording?" alert; true for Discard.
     func confirmDiscard() async -> Bool
     func chooseFolder(current: URL) async -> URL?
@@ -65,6 +67,7 @@ public final class AppModel {
     @ObservationIgnored public let controller: SkreenrekController
     @ObservationIgnored public let settings: SettingsStore
     @ObservationIgnored private let effects: any UIEffects
+    @ObservationIgnored private let permissions: (any PermissionProbe)?
     @ObservationIgnored private var tracker = LastClipTracker()
     @ObservationIgnored private var tasks: [Task<Void, Never>] = []
     @ObservationIgnored private var errorShownWhenOpened = false
@@ -75,17 +78,23 @@ public final class AppModel {
     public private(set) var actionError: SkreenrekError?
     public private(set) var menuOpen = false
 
-    public init(controller: SkreenrekController, settings: SettingsStore, effects: any UIEffects) {
+    public init(
+        controller: SkreenrekController, settings: SettingsStore, effects: any UIEffects,
+        permissions: (any PermissionProbe)? = nil
+    ) {
         self.controller = controller
         self.settings = settings
         self.effects = effects
+        self.permissions = permissions
         self.snapshot = ControllerSnapshot(state: .idle, fps: settings.fps)
     }
 
     public var context: MenuContext {
         MenuContext(
             snapshot: snapshot, actionError: actionError, lastClipTitle: tracker.title,
-            sizeChoice: settings.sizeChoice, cursor: settings.cursor, events: settings.events)
+            sizeChoice: settings.sizeChoice, cursor: settings.cursor, events: settings.events,
+            permissionsMissing: permissions.map { $0.screenRecording != .allowed || $0.accessibility != .allowed }
+                ?? false)
     }
 
     public var icon: StatusIcon { StatusIconModel.icon(for: context) }
@@ -170,6 +179,8 @@ public final class AppModel {
             effects.open(settings.outputFolder)
         case .openSettings:
             effects.openSettings()
+        case .showPermissions:
+            effects.showPermissions()
         case .quit:
             effects.quit()
         case .toggleCursor:
