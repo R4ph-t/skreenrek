@@ -90,6 +90,7 @@ public actor SkreenrekController {
     private var error: SkreenrekError?
     private var lastClip: StopBody?
     private var subscribers: [UUID: AsyncStream<ControllerSnapshot>.Continuation] = [:]
+    private var permissionFailureHandler: (@Sendable (Permission) -> Void)?
     private var lastPublished: ControllerSnapshot?
     private var endWaiters = 0
     /// True while `resize` waits on the window: the actor is reentrant, so this keeps a start, pick or second resize
@@ -108,6 +109,15 @@ public actor SkreenrekController {
     // MARK: - Settings and snapshots
 
     public var currentSettings: ControllerSettings { settings }
+
+    /// App presentation hook. Reporting preserves the original error and exit code for CLI/MCP clients.
+    public func setPermissionFailureHandler(_ handler: @escaping @Sendable (Permission) -> Void) {
+        permissionFailureHandler = handler
+    }
+
+    public func reportActionFailure(_ error: SkreenrekError) {
+        if case .permissionDenied(let permission) = error { permissionFailureHandler?(permission) }
+    }
 
     public func updateSettings(_ settings: ControllerSettings) {
         self.settings = settings
@@ -157,6 +167,7 @@ public actor SkreenrekController {
         case .starting:
             break
         case .recording(let active), .writing(let active):
+            s.hud = active.options.hud
             s.elapsed = seams.clock.now() - active.startHostTime
             switch active.target {
             case .window(let window): s.window = window
