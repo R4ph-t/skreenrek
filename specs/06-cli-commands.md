@@ -1,6 +1,6 @@
 # 06: CLI commands, output and exit codes
 
-Status: Ready · Branch: – · Depends on: 05 (controller and socket) · Estimate: 4–6 h agent run + 0 h Raph review (no hand test)
+Status: Ready · Branch: – · Depends on: 05 (controller and socket) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -41,6 +41,14 @@ with a `hint:`, and the design spec's exit codes. It launches the app hidden whe
    `skreenrek app` → run the app; no arguments in a terminal → help; anything else → CLI.
 8. `doctor` prints one line per check (Screen Recording, Accessibility, app version and running, output folder, CLI
    path, socket) with `✓` or `✗` and a fix; exits 3 when Screen Recording is missing, else 0.
+9. `stop` human output adds one quiet line when a recording isn't clean or used the software encoder:
+   `  note    3 dropped frames · software encoder` (nothing when clean and hardware). `--json` always has `stats`.
+10. Hidden `skreenrek debug perf --app NAME [--title T] [--runs 10] [--json]` (needs the app and its permissions):
+    with the app running, it times 10 starts (request to first frame), records 60 s at 60 fps 1920 × 1080 and 60 s at
+    30 fps 1280 × 800, and records one 15-minute clip only with `--long`. It reads each clip with `AVAssetReader`
+    (frame count, constant duration) and prints a table of measured versus target: start p95 ≤ 250 ms, 0 dropped and 0
+    skipped frames, `encoder` hardware, exact frame counts, stop to finalized ≤ 500 ms (≤ 1 s for 15 min). Exit 0 when
+    every target is met, 1 otherwise. Clips go to a temp folder and are deleted unless `--keep`.
 
 ## Defaults
 
@@ -68,9 +76,12 @@ with a `hint:`, and the design spec's exit codes. It launches the app hidden whe
 1. No hand test is needed to merge: CI `factory check` must be green. The tests cover golden human and JSON output for
    every command, each exit code (2, 3, 4, 5, 6, 7, 130), `--wait` with a simulated Ctrl-C, `--duration` parsing,
    `--region`, colour rules, `--quiet`, the app-launch path with a fake launcher (socket appears) and the
-   not-in-a-bundle error, and the dispatch rule.
+   not-in-a-bundle error, the dispatch rule, the `stop` note line, and `debug perf`'s report and exit code with a
+   fake host (targets met and missed).
 2. Optional smoke (after hand spec 11 and with permissions granted, 3 min): `skreenrek windows`, then
    `skreenrek record --app Safari --size 1280x800 --duration 5s --wait`, and open the printed clip.
+3. Optional performance run (after hand spec 11, with permissions, about 10 min; 25 min with `--long`): open a
+   Safari window and run `make perf` (or `skreenrek debug perf --app Safari`). Every row must read `met`.
 
 ## Implementation notes
 

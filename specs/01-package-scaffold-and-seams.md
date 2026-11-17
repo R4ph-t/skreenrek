@@ -34,6 +34,9 @@ macos-15 runner, the riskiest CI assumption: synthetic frames encode to a real H
      duration, allowInexact), `StartedBy` (`cli`, `mcp`, `menu`) plus optional client name.
    - `ControllerState` enum: `idle`, `armed`, `recording`, `writing`, `error` (raw values are the CLI
      `status` words).
+   - `EncoderPolicy` (`requireHardware`, `software`) and `RecordingStats` (`slotsWritten`, `framesFresh`,
+     `framesRepeatedIdle`, `framesDropped`, `sourceFramesSkipped`, `startToFirstFrameMs`, `stopToFinalizedMs`,
+     `encoder` `hardware`/`software`, `pixelFormat`, computed `isClean`), filled in by 03 and reported by 04–06.
 3. `SkreenrekError` (Core) with one case per row of the design spec's exit-code table. Each case exposes `exitCode`
    (0–7, 130), `code` (`permission_denied`, `not_exact`, `window_not_found`, `window_ambiguous`, `wrong_state`,
    `recording_failed`, `usage`, `internal`), `message` (one sentence) and `hint` (the exact next command or
@@ -44,7 +47,8 @@ macos-15 runner, the riskiest CI assumption: synthetic frames encode to a real H
    - `WindowResizer`: `setFrame(_ frame: PointRect, of: WindowInfo) async throws`,
      `readFrame(of: WindowInfo) async throws -> PointRect`.
    - `FrameSource`: `start(target:size:fps:showsCursor:) async throws -> AsyncThrowingStream<CapturedFrame, Error>`,
-     `stop() async`. `CapturedFrame` carries a `CVPixelBuffer` (BGRA) and a host time in seconds.
+     `stop() async`. `CapturedFrame` carries an IOSurface-backed `420v` `CVPixelBuffer` (the source's own buffer, never a copy) and
+     a host time in seconds.
    - `MouseEventSource`: start/stop delivering `MouseEvent` (type down/up, button index, clickCount, global
      PointRect-space location, host time) and `cursorLocation() -> CGPoint` (top-left global pt).
    - `HostClock`: `now() -> TimeInterval` (host time seconds) and `sleep(until:) async throws`.
@@ -52,14 +56,15 @@ macos-15 runner, the riskiest CI assumption: synthetic frames encode to a real H
      prompts.
    - `DiskSpaceProbe`: `freeBytes(at: URL) throws -> Int64`.
 5. `SkreenrekTesting` provides: `FakeWindowCatalog`, `FakeWindowResizer` (programmable rules: minimum size,
-   size steps, an attempt that is ignored, a maximum size), `SyntheticFrameSource` (BGRA buffers whose pixel colour
-   encodes the frame index; scripted, irregular timestamps; can end with an error), `FakeMouseEventSource`,
+   size steps, an attempt that is ignored, a maximum size), `SyntheticFrameSource` (IOSurface-backed `420v` buffers, the
+   same kind ScreenCaptureKit delivers, whose luma value encodes the frame index; real-time or scripted timestamps; irregular timestamps allowed; can end with an error), `FakeMouseEventSource`,
    `ManualClock` (advances only when told; `sleep(until:)` resumes when the clock reaches the time),
    `FakePermissionProbe`, `FakeDiskSpaceProbe`.
-6. Encoder canary test (`EncoderCanaryTests`): 30 synthetic 1280 × 800 frames appended to a real `AVAssetWriter`
+6. Encoder canary test (`EncoderCanaryTests`): 30 synthetic IOSurface-backed `420v` 1280 × 800 frames appended to a real `AVAssetWriter`
    (H.264, `AVAssetWriterInputPixelBufferAdaptor`, presentation time n/30) in a temp folder. The test loads the
    file with `AVURLAsset` and asserts: one video track, natural size 1280 × 800, 30 samples (counted with
-   `AVAssetReader`), duration 1.0 s ± 1/30 s, codec H.264.
+   `AVAssetReader`), duration 1.0 s ± 1/30 s, codec H.264. It also prints whether the runner accepts
+   `.requireHardware` (informational; the virtual machine is expected to fall back to software).
 
 ## Defaults
 

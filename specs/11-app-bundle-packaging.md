@@ -25,8 +25,10 @@ writes it by hand in its own PR.
    `make check` additionally runs `plutil -lint packaging/Info.plist` and, once `Package.swift` exists, bundles the
    debug build into `.build/app-check/` and runs its `skreenrek --version`, so a factory PR that breaks bundling turns
    CI red.
-4. `.gitignore`: `build/`.
-5. `.github/workflows/live.yml` (manual dispatch only, not a required check): runs
+4. `make perf` (manual, never part of `check`): `make app`, then runs `build/Skreenrek.app/Contents/MacOS/skreenrek
+   debug perf --app "$(PERF_APP)"` (default `Safari`) and fails when a target is missed (06's harness).
+5. `.gitignore`: `build/`.
+6. `.github/workflows/live.yml` (manual dispatch only, not a required check): runs
    `SKREENREK_LIVE=1 swift test --filter Live` on macos-15 to learn whether a hosted runner can record without a hand
    grant. Informational; nothing waits on it.
 

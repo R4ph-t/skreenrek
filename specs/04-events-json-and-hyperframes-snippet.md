@@ -23,11 +23,14 @@ element.
      dropped.
 2. `EventsFile` (Core): `Codable` with exactly the design spec's schema `skreenrek.events/1` (schema, complete,
    recording{id, startedAt (ISO 8601 with offset, local time), duration, fps, video{file, width, height, scale, codec},
-   source{kind, app, bundleId, title, windowId, frame} or source{kind: "region", displayId, rect}, startedBy, client},
+   source{kind, app, bundleId, title, windowId, frame} or source{kind: "region", displayId, rect}, startedBy, client,
+   stats}, where `stats` is 03's `RecordingStats` (an addition to the design spec's shape, so drops are countable from
+   the file),
    coordinates{unit "px", origin "top-left", space "video"}, cursor{sampleRate, samples as `[t, x, y]`}, events,
    clicks). `clicks` is derived from the `down` events with `xPct`/`yPct` = x / width × 100 and y / height × 100,
    rounded to 1 decimal. Written atomically (temp file, then rename) when the recording stops, with `complete` from the
-   recording result. Not written with `events: false`.
+   recording result, after the clip is finalized so `stopToFinalizedMs` is known. Not written with `events: false`
+   (the stats still reach `stop --json`).
 3. `SnippetBuilder` (Core, pure) writes `hyperframes.html` in the clip folder and returns the same text:
    ```html
    <!-- Skreenrek · Safari — localhost:3000 · 1280×800 px · 60 fps · 42.0 s · clicks: events.json -->
@@ -69,7 +72,8 @@ Keyboard or scroll events, HyperFrames components beyond the single clip element
 1. No hand test is needed to merge: CI `factory check` must be green. The tests cover golden `events.json` and
    `hyperframes.html` files; 1× and 2× conversions, a window not at the origin, a second display at negative x, points
    outside the video; t alignment to the first frame; `clicks` percentages; right and middle buttons; `events: false`;
-   `assetsDir` copy; comment escaping; region wording; the keystroke-field guard.
+   `assetsDir` copy; comment escaping; region wording; the keystroke-field guard; `recording.stats` present with every
+   field of `RecordingStats`.
 2. Optional: none needed.
 
 ## Implementation notes

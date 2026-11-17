@@ -23,7 +23,8 @@ socket.
      returns `{ recordingId, startedAt, readback?, fps }`. Starting while recording or writing → `wrong_state` (exit 6,
      `Skreenrek is already recording Safari.` / hint `Run: skreenrek stop`).
    - `stop`: finalizes clip, events and snippet → `{ recording{id, duration, fps, width, height, codec, startedAt,
-     startedBy}, files{clip, events, snippet}, snippet, readback }` (the design spec's `stop --json` shape). Stop or
+     startedBy, stats}, files{clip, events, snippet}, snippet, readback }` (the design spec's `stop --json` shape plus
+     03's `stats`). Stop or
      discard while idle → `wrong_state` (`Nothing is recording.`).
    - Resize while recording → `wrong_state`. Resize without Accessibility → `permission_denied`
      (`Can't resize windows` copy) and nothing else changes.
@@ -47,6 +48,19 @@ socket.
    (bounded by its own timeout) and `record.wait`.
 6. `HeadlessHost`: builds a controller plus server from injected seams. The executable gets a hidden `skreenrek app`
    that runs the headless host with the real seams until the UI arrives in 08.
+
+## Performance acceptance
+
+Enforced by `make check` (no permissions; loose CI budgets, measured values printed):
+
+- `PerfSocketStartTests`: a client sends `record.start` (no resize) over the real socket to a `HeadlessHost` whose
+  `SyntheticFrameSource` has a frame ready: median of 5 runs from sending the request to the first frame appended
+  ≤ 250 ms; the response arrives before or with that first frame, never blocked on encoding.
+- `PerfSocketStopTests`: `record.stop` round trip for a 10 s 1280 × 800 synthetic clip returns ≤ 2 s after the request
+  with the clip finalized and `stats.stopToFinalizedMs` filled in.
+- A status poll during a recording answers in ≤ 50 ms (median of 20), so polling agents never slow the capture.
+
+Manual targets with a real capture are 03's, measured end to end by `make perf` (06 and hand spec 11).
 
 ## Defaults
 

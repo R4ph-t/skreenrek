@@ -31,7 +31,11 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
   `AVAsset`/`AVAssetReader`.
 - **Live tests are opt-in.** A test that touches the real system goes in a `Live…Tests` suite that is disabled unless
   `SKREENREK_LIVE=1` and the permission is already granted. It must never prompt.
-- Use Swift Testing (`import Testing`, `@Test`). No sleeps in tests: drive time with the manual clock.
+- Use Swift Testing (`import Testing`, `@Test`). No sleeps in tests: drive time with the manual clock. The only
+  exception is the `Perf…` suites, which run on the real clock with loose CI budgets and print what they measured.
+- Performance is part of the gate: zero-copy capture into AVAssetWriter (no pixel copies), hardware H.264 in the app,
+  `RecordingStats` on every recording, and the perf suites in `swift test`. Real-capture targets run by hand with
+  `make perf`.
 - No SwiftPM `resources:` (resource bundles break the app bundle's signature). Embed text as Swift string literals.
 - Dependencies: Apple frameworks plus `swift-argument-parser` (pinned with `exact:`). Nothing else without a spec.
 - UI copy says Skreenrek; the command, MCP tool prefix (`skreenrek_…`) and Application Support folder say `skreenrek`.
