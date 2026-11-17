@@ -3,8 +3,10 @@
 # into .build/app-check/ whose `skreenrek --version` must run, so a PR that breaks bundling turns CI red.
 # Tests that need Screen Recording or Accessibility stay manual (Raph's Mac).
 #
-# `make app` builds the release Skreenrek.app into build/. `make perf` is manual and never part of `check`.
-.PHONY: check app perf
+# `make app` builds the release Skreenrek.app into build/, ad-hoc signed. `make perf` is manual and never part of
+# `check`. `make release VERSION=x.y.z` is Raph's: it Developer ID signs, notarizes and staples the app and writes
+# dist/Skreenrek-x.y.z.zip plus its sha256 (scripts/release.sh). It never tags or publishes.
+.PHONY: check app perf release
 
 PERF_APP ?= Safari
 
@@ -30,3 +32,7 @@ app:
 
 perf: app
 	build/Skreenrek.app/Contents/MacOS/skreenrek debug perf --app "$(PERF_APP)"
+
+release:
+	@[ -n "$(VERSION)" ] || { echo "usage: make release VERSION=x.y.z" >&2; exit 1; }
+	bash scripts/release.sh "$(VERSION)"

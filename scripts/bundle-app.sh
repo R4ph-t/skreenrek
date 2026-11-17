@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # Wrap the SwiftPM `skreenrek` executable into Skreenrek.app and sign it ad hoc.
 #
-#   scripts/bundle-app.sh <products-dir> <out-dir>
+#   scripts/bundle-app.sh [--unsigned] <products-dir> <out-dir>
 #
 # <products-dir> is a SwiftPM bin path (e.g. .build/release) that holds the `skreenrek` executable. The script writes
 # <out-dir>/Skreenrek.app/Contents/{MacOS/skreenrek,Info.plist,Resources/AppIcon.icns} from packaging/, stamps
 # CFBundleShortVersionString from SkreenrekVersion.current, signs ad hoc with the hardened runtime, verifies the
 # signature, and prints the bundle path. Ad hoc only: it never reads signing identities, keychains or secrets.
+# --unsigned skips signing and leaves the bundle for scripts/release.sh to sign with Developer ID.
 set -euo pipefail
 
 fail() { echo "bundle-app: $*" >&2; exit 1; }
 
-[ $# -eq 2 ] || fail "usage: scripts/bundle-app.sh <products-dir> <out-dir>"
+sign=1
+if [ "${1:-}" = --unsigned ]; then
+  sign=0
+  shift
+fi
+[ $# -eq 2 ] || fail "usage: scripts/bundle-app.sh [--unsigned] <products-dir> <out-dir>"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 products="$1"
@@ -44,6 +50,11 @@ cp "$plist_src" "$app/Contents/Info.plist"
 cp "$icon_src" "$app/Contents/Resources/AppIcon.icns"
 plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
 plutil -lint -s "$app/Contents/Info.plist" || fail "the bundled Info.plist doesn't lint"
+
+if [ "$sign" -eq 0 ]; then
+  echo "$app"
+  exit 0
+fi
 
 # Ad-hoc signature (`-`) with the hardened runtime. No entitlements: unsandboxed, nothing special.
 codesign --force --sign - --options runtime --identifier "$bundle_id" "$app" \

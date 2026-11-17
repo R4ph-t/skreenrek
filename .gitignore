@@ -30,3 +30,6 @@ playground.xcworkspace
 
 # App bundles (make app)
 build/
+
+# Signed release zips (make release)
+dist/

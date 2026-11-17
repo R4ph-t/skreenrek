@@ -5,8 +5,9 @@ an agent skill. It lists windows, resizes one to an exact pixel size through Acc
 records it with ScreenCaptureKit and AVAssetWriter at native resolution (H.264, constant 30 or 60 fps), and writes one
 folder per clip with `clip.mp4`, `events.json`, and `hyperframes.html`.
 
-Free and open source (MIT). Unsandboxed. v1 ships ad-hoc signed through a Homebrew build-from-source formula; there is
-no Developer ID certificate yet. Written fresh: it shares no code with Fraime.
+Free and open source (MIT). Unsandboxed. Releases are Developer ID signed, notarized and stapled by `make release`
+(Raph's, by hand) and installed with the Homebrew cask in `Casks/`; dev builds and the source formula stay ad-hoc
+signed. Written fresh: it shares no code with Fraime.
 
 ## Layout
 

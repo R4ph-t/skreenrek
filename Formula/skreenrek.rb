@@ -15,6 +15,10 @@ class Skreenrek < Formula
 
   def caveats
     <<~EOS
+      This formula builds from source and is ad-hoc signed. For the notarized
+      app, whose permission grants survive upgrades, use the cask instead:
+        brew install --cask r4ph-t/skreenrek/skreenrek
+
       Copy the app into /Applications (Spotlight, Launchpad and Finder's
       Applications view skip symlinks). Redo this after each brew upgrade:
         rm -rf /Applications/Skreenrek.app && cp -R #{opt_prefix}/Skreenrek.app /Applications/
