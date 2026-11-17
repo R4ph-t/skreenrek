@@ -17,6 +17,15 @@ public struct OutputSettings: Sendable, Hashable, Codable {
     public let quality: QualityPreset?
     public let requestedBitrateMbps: Double?
 
+    private init(container: VideoContainer, codec: VideoCodec, profile: String, quality: QualityPreset?,
+        requestedBitrateMbps: Double?) {
+        self.container = container
+        self.codec = codec
+        self.profile = profile
+        self.quality = quality
+        self.requestedBitrateMbps = requestedBitrateMbps
+    }
+
     public static func resolve(
         container: String? = nil, codec: String? = nil, quality: String? = nil, bitrateMbps: Double? = nil,
         surface: StartedBy = .cli
@@ -74,6 +83,12 @@ public struct OutputSettings: Sendable, Hashable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey { case container, codec, profile, quality, requestedBitrateMbps, bitrateMbps }
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self = try Self.resolve(container: c.decode(String.self, forKey: .container),
+            codec: c.decode(String.self, forKey: .codec), quality: c.decodeIfPresent(String.self, forKey: .quality),
+            bitrateMbps: c.decodeIfPresent(Double.self, forKey: .requestedBitrateMbps))
+    }
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(container, forKey: .container)

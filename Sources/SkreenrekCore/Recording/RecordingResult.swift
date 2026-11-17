@@ -66,6 +66,7 @@ public struct RecordingResult: Sendable, Hashable {
     public var width: Int
     public var height: Int
     public var codec: VideoCodec
+    public var video: VideoReadback
     public var startedAt: Date
     /// Who started it (`startedBy` plus the MCP client name).
     public var origin: RecordingOrigin
@@ -80,14 +81,15 @@ public struct RecordingResult: Sendable, Hashable {
     public init(
         id: String, duration: TimeInterval, fps: FrameRate, width: Int, height: Int, codec: VideoCodec,
         startedAt: Date, origin: RecordingOrigin, folder: URL, complete: Bool, stopReason: StopReason,
-        stats: RecordingStats, firstFrameHostTime: TimeInterval?
+        stats: RecordingStats, firstFrameHostTime: TimeInterval?, video: VideoReadback? = nil
     ) {
         self.id = id
         self.duration = duration
         self.fps = fps
         self.width = width
         self.height = height
-        self.codec = codec
+        self.codec = video?.codec ?? codec
+        self.video = video ?? VideoReadback(width: width, height: height, scale: 1, codec: codec)
         self.startedAt = startedAt
         self.origin = origin
         self.folder = folder
@@ -99,7 +101,7 @@ public struct RecordingResult: Sendable, Hashable {
 
     public var startedBy: StartedBy { origin.startedBy }
     public var size: PixelSize { PixelSize(width: width, height: height) }
-    public var clipURL: URL { folder.appendingPathComponent(ClipWriter.fileName) }
+    public var clipURL: URL { folder.appendingPathComponent(video.file) }
     /// The error to report for this stop, if it was a failure.
     public var error: SkreenrekError? { stopReason.error }
 }

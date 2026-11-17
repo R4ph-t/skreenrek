@@ -15,11 +15,12 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
     public static let fileName = "clip.mp4"
 
     public let settings: ClipWriterSettings
-    public let encoder: EncoderKind
+    public private(set) var encoder: EncoderKind
 
-    private let writer: AVAssetWriter
-    private let input: AVAssetWriterInput
-    private let adaptor: AVAssetWriterInputPixelBufferAdaptor
+    private var writer: AVAssetWriter
+    private var input: AVAssetWriterInput
+    private var adaptor: AVAssetWriterInputPixelBufferAdaptor
+    private var appended = 0
     private let timescale: CMTimeScale
     private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "recorder")
 
@@ -60,7 +61,7 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         try? FileManager.default.removeItem(at: settings.url)
         let writer: AVAssetWriter
         do {
-            writer = try AVAssetWriter(outputURL: settings.url, fileType: .mp4)
+            writer = try AVAssetWriter(outputURL: settings.url, fileType: settings.output.container == .mp4 ? .mp4 : .mov)
         } catch {
             throw SkreenrekError.recordingFailed(.notWritable)
         }
@@ -99,13 +100,22 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         switch settings.codec {
         case .h264: compression[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
         case .hevc: compression[AVVideoProfileLevelKey] = kVTProfileLevel_HEVC_Main_AutoLevel as String
+        case .prores: compression = [:]
+        }
+        let codec: AVVideoCodecType = switch settings.codec {
+        case .h264: .h264
+        case .hevc: .hevc
+        case .prores:
+            switch settings.output.quality ?? .high {
+            case .low: .proRes422Proxy; case .medium: .proRes422LT; case .high: .proRes422; case .max: .proRes422HQ
+            }
         }
         let specification: [String: Any] =
             hardware
             ? [kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder as String: true]
             : [kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: false]
         return [
-            AVVideoCodecKey: settings.codec == .hevc ? AVVideoCodecType.hevc : AVVideoCodecType.h264,
+            AVVideoCodecKey: codec,
             AVVideoWidthKey: settings.size.width,
             AVVideoHeightKey: settings.size.height,
             AVVideoCompressionPropertiesKey: compression,
@@ -121,23 +131,46 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
     // MARK: - PixelBufferSink
 
     public var isReady: Bool {
+        if writer.status == .failed { _ = fallbackBeforeFirstSample() }
         if input.isReadyForMoreMediaData { return true }
         guard !settings.realTime, writer.status == .writing else { return false }
         return waitBlocking(timeout: 10)
     }
 
     public func append(_ pixelBuffer: CVPixelBuffer, slot: Int) -> Bool {
-        guard writer.status == .writing else { return false }
-        return adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: CMTimeValue(slot), timescale: timescale))
+        let time = CMTime(value: CMTimeValue(slot), timescale: timescale)
+        var success = writer.status == .writing && adaptor.append(pixelBuffer, withPresentationTime: time)
+        if !success, fallbackBeforeFirstSample() {
+            success = adaptor.append(pixelBuffer, withPresentationTime: time)
+        }
+        if success { appended += 1 }
+        return success
+    }
+
+    /// VideoToolbox may accept startWriting, then reject the hardware session at the first append.
+    /// Retry that same source buffer and timestamp once; never buffer or replay a recording in memory.
+    private func fallbackBeforeFirstSample() -> Bool {
+        guard encoder == .hardware, appended == 0 else { return false }
+        writer.cancelWriting()
+        do {
+            let started = try Self.start(settings, hardware: false)
+            writer = started.writer
+            input = started.input
+            adaptor = started.adaptor
+            encoder = .software
+            Self.log.notice("Hardware encoder failed before its first sample; using software.")
+            return true
+        } catch { return false }
     }
 
     public func waitUntilReady(timeout: TimeInterval) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !input.isReadyForMoreMediaData {
-            guard writer.status == .writing, Date() < deadline else { return false }
-            try? await Task.sleep(for: .milliseconds(1))
-        }
-        return true
+        if writer.status == .failed { _ = fallbackBeforeFirstSample() }
+        if input.isReadyForMoreMediaData { return true }
+        guard writer.status == .writing, timeout > 0 else { return false }
+        let waiter = ReadyWaiter(input: input, writer: writer)
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { waiter.start($0, timeout: timeout) }
+        } onCancel: { waiter.complete(false) }
     }
 
     public func finish(slotCount: Int) async throws {
@@ -165,5 +198,42 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         if input.isReadyForMoreMediaData { return true }
         _ = ready.wait(timeout: .now() + timeout)
         return input.isReadyForMoreMediaData
+    }
+}
+
+/// KVO plus a deadline, with exactly one continuation resume even on cancellation/timeout races.
+private final class ReadyWaiter: @unchecked Sendable {
+    private let lock = NSRecursiveLock()
+    private let input: AVAssetWriterInput
+    private let writer: AVAssetWriter
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var observations: [NSKeyValueObservation] = []
+    private var finished: Bool?
+    init(input: AVAssetWriterInput, writer: AVAssetWriter) { self.input = input; self.writer = writer }
+    func start(_ continuation: CheckedContinuation<Bool, Never>, timeout: TimeInterval) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let finished { continuation.resume(returning: finished); return }
+        self.continuation = continuation
+        observations = [
+            input.observe(\.isReadyForMoreMediaData, options: [.new]) { [weak self] _, _ in self?.check() },
+            writer.observe(\.status, options: [.new]) { [weak self] _, _ in self?.check() },
+        ]
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [weak self] in self?.complete(false) }
+        check()
+    }
+    private func check() {
+        if writer.status != .writing { complete(false) }
+        else if input.isReadyForMoreMediaData { complete(true) }
+    }
+    func complete(_ value: Bool) {
+        lock.lock()
+        guard finished == nil else { lock.unlock(); return }
+        finished = value
+        let continuation = continuation
+        self.continuation = nil
+        observations.removeAll()
+        lock.unlock()
+        continuation?.resume(returning: value)
     }
 }

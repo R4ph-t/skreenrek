@@ -26,7 +26,12 @@ public struct ClipWriterSettings: Sendable, Hashable {
     public var url: URL
     public var size: PixelSize
     public var fps: FrameRate
-    public var codec: VideoCodec
+    public var output: OutputSettings
+    public var codec: VideoCodec {
+        get { output.codec }
+        set { output = try! .resolve(container: output.container.rawValue, codec: newValue.rawValue,
+            quality: output.quality?.rawValue, bitrateMbps: output.requestedBitrateMbps) }
+    }
     public var encoder: EncoderPolicy
     /// True for live capture: `isReady` never blocks, and a slot that finds the input busy repeats instead.
     /// False for offline writing (tests): `isReady` waits for the encoder, so every slot gets its own frame.
@@ -34,12 +39,12 @@ public struct ClipWriterSettings: Sendable, Hashable {
 
     public init(
         url: URL, size: PixelSize, fps: FrameRate, codec: VideoCodec = .h264, encoder: EncoderPolicy = .requireHardware,
-        realTime: Bool = true
+        realTime: Bool = true, output: OutputSettings? = nil
     ) {
         self.url = url
         self.size = size
         self.fps = fps
-        self.codec = codec
+        self.output = output ?? (try! .resolve(codec: codec.rawValue))
         self.encoder = encoder
         self.realTime = realTime
     }
@@ -57,5 +62,5 @@ public struct ClipWriterSettings: Sendable, Hashable {
         return min(max(Int(raw.rounded()), minimumBitRate), maximumBitRate)
     }
 
-    public var averageBitRate: Int { Self.averageBitRate(size: size, fps: fps) }
+    public var averageBitRate: Int { output.targetBitrate(size: size, fps: fps) ?? 0 }
 }

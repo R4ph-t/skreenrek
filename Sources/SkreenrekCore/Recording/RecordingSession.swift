@@ -25,6 +25,10 @@ public struct SlotTick: Sendable, Hashable {
 /// below 2 GB, or on a write failure. Every stop finalizes a playable clip (full or partial) and returns a
 /// `RecordingResult`.
 public actor RecordingSession {
+    // Offline encoding may synchronously wait for AVAssetWriter on this dedicated dispatch executor.
+    // It never parks a thread belonging to Swift's cooperative concurrency pool.
+    private nonisolated let executor = RecordingExecutor()
+    public nonisolated var unownedExecutor: UnownedSerialExecutor { executor.asUnownedSerialExecutor() }
     public typealias SinkFactory = @Sendable (ClipWriterSettings) throws -> any PixelBufferSink
 
     /// Recording stops below this much free space.
@@ -65,6 +69,7 @@ public actor RecordingSession {
     private var finalizeTask: Task<RecordingResult, Never>?
     private var endWaiters: [CheckedContinuation<RecordingResult, Never>] = []
     private var result: RecordingResult?
+    private var writtenVideo: VideoReadback?
 
     private var startCallTime: TimeInterval = 0
     private var firstAppendTime: TimeInterval?
@@ -106,6 +111,7 @@ public actor RecordingSession {
         origin: RecordingOrigin = RecordingOrigin(startedBy: .cli), startedAt: Date = Date()
     ) async throws {
         guard phase == .idle else { throw SkreenrekError.wrongState(.alreadyRecording(app: nil)) }
+        let output = try options.resolvedOutput()
         phase = .recording
         startCallTime = clock.now()
         let fps = options.fps
@@ -115,8 +121,8 @@ public actor RecordingSession {
         scheduler = CFRScheduler(fps: fps.framesPerSecond, outputSize: size, slotLimit: limit)
 
         let settings = ClipWriterSettings(
-            url: folder.appendingPathComponent(ClipWriter.fileName), size: size, fps: fps, codec: options.codec,
-            encoder: encoderPolicy, realTime: realTimeWriter)
+            url: folder.appendingPathComponent(output.container.fileName), size: size, fps: fps, codec: options.codec,
+            encoder: encoderPolicy, realTime: realTimeWriter, output: output)
         let sink: any PixelBufferSink
         do {
             sink = try makeSink(settings)
@@ -340,6 +346,9 @@ public actor RecordingSession {
         if scheduler.appendedSlots > 0 {
             do {
                 try await sink.finish(slotCount: scheduler.appendedSlots)
+                if let writer = sink as? ClipWriter {
+                    writtenVideo = try await VideoReadback.inspect(url: writer.settings.url, settings: writer.settings.output)
+                }
             } catch {
                 Self.log.error("Couldn't finish the clip: \(error.localizedDescription, privacy: .public)")
                 if reason.isComplete { reason = .writeFailed }
@@ -361,7 +370,8 @@ public actor RecordingSession {
             width: context.size.width, height: context.size.height, codec: context.options.codec,
             startedAt: context.startedAt, origin: context.origin, folder: context.folder,
             complete: reason.isComplete, stopReason: reason, stats: currentStats(stopToFinalizedMs: stopToFinalizedMs),
-            firstFrameHostTime: scheduler?.t0)
+            firstFrameHostTime: scheduler?.t0,
+            video: writtenVideo ?? VideoReadback(settings: try! context.options.resolvedOutput(), size: context.size))
         self.result = result
         phase = .finished
         let waiters = endWaiters
@@ -406,5 +416,13 @@ public actor RecordingSession {
         let bytes = [24, 16, 8, 0].map { UInt8((code >> $0) & 0xFF) }
         guard bytes.allSatisfy({ $0 >= 0x20 && $0 < 0x7F }) else { return String(code) }
         return String(decoding: bytes, as: UTF8.self)
+    }
+}
+
+private final class RecordingExecutor: SerialExecutor {
+    private let queue = DispatchQueue(label: "it.fraime.skreenrek.recording")
+    func enqueue(_ job: UnownedJob) {
+        let executor = asUnownedSerialExecutor()
+        queue.async { job.runSynchronously(on: executor) }
     }
 }
