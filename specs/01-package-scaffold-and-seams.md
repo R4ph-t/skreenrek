@@ -1,6 +1,6 @@
 # 01: Swift package scaffold, domain types and test seams
 
-Status: Ready · Branch: – · Depends on: – · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: – · Depends on: – · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal

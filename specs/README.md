@@ -10,7 +10,7 @@ factory skips it; 09 waits until it is `Done`. Every spec merges on a green `fac
 
 | # | Spec | Status | Depends on | Agent run | Raph review |
 |---|---|---|---|---|---|
-| 01 | [Swift package scaffold, domain types and test seams](01-package-scaffold-and-seams.md) | Ready | – | 3–4 h | 0 h |
+| 01 | [Swift package scaffold, domain types and test seams](01-package-scaffold-and-seams.md) | Done | – | 3–4 h | 0 h |
 | 02 | [Window list and exact resize with read-back](02-window-list-and-exact-resize.md) | Ready | 01 | 3–5 h | 0 h |
 | 03 | [Constant-frame-rate recorder pipeline and ScreenCaptureKit frame source](03-cfr-recorder-pipeline.md) | Ready | 01 | 6–8 h | 0 h |
 | 04 | [events.json and the HyperFrames snippet](04-events-json-and-hyperframes-snippet.md) | Ready | 01 | 3–4 h | 0 h |
