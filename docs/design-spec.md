@@ -452,7 +452,11 @@ In MCP, the same message and hint go into `{error:{code:"usage", message, hint}}
 
 ### Menu-bar dropdown and Settings
 
-There are no new controls; the dropdown keeps Frame Rate only. The one visible change: when the last clip isn't H.264 MP4, its Last Clip status row adds the format to the end of the detail line, in the same quiet style: `0:42 · 1280 × 800 px · 60 fps · ProRes MOV · 10:24`. Default clips show nothing extra.
+There are no new controls; the dropdown keeps Frame Rate only. The one visible change: when the last clip isn't H.264 MP4, its Last Clip status row adds the format to the end of the detail line, in the same quiet style, and drops the clock time so the line doesn't wrap: `0:42 · 1280 × 800 px · 60 fps · H.264 MOV`. Default clips show nothing extra and keep the clock time: `0:42 · 1280 × 800 px · 60 fps · 10:24`. (Designer, 2026-11-17, replaces the earlier `… · ProRes MOV · 10:24` example.)
+
+Status rows in the dropdown keep at least a 16 pt right inset; a detail line that doesn't fit wraps to a second line, the same as the error rows, instead of running to the menu edge. Copy is unchanged. (Designer, 2026-11-17.)
+
+Settings: the Agents section (09) sits between Stop shortcut and Permissions, in the same grouped style. (Designer, 2026-11-17.)
 
 ### Acceptance
 
