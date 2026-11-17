@@ -80,6 +80,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func show(missingPermission: Bool = false) {
         if missingPermission { model.showMissingPermission() }
         model.refresh()
+        // Agent retries should refresh the visible form without repeatedly taking focus from the user.
+        guard window?.isVisible != true else { return }
         if window == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView(model: model)))
             window.title = UIStrings.Onboarding.title

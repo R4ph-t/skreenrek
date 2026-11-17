@@ -14,6 +14,7 @@ public enum CaptureRenderSamples {
     }
     public static let hudStates: [HUDSample] = [
         HUDSample(name: "recording", state: .recording(target: "Safari", seconds: 12)),
+        HUDSample(name: "recording-tenminutes", state: .recording(target: "Safari", seconds: 600)),
         HUDSample(name: "writing", state: .writing),
         HUDSample(name: "saved", state: .saved(duration: 42, path: "/unused/clip.mp4")),
         HUDSample(name: "error", state: .error(reason: "the window closed")),

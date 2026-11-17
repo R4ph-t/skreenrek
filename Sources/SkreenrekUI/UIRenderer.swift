@@ -67,8 +67,8 @@ public enum UIRenderer {
                 try save(canvas, "picker", state)
             }
             for sample in CaptureRenderSamples.hudStates {
-                let view = NSHostingView(rootView: RecordingHUDView(state: sample.state,
-                    reduceMotion: sample.name == "writing-reducedmotion", increaseContrast: sample.name == "recording-contrast"))
+                let view = NSHostingView(rootView: RecordingHUDView(presentation: HUDPresentation(state: sample.state,
+                    reduceMotion: sample.name == "writing-reducedmotion", increaseContrast: sample.name == "recording-contrast")))
                 view.frame = NSRect(origin: .zero, size: view.fittingSize)
                 try save(view, "hud", sample.name)
             }

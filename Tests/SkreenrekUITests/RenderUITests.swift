@@ -80,6 +80,7 @@ import Testing
             for state in CaptureRenderSamples.hudStates {
                 #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
             }
+            #expect(sizes["hud-recording-\(appearance)@2x.png"]?.0 == sizes["hud-recording-tenminutes-\(appearance)@2x.png"]?.0)
             for state in CaptureRenderSamples.onboardingStates {
                 #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 992))
             }

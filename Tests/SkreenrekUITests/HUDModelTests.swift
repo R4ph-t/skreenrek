@@ -4,6 +4,16 @@ import SkreenrekCore
 import Testing
 
 @Suite struct HUDModelTests {
+    @Test func elapsedTicksPreserveTheStateKindAndControls() {
+        let first = HUDState.recording(target: "Safari", seconds: 12)
+        let tick = HUDState.recording(target: "Safari", seconds: 13)
+        #expect(first != tick)
+        #expect(first.kind == tick.kind)
+        #expect(first.kind != HUDState.writing.kind)
+        #expect(HUDState.writing.kind != HUDState.saved(duration: 42, path: "").kind)
+        #expect(HUDState.hidden.kind != HUDState.error(reason: "").kind)
+    }
+
     @Test func recordingWritingSavedAndDeadlines() {
         var model = HUDModel()
         var snapshot = UIFixtures.recording(.menu)
@@ -70,6 +80,21 @@ import Testing
         display.visibleFrame = PointRect(x: -800, y: -600, width: 800, height: 600)
         let clamped = placement.frame(target: target, display: display, width: 200)
         #expect(display.visibleFrame.cgRect.contains(clamped.cgRect))
+    }
+
+    @Test func aDisconnectedDisplayCannotLeaveARememberedHUDOffscreen() {
+        var placement = HUDPlacement()
+        let remaining = RenderSamples.display
+        let target = PointRect(x: 120, y: 80, width: 640, height: 400)
+        // A position for a disconnected display is ignored for the remaining screen.
+        placement.remember(PointRect(x: -1800, y: 200, width: 200, height: 36), display: 2)
+        #expect(placement.frame(target: target, display: remaining, width: 200)
+            == PointRect(x: 340, y: 496, width: 200, height: 36))
+        // Removing another display can also move this display's global origin. Its old saved position is clamped.
+        placement.remember(PointRect(x: 2300, y: 1300, width: 200, height: 36), display: remaining.id)
+        let frame = placement.frame(target: target, display: remaining, width: 200)
+        #expect(remaining.visibleFrame.cgRect.contains(frame.cgRect))
+        #expect(frame.x == 1312 && frame.y == 946)
     }
 
     @Test func filterPlanExcludesHUDAndOutlineByPidEvenWithoutBundleID() {

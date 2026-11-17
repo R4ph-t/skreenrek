@@ -1,12 +1,22 @@
 import AppKit
+import Observation
 import SkreenrekControl
 import SkreenrekCore
 import SwiftUI
 
+/// Updated in place while recording: Stop's native hosting view and accessibility identity survive each tick.
+@MainActor @Observable
+final class HUDPresentation {
+    var state: HUDState
+    var reduceMotion: Bool
+    var increaseContrast: Bool
+    init(state: HUDState = .hidden, reduceMotion: Bool = false, increaseContrast: Bool = false) {
+        self.state = state; self.reduceMotion = reduceMotion; self.increaseContrast = increaseContrast
+    }
+}
+
 struct RecordingHUDView: View {
-    let state: HUDState
-    var reduceMotion = false
-    var increaseContrast = false
+    @Bindable var presentation: HUDPresentation
     var stop: () -> Void = {}
     var reveal: (String) -> Void = { _ in }
     var details: () -> Void = {}
@@ -20,18 +30,21 @@ struct RecordingHUDView: View {
             .padding(.horizontal, 12).frame(height: 36)
             .background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(increaseContrast ? Color.primary : Color(nsColor: .separatorColor),
-                              lineWidth: increaseContrast ? 2 : 1))
+                .strokeBorder(presentation.increaseContrast ? Color.primary : Color(nsColor: .separatorColor),
+                              lineWidth: presentation.increaseContrast ? 2 : 1))
             .onHover(perform: hover)
     }
 
     @ViewBuilder private var content: some View {
-        switch state {
+        switch presentation.state {
         case .hidden: EmptyView()
         case .recording(let target, let seconds):
             HStack(spacing: 12) {
                 symbol("record.circle.fill").foregroundStyle(Color(nsColor: .systemRed))
-                Text(TimeFormat.minutesSeconds(Double(seconds))).font(.system(size: 12, design: .monospaced))
+                // Reserve four minute digits so crossing 9:59 never moves Stop during a click.
+                Text(TimeFormat.minutesSeconds(599_999)).hidden()
+                    .overlay(alignment: .trailing) { Text(TimeFormat.minutesSeconds(Double(seconds))) }
+                    .font(.system(size: 12, design: .monospaced))
                 Divider().frame(height: 16)
                 Button(action: stop) {
                     Label(UIStrings.HUD.stop, systemImage: "stop.fill")
@@ -45,7 +58,7 @@ struct RecordingHUDView: View {
             .accessibilityAction(named: UIStrings.HUD.stop, stop)
         case .writing:
             HStack(spacing: 12) {
-                if reduceMotion { symbol("arrow.down.circle") }
+                if presentation.reduceMotion { symbol("arrow.down.circle") }
                 else { ProgressView().controlSize(.small).frame(width: 16, height: 16) }
                 Text(UIStrings.Menu.savingClip)
             }
@@ -86,11 +99,13 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     private let panel = CapturePanel(frame: .zero)
     private var outline: CapturePanel?
     private var timer: Timer?
-    private var snapshot: ControllerSnapshot?
+    private let presentation = HUDPresentation()
     private var display: DisplayInfo?
     private var target: PointRect?
     private var programmaticMove = false
-    private var rendered: HUDState?
+    private var renderedKind: HUDState.Kind?
+    private var placedTarget: PointRect?
+    private var placedDisplay: DisplayInfo?
     private var fading = false
     var stop: () -> Void = {}
     var showDetails: () -> Void = {}
@@ -103,7 +118,6 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     }
 
     func update(_ snapshot: ControllerSnapshot, indicatorEnabled: Bool) {
-        self.snapshot = snapshot
         model.observe(snapshot, now: ProcessInfo.processInfo.systemUptime, indicatorEnabled: indicatorEnabled)
         if snapshot.state == .recording || snapshot.state == .writing { updateTarget(snapshot) }
         render()
@@ -151,8 +165,8 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
         guard model.state != .hidden else {
             outline?.orderOut(nil)
             timer?.invalidate(); timer = nil
+            renderedKind = nil
             guard panel.isVisible, !fading else { return }
-            rendered = nil
             if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 panel.orderOut(nil)
             } else {
@@ -171,6 +185,9 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             }
             return
         }
+        if presentation.state != model.state { presentation.state = model.state }
+        presentation.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        presentation.increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         if timer == nil {
             let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated {
@@ -181,11 +198,11 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             }
             RunLoop.main.add(timer, forMode: .common); self.timer = timer
         }
-        if rendered != model.state {
-            rendered = model.state
+        let kindChanged = renderedKind != model.state.kind
+        if kindChanged {
+            renderedKind = model.state.kind
             let view = NSHostingView(rootView: RecordingHUDView(
-                state: model.state, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-                increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+                presentation: presentation,
                 stop: { [weak self] in self?.stop() },
                 reveal: { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: $0)]) },
                 details: { [weak self] in self?.showDetails() },
@@ -194,14 +211,16 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
             let size = view.fittingSize
             view.frame = NSRect(origin: .zero, size: size)
             panel.contentView = view
-            if let display, let target {
-                programmaticMove = true
-                panel.setFrame(geometry.appKit(fromTopLeft: placement.frame(target: target, display: display, width: size.width)), display: true)
-                programmaticMove = false
-            }
+        }
+        if let display, let target, let view = panel.contentView,
+           kindChanged || placedDisplay != display || (placedTarget != target && placement.remembered[display.id] == nil) {
+            programmaticMove = true
+            panel.setFrame(geometry.appKit(fromTopLeft: placement.frame(target: target, display: display, width: view.frame.width)), display: true)
+            programmaticMove = false
+            placedTarget = target; placedDisplay = display
         }
         panel.alphaValue = 1
-        panel.orderFrontRegardless()
+        if !panel.isVisible { panel.orderFrontRegardless() }
     }
 
     func windowDidMove(_ notification: Notification) {

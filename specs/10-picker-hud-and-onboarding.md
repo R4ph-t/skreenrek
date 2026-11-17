@@ -89,10 +89,13 @@ Editing, trimming, pause/resume, keystroke capture, a notarized build.
   positions separate from presentation. The 36 pt HUD and region outline never take key/main status. Settings and
   the active recording's `hud` option suppress both; region capture excludes Skreenrek by PID even without a bundle
   ID. Reduce Motion uses the static writing symbol and no fade; Increase Contrast thickens strokes and the HUD border.
+  Elapsed ticks update an observable presentation in place; the hosting view changes only between state kinds,
+  preserving Stop clicks, drags and VoiceOver focus. Target moves re-place the HUD only without a remembered drag.
 - `OnboardingModel` persists the current step and completion. The window polls the read-only probe every second
   while open; only Screen Recording gates Continue. A separate requester runs only from onboarding/Settings buttons.
   Permission rejections open step 1 while control clients retain exit 3. The real window catalogue checks permission
   before asking ScreenCaptureKit for content, preventing an implicit prompt from an agent request.
+  Repeated rejections refresh an already-visible onboarding window without activating or re-showing it.
 - Connect passes only checked, detected clients to spec 09's installer (an empty selection never invokes its
   all-detected default). Failed installs stay on step 2 with the installer's details; Skip finishes without installing.
 - Every dropdown status row reserves a 16 pt trailing inset. Long detail text uses the existing two-line/64 pt layout,

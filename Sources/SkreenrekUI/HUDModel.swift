@@ -8,6 +8,17 @@ public enum HUDState: Sendable, Equatable {
     case writing
     case saved(duration: Double, path: String)
     case error(reason: String)
+
+    public enum Kind: Sendable, Equatable { case hidden, recording, writing, saved, error }
+    public var kind: Kind {
+        switch self {
+        case .hidden: .hidden
+        case .recording: .recording
+        case .writing: .writing
+        case .saved: .saved
+        case .error: .error
+        }
+    }
 }
 
 /// Value-only state and deadlines. The UI supplies monotonic time and hover events.
