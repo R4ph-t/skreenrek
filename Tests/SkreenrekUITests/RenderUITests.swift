@@ -33,6 +33,14 @@ import Testing
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
                 "settings-default-\(appearance)@2x.png",
             ]
+            expected.append("picker-empty-\(appearance)@2x.png")
+            for state in ["keyboard", "window-contrast", "region-contrast"] {
+                expected.append("picker-\(state)-\(appearance)@2x.png")
+            }
+            expected.append("hud-regionoutline-\(appearance)@2x.png")
+            expected.append("hud-regionoutline-contrast-\(appearance)@2x.png")
+            expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
+            expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
         }
         let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
         #expect(Set(written) == Set(expected))
@@ -43,16 +51,36 @@ import Testing
             let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
             sizes[name] = (rep.pixelsWide, rep.pixelsHigh)
             #expect(rep.pixelsWide > 0 && rep.pixelsHigh > 0, "\(name)")
-            #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
+            if name.hasPrefix("hud-regionoutline") {
+                // A single-colour 1 pt border on a transparent interior intentionally has only one opaque colour.
+                #expect(rep.colorAt(x: 0, y: rep.pixelsHigh / 2)?.alphaComponent ?? 0 > 0)
+                #expect(rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?.alphaComponent == 0)
+            } else {
+                #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
+            }
+            if name.hasPrefix("picker-window-") {
+                // The tint must stay transparent, with a fully transparent desktop outside the candidate.
+                let tint = rep.colorAt(x: 300, y: 300)?.alphaComponent ?? 0
+                #expect(abs(tint - 0.18) < 0.02)
+                #expect(rep.colorAt(x: 20, y: 20)?.alphaComponent == 0)
+            }
         }
 
         // Status rows: 300 pt wide, 48 pt tall (64 pt when the detail wraps) at 2×; dropdowns 300 pt wide.
         for appearance in ["light", "dark"] {
             #expect(sizes["statusrow-idle-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
             #expect(sizes["statusrow-recording-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
+            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))
             #expect(sizes["statusrow-errorwindowclosed-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))
             #expect(sizes["settings-default-\(appearance)@2x.png"]?.0 == 960)
+            #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
+            #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
+            for state in CaptureRenderSamples.hudStates {
+                #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
+            }
+            for state in CaptureRenderSamples.onboardingStates {
+                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 992))
+            }
         }
         for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("statusrow-") {
             #expect(size.0 == 600, "\(name)")

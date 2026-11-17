@@ -34,6 +34,8 @@ struct HUDMaterial: NSViewRepresentable {
 struct PickerLabel: View {
     let title: String
     let detail: String
+    var voiceOver: String = ""
+    var pick: () -> Void = {}
     var body: some View {
         VStack(spacing: 4) {
             Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
@@ -41,6 +43,9 @@ struct PickerLabel: View {
         }
         .padding(.horizontal, 16).frame(width: 280, height: 56)
         .background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceOver.isEmpty ? title + ", " + detail : voiceOver)
+        .accessibilityAction(named: UIStrings.Picker.pick, pick)
     }
 }
 
@@ -168,8 +173,18 @@ final class PickerCanvas: NSView {
     private var label: NSView?
     private var hint: NSView?
     private var chip: NSView?
+    var increaseContrast: Bool?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { false }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        guard bounds.contains(local) else { return nil }
+        // The label and size chip are decorations. Picking and dragging must work through them;
+        // only the hint bar's Cancel control handles its own pointer events.
+        if let hint, hint.frame.contains(local) { return super.hitTest(point) }
+        return self
+    }
 
     override func updateTrackingAreas() {
         trackingAreas.forEach(removeTrackingArea)
@@ -194,7 +209,8 @@ final class PickerCanvas: NSView {
         }
         if let window = model.hovered, window.frame.cgRect.intersects(display.visibleFrame.cgRect) {
             let rect = local(window.frame).intersection(bounds)
-            let view = NSHostingView(rootView: PickerLabel(title: model.title, detail: model.detail))
+            let view = NSHostingView(rootView: PickerLabel(title: model.title, detail: model.detail, voiceOver: model.voiceOver,
+                pick: { [weak self] in self?.overlay?.finish(model.selection) }))
             view.frame = NSRect(x: max(0, min(bounds.width - 280, rect.midX - 140)),
                                 y: max(0, min(bounds.height - 56, rect.midY - 28)), width: 280, height: 56)
             view.setAccessibilityLabel(model.voiceOver)
@@ -223,11 +239,13 @@ final class PickerCanvas: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let model, let rect = model.regionFrame ?? model.hovered?.frame else { return }
         let region = model.region != nil
-        let path = NSBezierPath(roundedRect: local(rect).insetBy(dx: region ? 0.5 : 1, dy: region ? 0.5 : 1),
+        let contrast = increaseContrast ?? NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let width: CGFloat = contrast ? (region ? 2 : 3) : (region ? 1 : 2)
+        let path = NSBezierPath(roundedRect: local(rect).insetBy(dx: width / 2, dy: width / 2),
                                 xRadius: region ? 0 : 10, yRadius: region ? 0 : 10)
         if !region { NSColor.controlAccentColor.withAlphaComponent(0.18).setFill(); path.fill() }
         NSColor.controlAccentColor.setStroke()
-        path.lineWidth = region ? 1 : 2
+        path.lineWidth = width
         path.stroke()
     }
 }

@@ -1,4 +1,4 @@
-import CoreGraphics
+import AppKit
 import SkreenrekCore
 @testable import SkreenrekUI
 import Testing
@@ -28,6 +28,22 @@ import Testing
         var model = PickerModel(windows: [own, dock, menu, hidden], displays: [], ownPid: 123)
         #expect(model.windows.isEmpty)
         model.move(); #expect(model.selection == .cancelled)
+    }
+
+    @Test func labelDoesNotInterceptPickingOrDraggingAndPanelsCannotTakeFocus() async throws {
+        try await onMain("picker decorations and focus") {
+            let panel = CapturePanel(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+            #expect(!panel.canBecomeKey && !panel.canBecomeMain)
+            let canvas = PickerCanvas(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+            var display = RenderSamples.display
+            display.visibleFrame = PointRect(x: 0, y: 0, width: 800, height: 600)
+            canvas.display = display
+            var model = PickerModel(windows: [RenderSamples.safari], displays: [display], ownPid: -1)
+            model.hover(CGPoint(x: 200, y: 200))
+            canvas.update(model, pointer: CGPoint(x: 200, y: 200))
+            #expect(canvas.hitTest(CGPoint(x: 440, y: 280)) === canvas)
+            #expect(canvas.hitTest(CGPoint(x: -1, y: 0)) == nil)
+        }
     }
 
     @Test(arguments: [1.0, 2.0]) func regionIsDisplayLocalEvenClampedAndReversible(_ scale: Double) {
