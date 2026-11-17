@@ -23,4 +23,12 @@ public protocol FrameSource: Sendable {
     func start(target: CaptureTarget, size: PixelSize, fps: FrameRate, showsCursor: Bool) async throws
         -> AsyncThrowingStream<CapturedFrame, any Error>
     func stop() async
+    /// Frames dropped since the last `start` because the consumer lagged (the stream keeps only the newest one).
+    /// The recorder counts them in `sourceFramesSkipped`, so a lossy recording is never reported clean.
+    var droppedFrameCount: Int { get }
+}
+
+extension FrameSource {
+    /// Sources whose stream never drops (the test fakes) report 0.
+    public var droppedFrameCount: Int { 0 }
 }
