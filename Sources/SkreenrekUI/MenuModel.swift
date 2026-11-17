@@ -228,17 +228,13 @@ public enum MenuModel {
     static func armedRow(_ context: MenuContext) -> StatusRow {
         let snapshot = context.snapshot
         let size = snapshot.size?.description ?? ""
-        var note: String?
+        var note: String? = size.isEmpty ? nil : UIStrings.Menu.fps(snapshot.fps)
         var toolTip: String?
-        if let readback = snapshot.readback, snapshot.window != nil {
-            if readback.exact {
-                note = UIStrings.Menu.fps(snapshot.fps)
-            } else {
-                note = UIStrings.Menu.notExact
-                toolTip = UIStrings.Menu.notExactReason(
-                    app: readback.window.app, requested: readback.requested, actual: readback.actual,
-                    reason: ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
-            }
+        if let readback = snapshot.readback, snapshot.window != nil, !readback.exact {
+            note = UIStrings.Menu.notExact
+            toolTip = UIStrings.Menu.notExactReason(
+                app: readback.window.app, requested: readback.requested, actual: readback.actual,
+                reason: ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
         }
         let detail = [size, note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
         return StatusRow(

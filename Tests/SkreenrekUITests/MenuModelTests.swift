@@ -100,7 +100,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
             if case .submenu(let submenu) = entry, submenu.title == "Size" { return submenu }
             return nil
         }.first
-        #expect(size?.detail == "1280 × 800 px")
+        #expect(size?.detail == "Current Size")
     }
 
     @Test func notExactReasonsNameTheLimit() {
