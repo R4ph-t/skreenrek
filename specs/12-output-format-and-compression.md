@@ -1,6 +1,6 @@
 # 12: Output format and compression
 
-Status: Queued (herdr) · Branch: – · Depends on: 03 (recorder), 04 (events), 06 (CLI), 07 (MCP) · Estimate: 4–6 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/12-output-format-and-compression · Depends on: 03 (recorder), 04 (events), 06 (CLI), 07 (MCP) · Estimate: 4–6 h agent run + 0 h Raph review (no hand test)
 Source: Designer's "Output format and compression (design addition, 2026-11-17)" in `docs/design-spec.md`, from Raph's call that agents should be able to pick output format and compression. Earlier design and plan: Designer's spec v1 and Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -162,4 +162,20 @@ other post-processor, WebM, AV1, GIF, and a quality or format control in the men
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- The open preset question uses the stated defaults: low/medium/high/max multiply the 03 formula and its clamps
+  by 0.25/0.5/1/2. H.264 High in MP4 at high remains the default; explicit bitrate requests leave quality null.
+- CLI, control and MCP validate before resizing or creating a clip folder. Start JSON reports resolved settings
+  with a null measured bitrate. Stop/wait/last and events report the completed asset's ftyp container, codec
+  configuration profile (or ProRes fourcc), dimensions and measured file-size bitrate, rounded to 0.1 Mbps.
+  Snippets and asset copies follow the actual container extension.
+- Hardware startup prepares the VideoToolbox session eagerly and retries in software if setup or the first
+  append fails, preserving that source buffer and timestamp. Failures after accepted samples still stop the
+  recording rather than discarding frames to restart it. Readiness uses KVO and a deadline instead of the 1 ms
+  poll. Offline writer waits run on the recording actor's dedicated dispatch executor, outside Swift's
+  cooperative pool; recorder completion waits and new integration tests have hard watchdog deadlines.
+- The Designer follow-up is included: non-default Last Clip formats replace the clock time. Render fixtures
+  cover H.264 MOV and ProRes MOV; model tests also cover HEVC MP4 and the unchanged default clock time.
+- Permission-free tests encode H.264/HEVC in both containers and all four ProRes MOV flavours, check CFR samples,
+  asset-derived facts even with a deliberately misleading request/extension, extension-correct artifacts,
+  exact CLI/MCP errors, default output and the ProRes note. The five-second 1280 × 800, 30 fps software motion
+  clip requested 8 Mbps and measured 7.3 Mbps (within the spec's ±30% budget). No app or live capture was run.
