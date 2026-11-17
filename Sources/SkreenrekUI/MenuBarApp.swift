@@ -65,7 +65,11 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let store = SettingsStore(defaults: defaults)
         let effects = SystemEffects()
         let model = AppModel(controller: host.controller, settings: store, effects: effects)
-        let panel = SettingsPanelState(permissions: permissions, loginItem: MainAppLoginItem())
+        let agents = AgentsPanelState(installer: AgentInstaller(
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            executablePath: Bundle.main.executablePath ?? CommandLine.arguments[0],
+            path: ProcessInfo.processInfo.environment["PATH"] ?? ""))
+        let panel = SettingsPanelState(permissions: permissions, loginItem: MainAppLoginItem(), agents: agents)
         let settingsWindow = SettingsWindowController(
             store: store, panel: panel,
             actions: SettingsActions(

@@ -68,7 +68,7 @@ public enum CLI {
         // After the command (and `debug perf`'s subcommand), before any `--` terminator.
         var command = Array(rest.prefix(1))
         rest = rest.dropFirst()
-        if command == ["debug"], let sub = rest.first, !sub.hasPrefix("-") {
+        if command == ["debug"] || command == ["setup"], let sub = rest.first, !sub.hasPrefix("-") {
             command.append(sub)
             rest = rest.dropFirst()
         }
@@ -105,6 +105,7 @@ public enum CLI {
         {
             return "debug perf"
         }
+        if first == "setup", arguments.contains("agents") { return "setup agents" }
         return first
     }
 }
@@ -124,6 +125,7 @@ extension StatusCommand: GlobalOptionsCarrier {}
 extension LastCommand: GlobalOptionsCarrier {}
 extension DoctorCommand: GlobalOptionsCarrier {}
 extension PerfCommand: GlobalOptionsCarrier {}
+extension SetupAgentsCommand: GlobalOptionsCarrier {}
 
 /// Runs one parsed command against the app.
 struct Runner: Sendable {
@@ -145,6 +147,7 @@ struct Runner: Sendable {
         case is LastCommand: return try await last()
         case is DoctorCommand: return try await doctor()
         case let c as PerfCommand: return try await perf(c)
+        case let c as SetupAgentsCommand: return try setupAgents(c)
         default: throw SkreenrekError.internal(message: "\(type(of: command)) isn't a command this CLI runs.")
         }
     }
