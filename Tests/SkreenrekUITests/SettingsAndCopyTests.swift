@@ -189,7 +189,8 @@ final class FailingLoginItem: LoginItemService {
         let anySpelling = try Regex("(?i)s[ck]reen ?rec?k")
         for text in Self.samples {
             for match in text.matches(of: anySpelling) {
-                #expect(text[match.range] == "Skreenrek", "\(text)")
+                let commandReference = text == UIStrings.Onboarding.cliDetail && text[match.range] == "skreenrek"
+                #expect(text[match.range] == "Skreenrek" || commandReference, "\(text)")
             }
         }
     }

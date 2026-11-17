@@ -6,9 +6,13 @@ import SkreenrekCore
 /// Windows from ScreenCaptureKit and displays from AppKit. Filtering and display assignment live in
 /// `WindowDirectory`; this only maps types.
 public struct SCWindowCatalog: WindowCatalog {
-    public init() {}
+    private let permissions: any PermissionProbe
+    public init(permissions: any PermissionProbe = SystemPermissionProbe()) { self.permissions = permissions }
 
     public func windows() async throws -> [WindowInfo] {
+        // ScreenCaptureKit may prompt on its first content query. An agent request must instead fail
+        // and let onboarding offer the explicit permission button.
+        guard permissions.screenRecording == .allowed else { throw SkreenrekError.permissionDenied(.screenRecording) }
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)

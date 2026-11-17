@@ -191,6 +191,7 @@ public enum UIStrings {
     }
 
     public enum Picker {
+        public static let pick = "Pick"
         public static let alreadyOpen = "The window picker is already open."
         public static let hint = "Click a window, or drag to pick a region."
         public static let escape = "Esc to cancel"
@@ -221,6 +222,9 @@ public enum UIStrings {
         public static let agentsIntroduction = "Adds the Skreenrek MCP server and the record-window skill to each agent you pick. You can change this later in Settings."
         public static let skip = "Skip"
         public static let connect = "Connect"
+        public static let cliDetail = "Links skreenrek into ~/.local/bin"
+        public static let notInstalled = "Not installed"
+        public static func found(_ agent: AgentClient) -> String { "Found ~/.\(agent.rawValue)" }
         public static func step(_ number: Int) -> String { "Step \(number) of 2" }
     }
 
@@ -260,9 +264,10 @@ public enum UIStrings {
 
     /// Every fixed string above, for the copy audit.
     public static let allFixed: [String] = [
-        Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
+        Picker.pick, Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
         Onboarding.title, Onboarding.introduction, Onboarding.accessibilityNote, Onboarding.continueButton,
         Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
+        Onboarding.cliDetail, Onboarding.notInstalled,
         Agents.title, Agents.connect, Agents.remove,
         productName, Icon.idle, Icon.writing, Icon.regionTarget,
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,

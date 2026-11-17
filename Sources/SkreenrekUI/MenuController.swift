@@ -33,6 +33,8 @@ public final class MenuController: NSObject, NSMenuDelegate {
 
     // MARK: - Rendering
 
+    public func showDropdown() { statusItem.button?.performClick(nil) }
+
     private func render() {
         renderIcon(model.icon)
         if model.menuOpen { renderMenu(model.entries) }

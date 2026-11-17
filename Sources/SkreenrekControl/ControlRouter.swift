@@ -51,6 +51,7 @@ public struct ControlRouter: Sendable {
         do {
             return try await dispatch(method, line: line, id: id, client: client)
         } catch let error as SkreenrekError {
+            await controller.reportActionFailure(error)
             return Self.line(ErrorResponse(id: id, error: error.body))
         } catch {
             return Self.line(

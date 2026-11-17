@@ -4,6 +4,7 @@ import Foundation
 import SkreenrekControl
 import SkreenrekCore
 import SkreenrekTesting
+import Synchronization
 import Testing
 
 /// The whole flow over a real Unix socket against a `HeadlessHost` with fakes.
@@ -506,6 +507,27 @@ import Testing
 
 /// The controller's snapshot stream, for the UI.
 @Suite(.timeLimit(.minutes(2))) struct ControllerSnapshotTests {
+    @Test func clientHUDOptionReachesTheAppSnapshot() async throws {
+        let h = try Harness().start()
+        defer { h.stop() }
+        let client = try await h.client(.mcp)
+        _ = try await client.call(.recordStart, params: StartParams(app: "Safari", hud: false), as: StartBody.self)
+        #expect(await h.controller.snapshot().hud == false)
+        _ = try await client.call(.recordDiscard, as: DiscardBody.self)
+    }
+
+    @Test func permissionRejectionNotifiesTheAppAndStillReturnsExitThree() async throws {
+        let h = try Harness().start()
+        defer { h.stop() }
+        let reported = Mutex<[Permission]>([])
+        await h.controller.setPermissionFailureHandler { permission in reported.withLock { $0.append(permission) } }
+        h.permissions.screenRecording = .missing
+        let client = try await h.client(.cli)
+        let error = try await client.expectError(.recordStart, params: StartParams(app: "Safari"))
+        #expect(error.exit == 3)
+        #expect(reported.withLock { $0 } == [.screenRecording])
+    }
+
     @Test func snapshotsGoIdleRecordingWritingIdle() async throws {
         let h = try Harness().start()
         defer { h.stop() }
