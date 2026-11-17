@@ -98,18 +98,23 @@ struct MenuHarness {
 
     let resizer = FakeWindowResizer()
     let permissions = FakePermissionProbe()
+    let frames: SyntheticFrameSource
+    let sinks = SinkLog()
     let picker = FakeWindowPicker(result: .window(UIFixtures.safari.id))
     let effects = RecordingEffects()
     let controller: SkreenrekController
     let model: AppModel
     let defaultsName = "skreenrek.tests.\(UUID().uuidString)"
 
-    init() {
+    /// - Parameter frames: frames the fake recorder delivers at once (31 records a one-second clip).
+    init(frames count: Int = 1, endError: (any Error)? = nil) {
+        frames = SyntheticFrameSource(count: count, fps: 30, endError: endError)
         let clock = ManualClock()
         let seams = ControllerSeams(
             catalog: FakeWindowCatalog(windows: [UIFixtures.safari], displays: [Self.display]), resizer: resizer,
-            frameSource: SyntheticFrameSource(count: 1, fps: 30), mouse: FakeMouseEventSource(), clock: clock,
-            permissions: permissions, disk: FakeDiskSpaceProbe(), picker: picker, ownPid: 99, encoder: .software)
+            frameSource: frames, mouse: FakeMouseEventSource(), clock: clock,
+            permissions: permissions, disk: FakeDiskSpaceProbe(), picker: picker, ownPid: 99, encoder: .software,
+            makeSink: sinks.factory(clock: clock, encode: false))
         controller = SkreenrekController(seams: seams)
         let store = SettingsStore(defaults: UserDefaults(suiteName: defaultsName)!)
         model = AppModel(controller: controller, settings: store, effects: effects, permissions: permissions)

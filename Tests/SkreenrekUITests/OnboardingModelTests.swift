@@ -11,29 +11,111 @@ import Testing
 }
 
 @Suite struct OnboardingModelTests {
-    @Test func livePermissionsGatingExplicitRequestsAndPersistedStep() async throws {
-        try await onMain("onboarding permissions") {
+    @MainActor private static func make(
+        _ probe: FakePermissionProbe, _ requester: TestPermissionRequester, _ defaults: UserDefaults,
+        opened: @escaping (Permission) -> Void = { _ in }
+    ) -> OnboardingModel {
+        OnboardingModel(permissions: probe, requester: requester, defaults: defaults, agents: [], install: { _ in [] },
+                        openSettings: opened)
+    }
+
+    /// First launch on a fresh Mac: one step per permission, in order, each asking macOS only when its step asks.
+    @Test(.timeLimit(.minutes(1))) func walksThePermissionsInOrderAndAsksOnlyOnItsStep() async throws {
+        try await onMain("onboarding step order", seconds: 10) {
             let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
             let defaults = UserDefaults(suiteName: name)!
             defer { defaults.removePersistentDomain(forName: name) }
-            let probe = FakePermissionProbe(screenRecording: .missing, accessibility: .missing)
+            let probe = FakePermissionProbe(screenRecording: .missing, directCapture: .missing, accessibility: .missing)
             let requester = TestPermissionRequester()
-            @MainActor func make() -> OnboardingModel {
-                OnboardingModel(permissions: probe, requester: requester, defaults: defaults, agents: [], install: { _ in [] })
-            }
-            let model = make()
-            #expect(model.step == 1 && !model.canContinue && !model.completed)
-            model.refresh(); model.continueToAgents()
-            #expect(model.step == 1 && requester.requests.isEmpty)
-            model.request(.screenRecording)
+            var opened: [Permission] = []
+            let model = Self.make(probe, requester, defaults) { opened.append($0) }
+            // Construction and refresh never ask.
+            #expect(model.shouldShowAtLaunch && model.steps == [.screenRecording, .directCapture, .accessibility, .agents])
+            model.begin(); model.refresh()
+            #expect(model.step == .screenRecording && model.stepNumber == 1 && requester.requests.isEmpty)
+            #expect(!model.canContinue && model.requestTitle == "Allow Screen Recording" && !model.needsRelaunch)
+            model.advance(); #expect(model.step == .screenRecording)
+
+            // Step 1: the Screen Recording prompt, then the pane, then Quit & Reopen (the grant needs a new process).
+            model.requestCurrent()
             #expect(requester.requests == [.screenRecording])
+            model.openSystemSettings(); #expect(opened == [.screenRecording])
+            #expect(model.needsRelaunch && model.requestTitle == nil)
+
+            // After the relaunch: Screen Recording reads allowed, and onboarding opens on direct capture and raises
+            // macOS 15's private window picker prompt right away.
             probe.screenRecording = .allowed
-            model.refresh()
-            #expect(model.canContinue && model.accessibility == .missing)
-            model.continueToAgents(); #expect(model.step == 2)
-            #expect(make().step == 2)
-            model.showMissingPermission(); #expect(make().step == 1)
-            model.skip(); #expect(make().completed)
+            let relaunched = Self.make(probe, requester, defaults) { opened.append($0) }
+            #expect(relaunched.shouldShowAtLaunch)
+            relaunched.begin()
+            #expect(relaunched.step == .directCapture && relaunched.stepNumber == 2)
+            #expect(requester.requests == [.screenRecording, .directCapture])
+            #expect(!relaunched.canContinue && relaunched.requestTitle == "Ask Again" && !relaunched.needsRelaunch)
+            // Polling (refresh) never asks again; the user clicks Allow on the system prompt and polling sees it.
+            relaunched.refresh(); relaunched.begin()
+            #expect(requester.requests == [.screenRecording, .directCapture])
+            relaunched.openSystemSettings(); #expect(opened.last == .directCapture)
+            probe.directCapture = .allowed
+            relaunched.refresh()
+            #expect(relaunched.canContinue && relaunched.requestTitle == nil)
+
+            // Step 3: Accessibility isn't blocking, so Skip moves on; Allow prompts through AX.
+            relaunched.advance()
+            #expect(relaunched.step == .accessibility && relaunched.continueTitle == "Skip")
+            #expect(relaunched.requestTitle == "Allow Accessibility")
+            relaunched.requestCurrent()
+            #expect(requester.requests == [.screenRecording, .directCapture, .accessibility])
+            #expect(!relaunched.needsRelaunch)
+            probe.accessibility = .allowed; relaunched.refresh()
+            #expect(relaunched.continueTitle == "Continue")
+            relaunched.advance()
+            #expect(relaunched.step == .agents && relaunched.stepNumber == 4 && !relaunched.completed)
+            relaunched.skip()
+            #expect(relaunched.completed && !Self.make(probe, requester, defaults).shouldShowAtLaunch)
+        }
+    }
+
+    /// Once completed, a missing permission reopens the flow on that step, without the agents, and Done closes it.
+    @Test(.timeLimit(.minutes(1))) func reopensOnTheMissingStepAfterOnboarding() async throws {
+        try await onMain("onboarding reopens", seconds: 10) {
+            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: name)!
+            defer { defaults.removePersistentDomain(forName: name) }
+            defaults.set(true, forKey: "onboarding.completed")
+            // macOS asks about direct capture again about once a month: the record expired.
+            let probe = FakePermissionProbe(directCapture: .missing)
+            let requester = TestPermissionRequester()
+            let model = Self.make(probe, requester, defaults)
+            var closed = 0
+            model.didComplete = { closed += 1 }
+            #expect(model.shouldShowAtLaunch && model.steps == [.screenRecording, .directCapture, .accessibility])
+            model.begin()
+            #expect(model.step == .directCapture && model.stepNumber == 2 && requester.requests == [.directCapture])
+            #expect(model.continueTitle == "Done")
+            probe.directCapture = .allowed; model.refresh()
+            model.advance()
+            #expect(closed == 1 && model.completed)
+            // Accessibility alone missing doesn't open it at launch (recording works), but the menu still offers it.
+            probe.accessibility = .missing
+            let later = Self.make(probe, requester, defaults)
+            #expect(!later.shouldShowAtLaunch)
+            later.begin(); #expect(later.step == .accessibility)
+        }
+    }
+
+    /// Direct capture can't be asked before Screen Recording is in effect: no request, a plain sentence instead.
+    @Test(.timeLimit(.minutes(1))) func directCaptureWaitsForScreenRecording() async throws {
+        try await onMain("direct capture waits", seconds: 10) {
+            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: name)!
+            defer { defaults.removePersistentDomain(forName: name) }
+            let probe = FakePermissionProbe(screenRecording: .missing, directCapture: .missing)
+            let requester = TestPermissionRequester()
+            let model = Self.make(probe, requester, defaults)
+            model.preview(.directCapture)
+            #expect(model.waitsForScreenRecording && model.requestTitle == nil && !model.canContinue)
+            model.requestCurrent()
+            #expect(requester.requests == [.directCapture])
         }
     }
 

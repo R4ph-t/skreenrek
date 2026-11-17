@@ -255,6 +255,7 @@ import Testing
         #expect(result.code == 0, "\(result)")
         #expect(result.out == """
             ✓ Screen Recording   Allowed
+            ✓ Direct capture     Allowed
             ✓ Accessibility      Allowed
             ✓ Skreenrek app      \(SkreenrekVersion.current), running
             ✓ Output folder      ~/out

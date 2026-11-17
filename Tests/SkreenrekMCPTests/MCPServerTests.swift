@@ -314,7 +314,11 @@ import Testing
         #expect(result["isError"] == true)
         #expect(try result.structured() == [
             "error": [
-                "code": "internal", "message": "Skreenrek isn't running.",
+                "code": "internal",
+                "message": """
+                    Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so it can't be \
+                    opened.
+                    """,
                 "hint": "Open Skreenrek.app, or run: skreenrek app",
             ]
         ])
@@ -341,6 +345,33 @@ import Testing
         #expect(launcher.launches.count == 1)
         _ = try await h.call("skreenrek_status")
         #expect(launcher.launches.count == 1)
+    }
+
+    @Test func aSandboxedServerSaysSoAsAToolErrorAndNeverLaunchesTheApp() async throws {
+        let temp = ShortTemp()
+        defer { temp.cleanUp() }
+        let macOS = temp.root.appendingPathComponent("Skreenrek.app/Contents/MacOS", isDirectory: true)
+        try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
+        let executable = macOS.appendingPathComponent("skreenrek")
+        FileManager.default.createFile(atPath: executable.path, contents: Data())
+
+        let launcher = FakeAppLauncher()
+        let h = try MCPHarness(executablePath: executable.path, launcher: launcher).start(app: false)
+        defer { h.stop() }
+        // The socket's folder can't be searched: connect() fails with EACCES, as under Codex's sandbox.
+        let folder = h.temp.socket.deletingLastPathComponent().path
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        chmod(folder, 0)
+        defer { chmod(folder, 0o700) }
+        let result = try await h.call("skreenrek_status")
+        #expect(result["isError"] == true)
+        #expect(try result.structured() == [
+            "error": [
+                "code": "sandboxed", "message": "Skreenrek can't reach its app from this shell.",
+                "hint": "This shell is sandboxed. Use the Skreenrek MCP tools, or allow network access for this command.",
+            ]
+        ])
+        #expect(launcher.launches.isEmpty)
     }
 }
 

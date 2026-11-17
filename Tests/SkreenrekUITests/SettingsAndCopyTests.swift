@@ -118,6 +118,7 @@ import Testing
 
 final class FakePermissions: PermissionProbe, @unchecked Sendable {
     var screenRecording: PermissionStatus = .allowed
+    var directCapture: PermissionStatus = .allowed
     var accessibility: PermissionStatus = .allowed
 }
 

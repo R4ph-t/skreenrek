@@ -9,7 +9,11 @@ import Testing
             let home = FileManager.default.temporaryDirectory.appendingPathComponent("skreenrek-agents-ui-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: home.appendingPathComponent(".codex"), withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: home) }
-            let installer = AgentInstaller(home: home, executablePath: home.appendingPathComponent("app/skreenrek").path, path: "")
+            // A real executable, so the connection reads as working.
+            let executable = home.appendingPathComponent("app/skreenrek")
+            try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: executable.path, contents: Data(), attributes: [.posixPermissions: 0o755])
+            let installer = AgentInstaller(home: home, executablePath: executable.path, path: "")
             let agents = AgentsPanelState(installer: installer)
             #expect(agents.connections.first { $0.agent == .codex }?.status == "Found ~/.codex")
             #expect(agents.connections.first { $0.agent == .cursor }?.detected == false)

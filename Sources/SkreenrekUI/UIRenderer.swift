@@ -129,11 +129,7 @@ public enum UIRenderer {
                 let name = "skreenrek.render-onboarding.\(UUID().uuidString)"
                 let defaults = UserDefaults(suiteName: name)!
                 defer { defaults.removePersistentDomain(forName: name) }
-                defaults.set(sample.step, forKey: "onboarding.step")
-                let model = OnboardingModel(permissions: StaticPermissions(screenRecording: sample.screen, accessibility: sample.accessibility),
-                    requester: PreviewPermissionRequester(), defaults: defaults,
-                    agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) }, install: { _ in [] })
-                for permission in sample.requested { model.request(permission) }
+                let model = OnboardingModel.preview(sample, defaults: defaults)
                 try save(host(OnboardingView(model: model), size: OnboardingView.size), "onboarding", sample.name)
             }
         }
@@ -367,6 +363,10 @@ public enum RenderSamples {
             context: context(
                 ControllerSnapshot(state: .idle, fps: .fps60), actionError: .permissionDenied(.screenRecording))),
         Sample(
+            name: "errordirectcapture",
+            context: context(
+                ControllerSnapshot(state: .idle, fps: .fps60), actionError: .permissionDenied(.directCapture))),
+        Sample(
             name: "erroraccessibility",
             context: context(
                 ControllerSnapshot(state: .armed, window: safari, displayId: 1, size: size, fps: .fps60),
@@ -394,7 +394,24 @@ public enum RenderSamples {
 /// Fixed permission state for previews.
 struct StaticPermissions: PermissionProbe {
     var screenRecording: PermissionStatus
+    var directCapture: PermissionStatus = .allowed
     var accessibility: PermissionStatus
+}
+
+extension OnboardingModel {
+    /// A sample's model for renders and layout tests: nothing reaches the system.
+    static func preview(_ sample: CaptureRenderSamples.OnboardingSample, defaults: UserDefaults) -> OnboardingModel {
+        defaults.set(sample.completed, forKey: completedKey)
+        let model = OnboardingModel(
+            permissions: StaticPermissions(
+                screenRecording: sample.screen, directCapture: sample.direct, accessibility: sample.accessibility),
+            requester: PreviewPermissionRequester(), defaults: defaults,
+            agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) },
+            install: { _ in [] })
+        for permission in sample.requested { model.request(permission) }
+        model.preview(sample.step)
+        return model
+    }
 }
 
 /// A release feed and installer for previews: the renders never check or install, so neither is called.

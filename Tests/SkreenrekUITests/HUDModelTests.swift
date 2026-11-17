@@ -46,13 +46,17 @@ import Testing
         model.tick(now: 10); #expect(model.state == .hidden)
     }
 
-    @Test func errorsPersistAndOptionsSuppressAllStates() {
+    @Test func errorsPersistAndOptionsHideOnlyTheCaptureStates() {
         var model = HUDModel()
         var snapshot = UIFixtures.recording(.cli)
         snapshot.hud = false
         model.observe(snapshot, now: 0); #expect(model.state == .hidden)
+        snapshot.state = .writing
+        model.observe(snapshot, now: 0.5); #expect(model.state == .hidden)
+        // The recording ended: its outcome shows even with --no-hud, so it never ends silently.
         snapshot.state = .error; snapshot.error = .recordingFailed(.windowClosed(at: 31))
-        model.observe(snapshot, now: 1); #expect(model.state == .hidden)
+        model.observe(snapshot, now: 1); #expect(model.state == .error(reason: "the window closed"))
+        model.dismiss()
         snapshot = UIFixtures.recording(.menu)
         model.observe(snapshot, now: 2)
         snapshot.state = .error; snapshot.error = .recordingFailed(.windowClosed(at: 31))

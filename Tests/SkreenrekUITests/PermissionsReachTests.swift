@@ -44,11 +44,11 @@ import Testing
             probe.screenRecording = .allowed
             model.refresh()
             #expect(!model.needsRelaunch)
-            // Accessibility requested and still missing also offers it; allowed clears it.
+            // Accessibility applies live, so it never needs a relaunch.
+            probe.accessibility = .missing
+            model.advance()
+            #expect(model.step == .accessibility)
             model.request(.accessibility)
-            #expect(model.needsRelaunch)
-            probe.accessibility = .allowed
-            model.refresh()
             #expect(!model.needsRelaunch)
             #expect(relaunches == 1)
         }
@@ -91,6 +91,10 @@ import Testing
             h.permissions.screenRecording = .missing
             #expect(h.model.context.permissionsMissing)
             h.permissions.screenRecording = .allowed
+            #expect(!h.model.context.permissionsMissing)
+            h.permissions.directCapture = .missing
+            #expect(h.model.context.permissionsMissing)
+            h.permissions.directCapture = .allowed
             #expect(!h.model.context.permissionsMissing)
         }
     }

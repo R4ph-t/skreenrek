@@ -8,11 +8,14 @@ public enum CaptureRenderSamples {
     }
     public struct OnboardingSample: Sendable {
         public let name: String
-        public let step: Int
-        public let screen: PermissionStatus
-        public let accessibility: PermissionStatus
-        /// Permissions requested in this run (they show Quit & Reopen while still missing).
+        public let step: OnboardingStep
+        public var screen: PermissionStatus = .missing
+        public var direct: PermissionStatus = .missing
+        public var accessibility: PermissionStatus = .missing
+        /// Permissions requested in this run (Screen Recording shows Quit & Reopen while still missing).
         public var requested: [Permission] = []
+        /// Onboarding was completed before (opened again for a missing permission: three steps, no agents).
+        public var completed = false
     }
     public static let hudStates: [HUDSample] = [
         HUDSample(name: "recording", state: .recording(target: "Safari", seconds: 12)),
@@ -24,14 +27,18 @@ public enum CaptureRenderSamples {
         HUDSample(name: "recording-contrast", state: .recording(target: "Safari", seconds: 12)),
     ]
     public static let onboardingStates: [OnboardingSample] = [
-        OnboardingSample(name: "permissions-missing", step: 1, screen: .missing, accessibility: .missing),
-        OnboardingSample(name: "permissions-screenallowed", step: 1, screen: .allowed, accessibility: .missing),
-        OnboardingSample(name: "permissions-accessibilityallowed", step: 1, screen: .missing, accessibility: .allowed),
-        OnboardingSample(name: "permissions-allowed", step: 1, screen: .allowed, accessibility: .allowed),
-        OnboardingSample(name: "agents", step: 2, screen: .allowed, accessibility: .allowed),
-        OnboardingSample(
-            name: "permissions-relaunch", step: 1, screen: .missing, accessibility: .missing,
-            requested: [.screenRecording]),
+        OnboardingSample(name: "1-screenrecording", step: .screenRecording),
+        OnboardingSample(name: "1-screenrecording-relaunch", step: .screenRecording, requested: [.screenRecording]),
+        OnboardingSample(name: "2-directcapture", step: .directCapture, screen: .allowed),
+        OnboardingSample(name: "2-directcapture-askagain", step: .directCapture, screen: .allowed,
+                         requested: [.directCapture]),
+        OnboardingSample(name: "2-directcapture-allowed", step: .directCapture, screen: .allowed, direct: .allowed),
+        OnboardingSample(name: "3-accessibility", step: .accessibility, screen: .allowed, direct: .allowed),
+        OnboardingSample(name: "3-accessibility-allowed", step: .accessibility, screen: .allowed, direct: .allowed,
+                         accessibility: .allowed),
+        OnboardingSample(name: "4-agents", step: .agents, screen: .allowed, direct: .allowed, accessibility: .allowed),
+        OnboardingSample(name: "missing-directcapture-later", step: .directCapture, screen: .allowed,
+                         accessibility: .allowed, completed: true),
     ]
 }
 

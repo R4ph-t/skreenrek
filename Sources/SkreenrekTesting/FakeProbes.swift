@@ -2,17 +2,24 @@ import Foundation
 import SkreenrekCore
 import Synchronization
 
-/// Permission state the test sets. Both are allowed by default.
+/// Permission state the test sets. All are allowed by default.
 public final class FakePermissionProbe: PermissionProbe {
-    private let state: Mutex<(screenRecording: PermissionStatus, accessibility: PermissionStatus)>
+    private let state: Mutex<(screenRecording: PermissionStatus, directCapture: PermissionStatus,
+                              accessibility: PermissionStatus)>
 
-    public init(screenRecording: PermissionStatus = .allowed, accessibility: PermissionStatus = .allowed) {
-        state = Mutex((screenRecording, accessibility))
+    public init(screenRecording: PermissionStatus = .allowed, directCapture: PermissionStatus = .allowed,
+                accessibility: PermissionStatus = .allowed) {
+        state = Mutex((screenRecording, directCapture, accessibility))
     }
 
     public var screenRecording: PermissionStatus {
         get { state.withLock { $0.screenRecording } }
         set { state.withLock { $0.screenRecording = newValue } }
+    }
+
+    public var directCapture: PermissionStatus {
+        get { state.withLock { $0.directCapture } }
+        set { state.withLock { $0.directCapture = newValue } }
     }
 
     public var accessibility: PermissionStatus {

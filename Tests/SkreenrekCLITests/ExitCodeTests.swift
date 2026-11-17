@@ -172,7 +172,12 @@ import Testing
         let result = try await h.run(["status"], launcher: launcher)
         #expect(result.code == 1)
         #expect(result.out.isEmpty)
-        #expect(result.err == "error: Skreenrek isn't running.\nhint:  Open Skreenrek.app, or run: skreenrek app\n")
+        #expect(result.err == """
+            error: Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so it can't be \
+            opened.
+            hint:  Open Skreenrek.app, or run: skreenrek app
+
+            """)
         #expect(launcher.launches.isEmpty)
         let json = try await h.run(["status", "--json"])
         #expect(try json.jsonError()["code"] as? String == "internal")
@@ -185,7 +190,8 @@ import Testing
         let result = try await h.run(["doctor"], variables: ["PATH": "/nowhere"])
         #expect(result.code == 1)
         #expect(result.out == """
-            ✗ Skreenrek app      Skreenrek isn't running. Open Skreenrek.app, or run: skreenrek app
+            ✗ Skreenrek app      Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so \
+            it can't be opened. Open Skreenrek.app, or run: skreenrek app
             ✗ Command-line tool  /usr/local/bin/skreenrek isn't on your PATH as skreenrek. Link it: \
             ln -s "/usr/local/bin/skreenrek" ~/.local/bin/skreenrek
             ✗ Socket             Nothing answers at ~/s/c.sock.
@@ -195,5 +201,60 @@ import Testing
         #expect(json.code == 1)
         #expect(json.out.isEmpty)
         #expect(try json.jsonError()["code"] as? String == "internal")
+    }
+
+    /// The socket's folder can't be searched, so `connect()` fails with `EACCES`, as under Codex's sandbox.
+    static func lockSocketFolder(_ h: CLIHarness) throws -> () -> Void {
+        let folder = h.temp.socket.deletingLastPathComponent().path
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        chmod(folder, 0)
+        return { chmod(folder, 0o700) }
+    }
+
+    @Test func aSandboxedShellSaysSoExits1AndNeverLaunchesTheApp() async throws {
+        let h = CLIHarness()
+        defer { h.temp.cleanUp() }
+        let unlock = try Self.lockSocketFolder(h)
+        defer { unlock() }
+        let (_, link) = try LaunchTests.makeBundle(in: h.temp.root)
+        let launcher = FakeAppLauncher()
+        let result = try await h.run(["status"], executablePath: link.path, launcher: launcher)
+        #expect(result.code == 1)
+        #expect(result.out.isEmpty)
+        #expect(result.err == """
+            error: Skreenrek can't reach its app from this shell.
+            hint:  This shell is sandboxed. Use the Skreenrek MCP tools, or allow network access for this command.
+
+            """)
+        let json = try await h.run(["status", "--json"], executablePath: link.path, launcher: launcher)
+        #expect(json.code == 1)
+        #expect(try json.jsonError()["code"] as? String == "sandboxed")
+        #expect(try json.jsonError()["exit"] as? Int == 1)
+        #expect(launcher.launches.isEmpty)
+    }
+
+    @Test func doctorInASandboxedShellSaysSoOnTheAppAndSocketLines() async throws {
+        let h = CLIHarness()
+        defer { h.temp.cleanUp() }
+        let unlock = try Self.lockSocketFolder(h)
+        defer { unlock() }
+        let launcher = FakeAppLauncher()
+        let result = try await h.run(["doctor"], variables: ["PATH": "/nowhere"], launcher: launcher)
+        #expect(result.code == 1)
+        #expect(result.out == """
+            ✗ Skreenrek app      Skreenrek can't reach its app from this shell. This shell is sandboxed. Use the \
+            Skreenrek MCP tools, or allow network access for this command.
+            ✗ Command-line tool  /usr/local/bin/skreenrek isn't on your PATH as skreenrek. Link it: \
+            ln -s "/usr/local/bin/skreenrek" ~/.local/bin/skreenrek
+            ✗ Socket             This shell's sandbox blocks ~/s/c.sock.
+
+            """)
+        let json = try await h.run(["doctor", "--json"], launcher: launcher)
+        #expect(json.code == 1)
+        #expect(json.out.isEmpty)
+        #expect(try json.jsonError()["code"] as? String == "sandboxed")
+        #expect(try json.jsonError()["hint"] as? String
+            == "This shell is sandboxed. Use the Skreenrek MCP tools, or allow network access for this command.")
+        #expect(launcher.launches.isEmpty)
     }
 }
