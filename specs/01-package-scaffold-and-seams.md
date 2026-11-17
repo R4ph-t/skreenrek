@@ -1,6 +1,6 @@
 # 01: Swift package scaffold, domain types and test seams
 
-Status: Queued (herdr) · Branch: – · Depends on: – · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/01-package-scaffold-and-seams · Depends on: – · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -98,4 +98,53 @@ bundle and Info.plist (hand spec 11).
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Layout.** `Package.swift` (tools 6.0, macOS 15, `swiftLanguageModes: [.v6]`, no dependencies, no `resources:`).
+  Domain types in `Sources/SkreenrekCore/Domain/`, seams in `Sources/SkreenrekCore/Seams/`, JSON settings in
+  `SkreenrekJSON` (`.sortedKeys`, `.withoutEscapingSlashes`), version in `SkreenrekVersion.current`.
+  `SkreenrekSystem` is one placeholder namespace (`SkreenrekSystem.swift`).
+- **Swift Testing** throughout (no XCTest fallback needed). 50 tests in 8 suites; no sleeps, time comes from
+  `ManualClock`.
+- **JSON units.** `PixelSize`/`PixelRect` encode with `"unit": "px"` and `PointRect` with `"unit": "pt"`, so
+  `Readback` matches the design spec block exactly; a test decodes that block verbatim and another pins the encoded
+  golden. Decoding accepts a missing `unit` and rejects a wrong one. `Readback.window.bundleId` is always present
+  (`null` when unknown) so the shape never changes. `WindowID` encodes as a bare number; `DisplayID` is a
+  `UInt32` typealias (`CGDirectDisplayID`).
+- **Names added beyond the spec's list** (small, needed to type the fields): `FrameRate` (30/60), `VideoCodec`,
+  `RecordingOrigin` (`startedBy` + optional `client`), `EncoderKind` (`hardware`/`software`, the stats field),
+  `Permission`, `PermissionStatus`, `MouseEventType`, `WindowCandidate`, `NotExactReason`, `WrongStateReason`,
+  `RecordingFailure`, `ErrorBody`/`ErrorEnvelope`, and `TimeFormat.minutesSeconds` (`m:ss`).
+- **`RecordingStats.isClean`** is `framesDropped == 0 && sourceFramesSkipped == 0`, the definition in spec 03.
+- **`SkreenrekError`.** Cases: `internal` (1), `usage` (2), `permissionDenied` (3), `notExact` (4),
+  `windowNotFound`/`windowAmbiguous` (5), `wrongState` (6), `recordingFailed` (7), `interrupted` (130). Design-spec
+  copy is word for word for Screen Recording off, not exact (min width) and the ambiguous list, and the
+  window-closed, disk-low and not-writable sentences reuse the dropdown error table. The `steps` wording follows
+  spec 02. Open points built with a default:
+  - The design spec lists no code string for exit 130; `interrupted` uses `"interrupted"`.
+  - The ambiguous case has no hint in the design spec; the candidate lines are part of `message` (as spec 02 says)
+    with columns aligned by padding, and the hint is `Pass one of the IDs above, e.g. skreenrek record <first id>`.
+  - Copy the design spec doesn't word (Accessibility off, window not found, wrong state, interrupted, the other
+    not-exact directions) follows the same pattern: one sentence, plus a hint naming the next command.
+- **`MouseEventSource.start()`** returns an `AsyncStream<MouseEvent>` that finishes on `stop()`; `MouseEvent.button`
+  is the raw index (0 left, 1 right, 2 middle, 3+ other), for 04 to name.
+- **`FakeWindowResizer`** rules are in points: minimum size, maximum size, size steps (`base + n × step`, rounding
+  down, base = minimum size or 0), and ignored attempts (1-based `setFrame` calls per window); per-window rules and
+  an injectable failure.
+- **`SyntheticFrameSource`** makes buffers from a `CVPixelBufferPool` (IOSurface-backed `420v`). Luma is
+  `16 + (index mod 55) × 4` (video range, 4-level gaps so a lossy encode still decodes the index;
+  `frameIndex(forLuma:)` and `meanLuma(of:)` read it back). Timing: `.scripted` (all at once, any timestamps),
+  `.onClock` (waits on a `HostClock` for each timestamp) and `.realTime` (every `1 / fps` of clock time until
+  `count` or `stop()`). It can throw on start, end with an error after the last frame, `fail(with:)` mid-stream, and
+  make chosen frames at another size. The stream buffers without limit, so very long `.scripted` runs hold every
+  buffer; use `.onClock`/`.realTime` for long runs.
+- **`ManualClock`** adds `advance(by:)`/`advance(to:)` (never backwards), `sleeperCount`, `nextDeadline` and
+  `waitForSleepers(_:)`, which lets a test wait until a task reaches its sleep without sleeping itself. Cancelling a
+  sleeper throws `CancellationError`.
+- **`EncoderCanaryTests`** collects 30 frames from `SyntheticFrameSource`, writes them through
+  `AVAssetWriterInputPixelBufferAdaptor` (H.264, pts n/30, `endSession` at 30/30), and checks track count, natural
+  size, `avc1` codec, duration and the `AVAssetReader` sample count. The hardware probe uses a
+  `VTCompressionSession` with `RequireHardwareAcceleratedVideoEncoder` and only prints the result (this Mac: `true`).
+- **`GuardrailTests`** enforce the guardrails in `swift test`: no ScreenCaptureKit/AppKit/ApplicationServices/SwiftUI
+  import in Core or Testing, no permission API or ScreenCaptureKit import in tests, no `resources:` in the manifest.
+- `skreenrek --version` prints `skreenrek 0.1.0` (exit 0); anything else prints `usage: skreenrek --version` to
+  stderr (exit 2).
+- Only Xcode 26.2 (Swift 6.2.3) was available locally; the macos-15 CI run is the check for the runner's toolchain.
