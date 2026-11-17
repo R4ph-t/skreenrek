@@ -1,6 +1,6 @@
 # 04: events.json and the HyperFrames snippet
 
-Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold) · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/04-events-json-and-hyperframes-snippet · Depends on: 01 (scaffold) · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -78,4 +78,39 @@ Keyboard or scroll events, HyperFrames components beyond the single clip element
 
 ## Implementation notes
 
-_(filled in by the agent)_
+Built on `lane/04-events-json-and-hyperframes-snippet`. New code is in `Sources/SkreenrekCore/Events/` and
+`Sources/SkreenrekSystem/NSEventMouseSource.swift`; tests are `Tests/SkreenrekCoreTests/EventsTests.swift`.
+
+- **Interfaces for 03 and 05.** 03's tick hook and `RecordingResult` aren't on main yet, so 04 exposes its own small
+  surface and doesn't define either:
+  - `EventRecorder(source:target:display:fps:)`: `start()` before the first frame, `firstFrame(hostTime:)` once,
+    `sample(hostTime:)` once per written slot (pass the slot's host time, so a catch-up tick still gets one sample per
+    slot), then `stop() -> EventLog`. Events and samples are kept raw and converted at stop, so anything before the
+    first frame is dropped even if it arrived before `firstFrame` was called. No first frame gives an empty log.
+  - `EventsFile.Recording` is the `recording` block (`id`, `startedAt` string, `duration`, `fps`, `video`, `source`,
+    `startedBy`, `client`, `stats`). 05 maps 03's `RecordingResult` onto it; `EventsFile.timestamp(_:timeZone:)` gives
+    the `startedAt` string (`2026-11-17T10:42:07.120+01:00`, always a numeric offset, never `Z`).
+  - `ClipArtifacts.write(recording:complete:log:events:assetsDir:clipFolder:)` is the stop-time call: it writes
+    `events.json` (skipped with `events: false`) and then `hyperframes.html`, and returns the URLs and snippet text for
+    `stop --json`. Call it after the clip is finalized so `stats.stopToFinalizedMs` is set.
+- **Coordinates.** `VideoMapping` does the pt → px conversion. Regions map from their display's frame origin, then
+  subtract the region's pixel origin. `x`/`y` round half away from zero.
+- **JSON.** Encoded with the shared `SkreenrekJSON` settings (sorted keys, so key order differs from the design
+  spec's example; the shape is the same), plus a trailing newline. `client` and `bundleId` are always present and
+  are `null` when missing. Whole-number doubles encode without `.0` (`"duration":42`, `"xPct":50`), which is how
+  `JSONEncoder` writes them. `stats` uses `RecordingStats`' own `Codable`, so a field that is nil (e.g.
+  `startToFirstFrameMs` when no frame arrived) is left out; it is always set for a finalized clip with frames.
+  Atomic write is `Data.write(options: .atomic)` (temp file, then rename).
+- **Snippet.** `SnippetBuilder.text(_:copy:)` is pure; `SnippetBuilder.write` adds the file and the assets copy (an
+  older copy of `<clip-id>.mp4` is replaced). A window with an empty title reads just the app name. Comment escaping:
+  `--` → `—`, `>` → `›`, and also `<` → `‹` and line breaks → spaces, so the comment stays on one valid line.
+  The copy command writes the home folder as `~`. **Open:** if `--out` points outside the home folder, the path can't
+  be shortened and is written as-is (it holds no user name, but it is absolute); the default folder and every path
+  under home are `~/…`.
+- **NSEventMouseSource.** Takes the `HostClock` and stamps events with `clock.now()` so they share the recorder's
+  time base (instead of `NSEvent.timestamp`, whose base 03's clock may not match). `ScreenGeometry` comes from 02,
+  which runs in parallel, so the single-point flip lives in `CursorGeometry.topLeft(fromAppKit:primaryDisplayHeight:)`
+  with the primary height from `CGDisplayBounds(CGMainDisplayID())`. Follow-up once 02 is merged: switch to
+  `ScreenGeometry` if it covers points. It is not exercised by `swift test` (no live suite: it needs no permission,
+  but a global monitor needs a running app and real input).
+- `make check`: green, 83 tests, no warnings.
