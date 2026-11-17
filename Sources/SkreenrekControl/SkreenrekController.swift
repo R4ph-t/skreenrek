@@ -63,6 +63,20 @@ public actor SkreenrekController {
             return nil
         }
 
+        /// The recorded window's size in points; nil for a region.
+        var windowPoints: WindowPoints? {
+            guard case .window(let window) = target else { return nil }
+            return WindowPoints(
+                width: Int(window.frame.width.rounded()), height: Int(window.frame.height.rounded()))
+        }
+
+        /// Native pixels per clip pixel: 1 when the clip is the target's own pixels, 1.5 for 1080p from a
+        /// 1440 × 810 pt window at 2×.
+        var nativeToClip: Double {
+            guard let points = windowPoints else { return 1 }
+            return WindowFit.nativeToClip(window: points, clip: size, scale: display.scale)
+        }
+
         func setEndTask(_ task: Task<Outcome, Never>) { endTask.withLock { $0 = task } }
 
         var outcome: Outcome {
@@ -157,11 +171,13 @@ public actor SkreenrekController {
             case .window(let resolved, let readback):
                 s.window = resolved.window
                 s.displayId = resolved.display.id
+                s.display = resolved.display
                 s.size = readback?.actual ?? resolved.pixelSize
                 s.readback = readback
             case .region(let rect, let display):
                 s.region = rect
                 s.displayId = display.id
+                s.display = display
                 s.size = rect.size
             }
         case .starting:
@@ -174,6 +190,7 @@ public actor SkreenrekController {
             case .region(let rect, _): s.region = rect
             }
             s.displayId = active.display.id
+            s.display = active.display
             s.size = active.size
             s.readback = active.readback
             s.fps = active.options.fps
@@ -327,9 +344,11 @@ public actor SkreenrekController {
             display = resolved.display
             target = .window(resolved.window)
         }
+        // A sized window records at the clip size read back (the requested size when exact), scaled down from its
+        // native pixels; otherwise the target's own pixels.
         let outputSize: PixelSize =
             switch target {
-            case .window(let window): window.pixelSize(on: display)
+            case .window(let window): readback?.actual ?? window.pixelSize(on: display)
             case .region(let rect, _): rect.size
             }
 
@@ -344,7 +363,8 @@ public actor SkreenrekController {
 
         var events: EventRecorder?
         if options.events {
-            let recorder = EventRecorder(source: seams.mouse, target: target, display: display, fps: options.fps)
+            let recorder = EventRecorder(
+                source: seams.mouse, target: target, display: display, fps: options.fps, clip: outputSize)
             do {
                 try await recorder.start()
             } catch {
@@ -492,7 +512,7 @@ public actor SkreenrekController {
         }
         let startedAt = EventsFile.timestamp(result.startedAt)
         var video = result.video
-        video.scale = active.display.scale
+        video.scale = active.nativeToClip
         let recording = EventsFile.Recording(
             id: result.id, startedAt: startedAt, duration: result.duration, fps: result.fps.framesPerSecond,
             video: video,
@@ -512,7 +532,7 @@ public actor SkreenrekController {
                 recording: StopBody.Recording(
                     id: result.id, duration: result.duration, fps: result.fps.framesPerSecond, width: result.width,
                     height: result.height, codec: result.codec, startedAt: startedAt, startedBy: result.startedBy,
-                    stats: result.stats, video: video),
+                    stats: result.stats, video: video, window: active.windowPoints),
                 files: StopBody.Files(
                     clip: result.clipURL.path, events: written.eventsFile?.path, snippet: written.snippetFile.path),
                 snippet: written.snippet, readback: active.readback))

@@ -4,14 +4,10 @@ import SkreenrekCore
 
 /// Parses flag values. Every failure is a `usage` error (exit 2) with the exact fix.
 enum Values {
-    /// `1280x800` (also `1280X800` or `1280×800`), in pixels.
+    /// A clip size: `720p|1080p|1440p|4k|square|portrait`, `1920x1080` (also `X` or `×`) in pixels, or
+    /// `1920x1080px` (the same).
     static func size(_ text: String) throws -> PixelSize {
-        let parts = text.split(omittingEmptySubsequences: false) { $0 == "x" || $0 == "X" || $0 == "×" }
-        guard parts.count == 2, let width = positiveInt(parts[0]), let height = positiveInt(parts[1]) else {
-            throw SkreenrekError.usage(
-                message: "\"\(text)\" isn't a size.", hint: "Pass --size WxH in pixels, e.g. --size 1280x800.")
-        }
-        return PixelSize(width: width, height: height)
+        try SizeSpec.parse(text)
     }
 
     /// `30s`, `2m`, `1m30s`, or plain seconds (`45`, `2.5`). Must be more than 0.

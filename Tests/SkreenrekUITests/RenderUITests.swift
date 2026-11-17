@@ -155,6 +155,49 @@ import Testing
         #expect(monoLight != bichrome)
     }
 
+    /// `--direction size13` writes only the spec 13 v2 size previews, by their spec names.
+    @Test func rendersTheSize13PreviewsInBothAppearances() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-size13-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let status = try await Self.run(["debug", "render-ui", "--direction", "size13", "--out", folder.path])
+        #expect(status == 0)
+
+        var expected: Set<String> = []
+        for appearance in ["light", "dark"] {
+            for name in [
+                "size-submenu-laptop", "size-submenu-large", "custom-valid", "custom-toolarge", "dropdown-armed-1080p",
+            ] {
+                expected.insert("\(name)-\(appearance)@2x.png")
+            }
+        }
+        let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        #expect(Set(written) == expected)
+
+        var sizes: [String: (Int, Int)] = [:]
+        for name in written {
+            let data = try Data(contentsOf: folder.appendingPathComponent(name))
+            let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+            sizes[name] = (rep.pixelsWide, rep.pixelsHigh)
+            #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
+        }
+        for appearance in ["light", "dark"] {
+            // The Custom… panel is 320 pt wide; the main menu keeps the dropdown's 300 pt.
+            #expect(sizes["custom-valid-\(appearance)@2x.png"]?.0 == 640)
+            #expect(sizes["custom-toolarge-\(appearance)@2x.png"]?.0 == 640)
+            #expect(sizes["dropdown-armed-1080p-\(appearance)@2x.png"]?.0 == 600)
+            // The laptop render carries the 4K tooltip beside the submenu, so it's wider than the large one.
+            let laptop = try #require(sizes["size-submenu-laptop-\(appearance)@2x.png"])
+            let large = try #require(sizes["size-submenu-large-\(appearance)@2x.png"])
+            #expect(laptop.0 > large.0)
+            #expect(laptop.1 == large.1)
+        }
+        let light = try Data(contentsOf: folder.appendingPathComponent("custom-valid-light@2x.png"))
+        let dark = try Data(contentsOf: folder.appendingPathComponent("custom-valid-dark@2x.png"))
+        #expect(light != dark)
+    }
+
     /// The `skreenrek` executable from the same build as this test bundle (`swift build` puts both in one products
     /// folder), found from the loaded `.xctest` bundle or the test runner's arguments.
     static func binary() throws -> URL {

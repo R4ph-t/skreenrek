@@ -18,8 +18,11 @@ public enum RenderUIRequest: Sendable, Equatable {
     /// `--direction a|b|c|c-menubar` writes that target into `out`; `--direction all` writes `out/a`, `out/b`,
     /// `out/c` and `out/c-menubar`.
     case directions([RenderTarget], out: URL, nested: Bool)
+    /// `--direction size13`: Designer's spec 13 v2 Size states (submenu, Custom Size panel, armed menu).
+    case size13(out: URL)
 
-    /// Parses the arguments after the executable: `debug render-ui --out DIR [--direction a|b|c|c-menubar|all]`,
+    /// Parses the arguments after the executable:
+    /// `debug render-ui --out DIR [--direction a|b|c|c-menubar|all|size13]`,
     /// flags in any order. Nil for anything else (the CLI handles it).
     public static func parse(_ arguments: [String]) -> RenderUIRequest? {
         guard arguments.count >= 2, arguments[0] == "debug", arguments[1] == "render-ui" else { return nil }
@@ -39,6 +42,7 @@ public enum RenderUIRequest: Sendable, Equatable {
         switch direction {
         case nil: return .shipping(out: folder)
         case "all": return .directions(RenderTarget.allCases, out: folder, nested: true)
+        case "size13": return .size13(out: folder)
         case let name?:
             guard let one = RenderTarget(rawValue: name) else { return nil }
             return .directions([one], out: folder, nested: false)
@@ -74,6 +78,8 @@ public enum DirectionRenderer {
         switch request {
         case .shipping(let out):
             return try UIRenderer.renderAll(to: out)
+        case .size13(let out):
+            return try Size13Renderer.render(to: out)
         case .directions(let targets, let out, let nested):
             return try targets.flatMap { target in
                 let folder = nested ? out.appendingPathComponent(target.rawValue) : out

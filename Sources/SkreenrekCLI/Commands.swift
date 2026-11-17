@@ -42,7 +42,12 @@ struct ResizeCommand: ParsableCommand {
     @Argument(help: "A window ID from `skreenrek windows`.") var window: String?
     @Option(help: "The app whose window to use (name or bundle ID).") var app: String?
     @Option(help: "With --app: a part of the window title.") var title: String?
-    @Option(help: ArgumentHelp("The size in pixels.", valueName: "WxH")) var size: String
+    @Option(
+        help: ArgumentHelp(
+            "The clip size: 720p, 1080p, 1440p, 4k, square, portrait, or WxH in pixels. Skreenrek sizes the "
+                + "window to fit the display.",
+            valueName: "SIZE"))
+    var size: String
     @Flag(help: "Don't fail when the size read back isn't exact.") var allowInexact = false
     @OptionGroup var global: GlobalOptions
 }
@@ -62,7 +67,11 @@ struct RecordCommand: ParsableCommand {
     var region: String?
     @Option(help: ArgumentHelp("With --region: the display (default: the main display).", valueName: "ID"))
     var display: String?
-    @Option(help: ArgumentHelp("Resize the window first, in pixels.", valueName: "WxH")) var size: String?
+    @Option(
+        help: ArgumentHelp(
+            "Size the window first for this clip size: 720p, 1080p, 1440p, 4k, square, portrait, or WxH in pixels.",
+            valueName: "SIZE"))
+    var size: String?
     @Flag(help: "Record even when the size read back isn't exact.") var allowInexact = false
     @Option(help: ArgumentHelp("30 or 60 (default from Settings, otherwise 60).", valueName: "30|60")) var fps: Int?
     @Option(help: ArgumentHelp("Stop after this long: 30s, 2m, 1m30s or seconds.", valueName: "TIME"))

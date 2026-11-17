@@ -58,6 +58,9 @@ public final class SCStreamFrameSource: FrameSource {
                 throw SkreenrekError.windowNotFound(query: String(info.id.rawValue))
             }
             filter = SCContentFilter(desktopIndependentWindow: window)
+            // A clip of a slightly different aspect crops the window (centred, at most 1 px); never letterboxes.
+            sourceRect = WindowFit.sourceRect(
+                window: CGSize(width: info.frame.width, height: info.frame.height), clip: size)
         case .region(let rect, let displayId):
             guard let display = content.displays.first(where: { $0.displayID == displayId }) else {
                 throw SkreenrekError.recordingFailed(.other("The display for this region isn't connected."))

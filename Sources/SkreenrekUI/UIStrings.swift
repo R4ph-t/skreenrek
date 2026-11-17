@@ -92,12 +92,12 @@ public enum UIStrings {
         public static let savingClip = "Saving clip…"
         public static let region = "Screen region"
 
-        public static let keepCurrentSize = "Keep Current Size"
-        public static let customSize = "Custom Size…"
-        public static let portrait = "portrait"
-        public static let square = "square"
+        public static let currentSize = "Current Size"
+        public static let customSize = "Custom…"
 
-        public static let exactSize = "exact size"
+        /// The Size submenu's trailing values and the custom Size row: `1920 × 1080` (no unit).
+        public static func dimensions(_ size: PixelSize) -> String { "\(size.width) × \(size.height)" }
+
         /// Shown whenever Screen Recording or Accessibility is missing, even after onboarding; opens onboarding step 1.
         public static let permissionsNeeded = "Permissions needed…"
 
@@ -137,9 +137,6 @@ public enum UIStrings {
             }
             return "\(limit), so the clip is \(dimensions(actual)) instead of \(dimensions(requested))."
         }
-
-        /// `1280 × 800`, without the unit.
-        static func dimensions(_ size: PixelSize) -> String { "\(size.width) × \(size.height)" }
 
         /// The detail lines join their parts with a middle dot.
         public static let separator = " · "
@@ -192,15 +189,10 @@ public enum UIStrings {
         public static let setSize = "Set Size"
         public static let cancel = "Cancel"
         public static let enterSize = "Enter a width and height in px."
+        public static let tooLarge = "Too large for this display."
 
-        /// `640 × 400 pt at 2×`.
-        public static func points(width: Double, height: Double, scale: Double) -> String {
-            "\(number(width)) × \(number(height)) pt at \(SizeRequest.scaleLabel(scale))"
-        }
-
-        static func number(_ value: Double) -> String {
-            value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
-        }
+        /// `Window on screen: 1440 × 810`.
+        public static func windowOnScreen(_ window: WindowPoints) -> String { "Window on screen: \(window)" }
     }
 
     public enum Picker {
@@ -353,8 +345,8 @@ public enum UIStrings {
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,
         Menu.showCursor, Menu.writeClickEvents, Menu.recordWindow, Menu.lastClip, Menu.showInFinder,
         Menu.copyFilePath, Menu.copySnippet, Menu.openOutputFolder, Menu.settings, Menu.quit, Menu.stopRecording,
-        Menu.discardRecording, Menu.savingClip, Menu.region, Menu.keepCurrentSize, Menu.customSize, Menu.portrait,
-        Menu.square, Menu.exactSize, Menu.notExact, Menu.permissionsNeeded,
+        Menu.discardRecording, Menu.savingClip, Menu.region, Menu.currentSize, Menu.customSize,
+        Menu.notExact, Menu.permissionsNeeded,
         Menu.startedFromMenu, Menu.startedFromCommandLine, Menu.startedOverMCP,
         Errors.recordingStopped, Errors.screenRecordingOff, Errors.screenRecordingDetail, Errors.cantResize,
         Errors.cantResizeDetail, Errors.notExact, Errors.couldntSave, Errors.somethingWentWrong,
@@ -364,7 +356,7 @@ public enum UIStrings {
         Alerts.stopAndQuit,
         CustomSize.title, CustomSize.width, CustomSize.height, CustomSize.px, CustomSize.times, CustomSize.setSize,
         CustomSize.cancel,
-        CustomSize.enterSize,
+        CustomSize.enterSize, CustomSize.tooLarge,
         Settings.windowTitle, Settings.outputFolder, Settings.choose, Settings.defaultFrameRate, Settings.showCursor,
         Settings.writeClickEvents, Settings.showRecordingIndicator, Settings.openAtLogin, Settings.stopShortcut,
         Settings.stopShortcutKeys, Settings.permissions, Settings.screenRecording, Settings.screenRecordingDetail,

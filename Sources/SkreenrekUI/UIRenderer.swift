@@ -47,7 +47,11 @@ public enum UIRenderer {
                 try save(DropdownPreview(MenuModel.entries(for: context)), "dropdown", sample.name)
             }
             let base = RenderSamples.armed.context
-            try save(DropdownPreview(MenuModel.sizeSubmenu(base.sizeChoice).entries), "submenu", "size")
+            try save(
+                DropdownPreview(
+                    MenuModel.sizeSubmenu(
+                        base.sizeChoice, display: RenderSamples.display, window: base.snapshot.window
+                    ).entries, width: MenuMetrics.sizeSubmenuWidth), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
             try save(settingsView(), "settings", "default")
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
@@ -231,10 +235,11 @@ public enum RenderSamples {
 
     static func context(
         _ snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, title: String? = nil,
-        permissionsMissing: Bool = false
+        sizeChoice: SizeChoice = .size(size), permissionsMissing: Bool = false
     ) -> MenuContext {
         MenuContext(
-            snapshot: snapshot, actionError: actionError, lastClipTitle: title, permissionsMissing: permissionsMissing,
+            snapshot: snapshot, actionError: actionError, lastClipTitle: title, sizeChoice: sizeChoice,
+            permissionsMissing: permissionsMissing,
             timeZone: TimeZone(identifier: "Europe/Paris")!, locale: Locale(identifier: "en_GB"))
     }
 
@@ -374,10 +379,14 @@ final class MenuBarIconPreview: NSView {
 /// A composed dropdown: the same entries the `NSMenu` shows, laid out with the design spec's metrics on the menu
 /// material's colours (an offscreen `NSMenu` can't be drawn).
 final class DropdownPreview: NSView {
-    init(_ entries: [MenuEntry]) {
-        let rows = entries.map(Self.view)
+    /// The rows in order, with the entry each one draws.
+    private(set) var rows: [(entry: MenuEntry, view: NSView)] = []
+
+    init(_ entries: [MenuEntry], width: CGFloat = MenuMetrics.width) {
+        let rows = entries.map { Self.view($0, width: width) }
         let height = rows.reduce(MenuMetrics.verticalInset * 2) { $0 + $1.frame.height }
-        super.init(frame: NSRect(x: 0, y: 0, width: MenuMetrics.width, height: height))
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        self.rows = Array(zip(entries, rows)).map { (entry: $0.0, view: $0.1) }
         var y = MenuMetrics.verticalInset
         for row in rows {
             row.frame.origin = NSPoint(x: 0, y: y)
@@ -409,14 +418,18 @@ final class DropdownPreview: NSView {
             : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1)
     }
 
-    static func view(_ entry: MenuEntry) -> NSView {
-        switch entry {
-        case .status(let row): StatusRowView(row)
-        case .separator: SeparatorPreview()
-        case .header(let title): MenuItemPreview(header: title)
-        case .item(let item): MenuItemPreview(item: item)
-        case .submenu(let submenu): MenuItemPreview(submenu: submenu)
-        }
+    static func view(_ entry: MenuEntry, width: CGFloat = MenuMetrics.width) -> NSView {
+        let view: NSView =
+            switch entry {
+            case .status(let row): StatusRowView(row)
+            case .separator: SeparatorPreview()
+            case .header(let title): MenuItemPreview(header: title)
+            case .item(let item): MenuItemPreview(item: item)
+            case .submenu(let submenu): MenuItemPreview(submenu: submenu)
+            }
+        if case .status = entry { return view }
+        view.frame.size.width = width
+        return view
     }
 }
 
@@ -462,6 +475,8 @@ final class MenuItemPreview: NSView {
     private var titleColor = NSColor.labelColor
     private var checked = false
     private var trailing: String?
+    private var trailingFont = MenuMetrics.titleFont
+    private var trailingColor = NSColor.secondaryLabelColor
     private var chevron = false
 
     init(item: MenuItemModel) {
@@ -470,6 +485,13 @@ final class MenuItemPreview: NSView {
         titleColor = item.enabled ? .labelColor : .tertiaryLabelColor
         checked = item.checked
         trailing = item.shortcut?.display
+        if let value = item.trailing {
+            // A Size preset's clip px: 12 pt secondary, dimmed with the row.
+            trailing = value
+            trailingFont = MenuMetrics.detailFont
+            trailingColor = item.enabled ? .secondaryLabelColor : .quaternaryLabelColor
+        }
+        toolTip = item.toolTip
     }
 
     init(submenu: SubmenuModel) {
@@ -498,7 +520,7 @@ final class MenuItemPreview: NSView {
         if checked {
             let rect = NSRect(
                 x: MenuMetrics.symbolX + 2, y: (bounds.height - 12) / 2, width: 12, height: 12)
-            MenuMetrics.symbol("checkmark", pointSize: 12, color: .labelColor)?.draw(in: rect)
+            MenuMetrics.symbol("checkmark", pointSize: 12, color: titleColor)?.draw(in: rect)
         }
         var right = bounds.width - MenuMetrics.trailingPadding
         if chevron {
@@ -508,10 +530,12 @@ final class MenuItemPreview: NSView {
         }
         if let trailing {
             let trailingAttributes: [NSAttributedString.Key: Any] = [
-                .font: MenuMetrics.titleFont, .foregroundColor: NSColor.secondaryLabelColor,
+                .font: trailingFont, .foregroundColor: trailingColor,
             ]
-            let width = (trailing as NSString).size(withAttributes: trailingAttributes).width
-            (trailing as NSString).draw(at: NSPoint(x: right - width, y: y), withAttributes: trailingAttributes)
+            let size = (trailing as NSString).size(withAttributes: trailingAttributes)
+            (trailing as NSString).draw(
+                at: NSPoint(x: right - size.width, y: (bounds.height - size.height) / 2),
+                withAttributes: trailingAttributes)
         }
         (title as NSString).draw(at: NSPoint(x: MenuMetrics.textX, y: y), withAttributes: attributes)
     }

@@ -61,7 +61,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
                 "[record.circle] Ready | No window picked",
                 "---",
                 "Pick Window…",
-                "Size ▸ 1280 × 800 px",
+                "Size ▸ Current Size",
                 "Frame Rate ▸ 60 fps",
                 "---",
                 "✓ Show Cursor",
@@ -77,8 +77,8 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
 
     @Test func armedExact() {
         let menu = lines(UIFixtures.context(UIFixtures.armed))
-        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · exact size")
-        #expect(MenuModel.entries(for: UIFixtures.context(UIFixtures.armed)).first?.statusRow?.help == nil)
+        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
+        #expect(MenuModel.entries(for: UIFixtures.context(UIFixtures.armed)).first?.statusRow?.toolTip == nil)
         #expect(menu.contains("Pick Another Window…"))
         #expect(!menu.contains("Pick Window…"))
         #expect(menu.contains("Record Window"))
@@ -93,14 +93,14 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         #expect(menu.contains("Record Window"))
         let row = try #require(MenuModel.entries(for: UIFixtures.context(snapshot)).first?.statusRow)
         let reason = "Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800."
-        #expect(row.help == reason)
+        #expect(row.toolTip == reason)
         #expect(row.accessibilityLabel == "Safari — localhost:3000. 1286 × 800 px · not exact. \(reason)")
         // The Size submenu keeps the requested size, not the read-back.
         let size = MenuModel.entries(for: UIFixtures.context(snapshot)).compactMap { entry -> SubmenuModel? in
             if case .submenu(let submenu) = entry, submenu.title == "Size" { return submenu }
             return nil
         }.first
-        #expect(size?.detail == "1280 × 800 px")
+        #expect(size?.detail == "Current Size")
     }
 
     @Test func notExactReasonsNameTheLimit() {
@@ -125,7 +125,8 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     @Test func armedWithoutReadbackShowsTheSizeAlone() {
         var snapshot = UIFixtures.armed
         snapshot.readback = nil
-        #expect(lines(UIFixtures.context(snapshot))[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px")
+        #expect(
+            lines(UIFixtures.context(snapshot))[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
     }
 
     @Test(arguments: [
@@ -236,24 +237,15 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     @Test func sizeSubmenu() {
         let submenu = MenuModel.sizeSubmenu(.default)
         #expect(submenu.title == "Size")
-        #expect(submenu.detail == "1280 × 800 px")
+        #expect(submenu.detail == "Current Size")
         #expect(
             submenu.entries.map(\.line) == [
-                "Keep Current Size",
-                "---",
-                "1280 × 720 px",
-                "✓ 1280 × 800 px",
-                "1440 × 900 px",
-                "1920 × 1080 px",
-                "1080 × 1920 px · portrait",
-                "1080 × 1080 px · square",
-                "---",
-                "Custom Size…",
+                "720p", "1080p", "1440p", "4K", "---", "Square", "Portrait", "---", "✓ Current Size", "Custom…",
             ])
-        #expect(MenuModel.sizeSubmenu(.keepCurrent).entries.first?.line == "✓ Keep Current Size")
         let custom = MenuModel.sizeSubmenu(.size(PixelSize(width: 1000, height: 600)))
-        #expect(custom.entries.last?.line == "✓ Custom Size…")
-        #expect(custom.detail == "1000 × 600 px")
+        #expect(custom.entries.last?.line == "✓ Custom…")
+        #expect(custom.detail == "1000 × 600")
+        #expect(MenuModel.sizeSubmenu(.size(PixelSize(width: 3840, height: 2160))).detail == "4K")
     }
 
     @Test func frameRateSubmenu() {

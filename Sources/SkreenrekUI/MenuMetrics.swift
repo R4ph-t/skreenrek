@@ -20,6 +20,9 @@ public enum MenuMetrics {
     public static let verticalInset: CGFloat = 4
     public static let cornerRadius: CGFloat = 10
     public static let highlightRadius: CGFloat = 6
+    /// The Size submenu's width, and where its right-aligned trailing values end (from the title's start).
+    public static let sizeSubmenuWidth: CGFloat = 240
+    public static var sizeSubmenuTrailingStop: CGFloat { sizeSubmenuWidth - textX - trailingPadding }
 
     public static var titleFont: NSFont { NSFont.systemFont(ofSize: 13) }
     public static var emphasizedTitleFont: NSFont { NSFont.systemFont(ofSize: 13, weight: .semibold) }
@@ -92,10 +95,10 @@ public final class StatusRowView: NSView {
         titleField.stringValue = row.title
         titleField.font = row.emphasized ? MenuMetrics.emphasizedTitleFont : MenuMetrics.titleFont
         detailField.stringValue = row.detail
+        toolTip = row.toolTip
         setAccessibilityElement(true)
         setAccessibilityRole(.staticText)
         setAccessibilityLabel(row.accessibilityLabel)
-        toolTip = row.help
         layoutRow()
     }
 

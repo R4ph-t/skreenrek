@@ -8,7 +8,7 @@ import SkreenrekUI
 
 let commandLine = Array(CommandLine.arguments.dropFirst())
 
-// Hidden: renders the menu-bar UI to PNGs at 2× in light and dark, for Designer. `--direction a|b|c|all` renders the
+// Hidden: renders the menu-bar UI to PNGs at 2× in light and dark, for Designer. `--direction a|b|c|all|size13` renders the
 // v2 direction mockups instead of the shipping UI. It draws with AppKit on the main thread, so it runs here rather
 // than in the CLI.
 if let request = RenderUIRequest.parse(commandLine) {

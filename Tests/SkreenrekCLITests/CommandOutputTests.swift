@@ -32,29 +32,44 @@ import Testing
     @Test func resizePrintsTheReadBackInPixelsAndPoints() async throws {
         let h = try CLIHarness().start()
         defer { h.stop() }
-        let human = try await h.run(["resize", "--app", "Safari", "--size", "1440x900"])
+        let human = try await h.run(["resize", "--app", "Safari", "--size", "1080p"])
         #expect(human.code == 0, "\(human)")
-        #expect(human.out == "✓ Safari — localhost:3000 is 1440 × 900 px (720 × 450 pt at 2×)\n")
+        // Spec 13: the exact clip, and the large window Skreenrek sized for it on the 2× laptop.
+        #expect(human.out == "✓ Safari — localhost:3000 is 1920 × 1080 px (window 1440 × 810 pt at 2×)\n")
 
         let json = try await h.run(["resize", "4127", "--size", "1280x800", "--json"])
         #expect(json.code == 0, "\(json)")
         #expect(json.out == """
             {"actual":{"height":800,"unit":"px","width":1280},"attempts":1,"display":{"id":1,\
-            "name":"Built-in Retina Display","scale":2},"exact":true,"frame":{"height":400,"unit":"pt","width":640,\
+            "name":"Built-in Retina Display","scale":2},"exact":true,"frame":{"height":800,"unit":"pt","width":1280,\
             "x":120,"y":80},"requested":{"height":800,"unit":"px","width":1280},"window":{"app":"Safari",\
             "bundleId":"com.apple.Safari","id":4127,"pid":812,"title":"localhost:3000"}}
 
             """)
     }
 
+    @Test func sizeTakesPresetsPixelsAndThePxAlias() async throws {
+        let h = try CLIHarness().start()
+        defer { h.stop() }
+        for size in ["1080p", "1920x1080", "1920x1080px", "1920×1080"] {
+            let result = try await h.run(["resize", "--app", "Safari", "--size", size])
+            #expect(result.out == "✓ Safari — localhost:3000 is 1920 × 1080 px (window 1440 × 810 pt at 2×)\n", "\(size)")
+        }
+        for (size, clip) in [("720p", "1280 × 720 px"), ("square", "1080 × 1080 px"), ("1440P", "2560 × 1440 px")] {
+            let result = try await h.run(["resize", "--app", "Safari", "--size", size])
+            #expect(result.code == 0, "\(size): \(result)")
+            #expect(result.out.contains("is \(clip) (window"), "\(size): \(result.out)")
+        }
+    }
+
     @Test func resizeWithAllowInexactSaysItIsNotExact() async throws {
         let h = try CLIHarness().start()
         defer { h.stop() }
-        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 1286, height: 100))
         let result = try await h.run(["resize", "--app", "Safari", "--size", "1280x800", "--allow-inexact"])
         #expect(result.code == 0, "\(result)")
         #expect(result.out == """
-            ✓ Safari — localhost:3000 is 1286 × 800 px (643 × 400 pt at 2×)
+            ✓ Safari — localhost:3000 is 1286 × 800 px (window 1286 × 800 pt at 2×)
               note    not exact: 1280 × 800 px was asked for
 
             """)

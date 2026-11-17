@@ -2,13 +2,14 @@ import Foundation
 import SkreenrekControl
 import SkreenrekCore
 
-/// The size the next recording (or the armed window) gets: the window's own size, or exact pixels.
+/// The size the next recording (or the armed window) gets: the window's current size, or an exact clip size in
+/// pixels (a preset or custom).
 public enum SizeChoice: Sendable, Hashable {
     case keepCurrent
     case size(PixelSize)
 
-    /// The design spec's default for the next recording.
-    public static let `default` = SizeChoice.size(PixelSize(width: 1280, height: 800))
+    /// Spec 13: a picked window keeps its current size until a preset is chosen.
+    public static let `default` = SizeChoice.keepCurrent
 
     /// `keep` or `1280x800`, the form `SettingsStore` keeps.
     public var storageValue: String {
@@ -34,26 +35,11 @@ public enum SizeChoice: Sendable, Hashable {
     }
 }
 
-/// The Size submenu's presets, in the design spec's order, with their quiet suffix.
+/// The Size submenu's presets in spec 13's groups: the standard video sizes, then the shaped ones.
 public enum SizePresets {
-    public struct Preset: Sendable, Hashable {
-        public var size: PixelSize
-        public var note: String?
-    }
-
-    public static let all: [Preset] = [
-        Preset(size: PixelSize(width: 1280, height: 720)),
-        Preset(size: PixelSize(width: 1280, height: 800)),
-        Preset(size: PixelSize(width: 1440, height: 900)),
-        Preset(size: PixelSize(width: 1920, height: 1080)),
-        Preset(size: PixelSize(width: 1080, height: 1920), note: UIStrings.Menu.portrait),
-        Preset(size: PixelSize(width: 1080, height: 1080), note: UIStrings.Menu.square),
-    ]
-
-    /// `1080 × 1920 px · portrait`.
-    public static func title(_ preset: Preset) -> String {
-        [preset.size.description, preset.note].compactMap { $0 }.joined(separator: UIStrings.Menu.separator)
-    }
+    public static let standard: [SizePreset] = [.p720, .p1080, .p1440, .uhd4k]
+    public static let shaped: [SizePreset] = [.square, .portrait]
+    public static let all = standard + shaped
 }
 
 /// Everything the menu-bar icon and the dropdown are built from: the controller's latest snapshot plus what only the
@@ -65,6 +51,8 @@ public struct MenuContext: Sendable, Hashable {
     /// `Safari — localhost:3000` for the last clip, remembered from its recording.
     public var lastClipTitle: String?
     public var sizeChoice: SizeChoice
+    /// The display the Size presets are checked against: the armed target's, else the main display.
+    public var display: DisplayInfo?
     public var cursor: Bool
     public var events: Bool
     /// Screen Recording or Accessibility is missing: the dropdown offers "Permissions needed…".
@@ -75,7 +63,8 @@ public struct MenuContext: Sendable, Hashable {
 
     public init(
         snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, lastClipTitle: String? = nil,
-        sizeChoice: SizeChoice = .default, cursor: Bool = true, events: Bool = true, permissionsMissing: Bool = false,
+        sizeChoice: SizeChoice = .default, display: DisplayInfo? = nil, cursor: Bool = true, events: Bool = true,
+        permissionsMissing: Bool = false,
         timeZone: TimeZone = .current, locale: Locale = .current
     ) {
         self.permissionsMissing = permissionsMissing
@@ -83,6 +72,7 @@ public struct MenuContext: Sendable, Hashable {
         self.actionError = actionError
         self.lastClipTitle = lastClipTitle
         self.sizeChoice = sizeChoice
+        self.display = display ?? snapshot.display
         self.cursor = cursor
         self.events = events
         self.timeZone = timeZone

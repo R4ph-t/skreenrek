@@ -149,13 +149,15 @@ public struct StopBody: Sendable, Hashable, Codable {
         public var height: Int
         public var codec: VideoCodec
         public var video: VideoReadback
+        /// The recorded window's on-screen size in points, next to `video`; absent for a region.
+        public var window: WindowPoints?
         public var startedAt: String
         public var startedBy: StartedBy
         public var stats: RecordingStats
 
         public init(
             id: String, duration: Double, fps: Int, width: Int, height: Int, codec: VideoCodec, startedAt: String,
-            startedBy: StartedBy, stats: RecordingStats, video: VideoReadback? = nil
+            startedBy: StartedBy, stats: RecordingStats, video: VideoReadback? = nil, window: WindowPoints? = nil
         ) {
             self.id = id
             self.duration = duration
@@ -164,6 +166,7 @@ public struct StopBody: Sendable, Hashable, Codable {
             self.height = height
             self.codec = video?.codec ?? codec
             self.video = video ?? VideoReadback(width: width, height: height, scale: 1, codec: codec)
+            self.window = window
             self.startedAt = startedAt
             self.startedBy = startedBy
             self.stats = stats

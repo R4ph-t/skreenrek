@@ -57,10 +57,12 @@ public struct Readback: Sendable, Hashable, Codable {
     /// Both dimensions are pixel-equal (0 px tolerance).
     public var exact: Bool
     public var attempts: Int
+    /// Clip px cropped (at most 1 per dimension) to match the clip's aspect; absent when the window matched it.
+    public var cropped: PixelSize?
 
     public init(
         window: Window, display: Display, requested: PixelSize, actual: PixelSize, frame: PointRect, exact: Bool,
-        attempts: Int
+        attempts: Int, cropped: PixelSize? = nil
     ) {
         self.window = window
         self.display = display
@@ -69,6 +71,7 @@ public struct Readback: Sendable, Hashable, Codable {
         self.frame = frame
         self.exact = exact
         self.attempts = attempts
+        self.cropped = cropped
     }
 }
 

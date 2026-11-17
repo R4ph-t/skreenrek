@@ -112,6 +112,32 @@ enum EventFixtures {
         #expect(p.x == 1 && p.y == 0)
     }
 
+    /// Spec 13: 1080p from a 1440 × 810 pt window at 2× maps points through the clip's 4:3 scale.
+    @Test func aDownscaledClipMapsThroughTheClipScale() {
+        var window = Fixtures.safari
+        window.frame = PointRect(x: 100, y: 50, width: 1440, height: 810)
+        let mapping = VideoMapping(
+            target: .window(window), display: Fixtures.retina, clip: PixelSize(width: 1920, height: 1080))
+        let middle = mapping.pixel(CGPoint(x: 820, y: 455))
+        #expect(middle.x == 960 && middle.y == 540)
+        let corner = mapping.pixel(CGPoint(x: 1540, y: 860))
+        #expect(corner.x == 1920 && corner.y == 1080)
+        // The clip at the window's native pixels maps at the display scale, as before.
+        let native = VideoMapping(
+            target: .window(window), display: Fixtures.retina, clip: PixelSize(width: 2880, height: 1620))
+        #expect(native.scale == 2 && native.offset == .zero)
+    }
+
+    @Test func aCroppedClipMapsFromTheCropOrigin() {
+        var window = Fixtures.safari
+        window.frame = PointRect(x: 0, y: 0, width: 1441, height: 810)
+        // 1441 × 810 is wider than 16:9 by 1 pt: half a point comes off each side.
+        let mapping = VideoMapping(
+            target: .window(window), display: Fixtures.retina, clip: PixelSize(width: 1920, height: 1080))
+        let left = mapping.pixel(CGPoint(x: 0.5, y: 0))
+        #expect(left.x == 0 && left.y == 0)
+    }
+
     @Test func appKitPointsFlipToTopLeft() {
         let p = ScreenGeometry(primaryHeight: 982).topLeft(fromAppKit: CGPoint(x: -300, y: 900))
         #expect(p == CGPoint(x: -300, y: 82))
