@@ -442,3 +442,10 @@ public struct ErrorPresentation: Sendable, Hashable {
         self.fixes = fixes
     }
 }
+
+extension MenuEntry {
+    var statusRow: StatusRow? {
+        if case .status(let row) = self { return row }
+        return nil
+    }
+}
