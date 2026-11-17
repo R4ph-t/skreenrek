@@ -4,100 +4,114 @@ import SkreenrekCore
 import SkreenrekUI
 import Testing
 
-@MainActor
+/// Each test runs its body on the main actor under a hard timeout.
 @Suite struct SettingsStoreTests {
     static func suite() -> (UserDefaults, String) {
         let name = "skreenrek.tests.\(UUID().uuidString)"
         return (UserDefaults(suiteName: name)!, name)
     }
 
-    @Test func defaultsMatchTheController() {
-        let (defaults, name) = Self.suite()
-        defer { defaults.removePersistentDomain(forName: name) }
-        let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
-        let store = SettingsStore(defaults: defaults, home: home)
-        #expect(
-            store.controllerSettings
-                == ControllerSettings(outputFolder: OutputFolder.defaultParent(home: home)))
-        #expect(store.sizeChoice == .default)
-        #expect(store.outputFolderDisplayPath == "~/Movies/Skreenrek")
+    @Test func defaultsMatchTheController() async throws {
+        try await onMain("defaultsMatchTheController") {
+            let (defaults, name) = Self.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
+            let store = SettingsStore(defaults: defaults, home: home)
+            #expect(
+                store.controllerSettings
+                    == ControllerSettings(outputFolder: OutputFolder.defaultParent(home: home)))
+            #expect(store.sizeChoice == .default)
+            #expect(store.outputFolderDisplayPath == "~/Movies/Skreenrek")
+        }
     }
 
-    @Test func valuesRoundTrip() {
-        let (defaults, name) = Self.suite()
-        defer { defaults.removePersistentDomain(forName: name) }
-        let store = SettingsStore(defaults: defaults)
-        store.outputFolder = URL(fileURLWithPath: "/tmp/clips", isDirectory: true)
-        store.fps = .fps30
-        store.cursor = false
-        store.events = false
-        store.hud = false
-        store.sizeChoice = .keepCurrent
+    @Test func valuesRoundTrip() async throws {
+        try await onMain("valuesRoundTrip") {
+            let (defaults, name) = Self.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let store = SettingsStore(defaults: defaults)
+            store.outputFolder = URL(fileURLWithPath: "/tmp/clips", isDirectory: true)
+            store.fps = .fps30
+            store.cursor = false
+            store.events = false
+            store.hud = false
+            store.sizeChoice = .keepCurrent
 
-        let reloaded = SettingsStore(defaults: defaults)
-        #expect(reloaded.outputFolder.path == "/tmp/clips")
-        #expect(reloaded.fps == .fps30)
-        #expect(!reloaded.cursor)
-        #expect(!reloaded.events)
-        #expect(!reloaded.hud)
-        #expect(reloaded.sizeChoice == .keepCurrent)
-        #expect(
-            reloaded.controllerSettings
-                == ControllerSettings(
-                    outputFolder: URL(fileURLWithPath: "/tmp/clips", isDirectory: true), fps: .fps30, cursor: false,
-                    events: false, hud: false))
+            let reloaded = SettingsStore(defaults: defaults)
+            #expect(reloaded.outputFolder.path == "/tmp/clips")
+            #expect(reloaded.fps == .fps30)
+            #expect(!reloaded.cursor)
+            #expect(!reloaded.events)
+            #expect(!reloaded.hud)
+            #expect(reloaded.sizeChoice == .keepCurrent)
+            #expect(
+                reloaded.controllerSettings
+                    == ControllerSettings(
+                        outputFolder: URL(fileURLWithPath: "/tmp/clips", isDirectory: true), fps: .fps30, cursor: false,
+                        events: false, hud: false))
 
-        store.sizeChoice = .size(PixelSize(width: 1080, height: 1920))
-        #expect(SettingsStore(defaults: defaults).sizeChoice == .size(PixelSize(width: 1080, height: 1920)))
+            store.sizeChoice = .size(PixelSize(width: 1080, height: 1920))
+            #expect(SettingsStore(defaults: defaults).sizeChoice == .size(PixelSize(width: 1080, height: 1920)))
+        }
     }
 
-    @Test func badStoredValuesFallBack() {
-        let (defaults, name) = Self.suite()
-        defer { defaults.removePersistentDomain(forName: name) }
-        defaults.set(45, forKey: SettingsStore.Key.fps)
-        defaults.set("wide", forKey: SettingsStore.Key.size)
-        let store = SettingsStore(defaults: defaults)
-        #expect(store.fps == .fps60)
-        #expect(store.sizeChoice == .default)
+    @Test func badStoredValuesFallBack() async throws {
+        try await onMain("badStoredValuesFallBack") {
+            let (defaults, name) = Self.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            defaults.set(45, forKey: SettingsStore.Key.fps)
+            defaults.set("wide", forKey: SettingsStore.Key.size)
+            let store = SettingsStore(defaults: defaults)
+            #expect(store.fps == .fps60)
+            #expect(store.sizeChoice == .default)
+        }
     }
 
-    @Test func sizeChoiceStorage() {
-        #expect(SizeChoice(storageValue: "keep") == .keepCurrent)
-        #expect(SizeChoice(storageValue: "1280x720") == .size(PixelSize(width: 1280, height: 720)))
-        #expect(SizeChoice(storageValue: "0x720") == nil)
-        #expect(SizeChoice.default.storageValue == "1280x800")
+    @Test func sizeChoiceStorage() async throws {
+        try await onMain("sizeChoiceStorage") {
+            #expect(SizeChoice(storageValue: "keep") == .keepCurrent)
+            #expect(SizeChoice(storageValue: "1280x720") == .size(PixelSize(width: 1280, height: 720)))
+            #expect(SizeChoice(storageValue: "0x720") == nil)
+            #expect(SizeChoice.default.storageValue == "1280x800")
+        }
     }
 
-    @Test func openAtLoginFailureShowsInline() {
-        let login = FailingLoginItem()
-        let panel = SettingsPanelState(permissions: FakePermissions(), loginItem: login)
-        panel.setOpenAtLogin(true)
-        #expect(!panel.openAtLogin)
-        #expect(panel.loginError == "Skreenrek couldn't be added to your login items.")
-        login.fails = false
-        panel.setOpenAtLogin(true)
-        #expect(panel.openAtLogin)
-        #expect(panel.loginError == nil)
+    @Test func openAtLoginFailureShowsInline() async throws {
+        try await onMain("openAtLoginFailureShowsInline") {
+            let login = FailingLoginItem()
+            let panel = SettingsPanelState(permissions: FakePermissions(), loginItem: login)
+            panel.setOpenAtLogin(true)
+            #expect(!panel.openAtLogin)
+            #expect(panel.loginError == "Skreenrek couldn't be added to your login items.")
+            login.fails = false
+            panel.setOpenAtLogin(true)
+            #expect(panel.openAtLogin)
+            #expect(panel.loginError == nil)
+        }
     }
 
-    @Test func permissionRowsReadTheProbe() {
-        let probe = FakePermissions()
-        probe.accessibility = .missing
-        let panel = SettingsPanelState(permissions: probe, loginItem: FailingLoginItem())
-        #expect(panel.screenRecording == .allowed)
-        #expect(panel.accessibility == .missing)
-        probe.accessibility = .allowed
-        panel.refresh()
-        #expect(panel.accessibility == .allowed)
+    @Test func permissionRowsReadTheProbe() async throws {
+        try await onMain("permissionRowsReadTheProbe") {
+            let probe = FakePermissions()
+            probe.accessibility = .missing
+            let panel = SettingsPanelState(permissions: probe, loginItem: FailingLoginItem())
+            #expect(panel.screenRecording == .allowed)
+            #expect(panel.accessibility == .missing)
+            probe.accessibility = .allowed
+            panel.refresh()
+            #expect(panel.accessibility == .allowed)
+        }
     }
 
-    @Test func privacyPaneURLs() {
-        #expect(
-            PrivacyPane.url(.screenRecording).absoluteString
-                == "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-        #expect(
-            PrivacyPane.url(.accessibility).absoluteString
-                == "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    @Test func privacyPaneURLs() async throws {
+        try await onMain("privacyPaneURLs") {
+            #expect(
+                PrivacyPane.url(.screenRecording).absoluteString
+                    == "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+            #expect(
+                PrivacyPane.url(.accessibility).absoluteString
+                    == "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        }
     }
 }
 

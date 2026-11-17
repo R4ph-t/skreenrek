@@ -17,8 +17,7 @@ if commandLine.count == 4, commandLine[0] == "debug", commandLine[1] == "render-
         for file in written { print(file.url.path) }
         exit(0)
     } catch {
-        FileHandle.standardError.write(Data("error: Couldn't render the UI: \(error)
-".utf8))
+        FileHandle.standardError.write(Data("error: Couldn't render the UI: \(error)\n".utf8))
         exit(1)
     }
 }

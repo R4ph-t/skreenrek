@@ -15,10 +15,10 @@ struct WaitTimedOut: Error, CustomStringConvertible {
 }
 
 /// Runs `body` on the main actor, failing with `WaitTimedOut` after `seconds` of real time instead of hanging. The
-/// watchdog only bounds the wait; it never drives the test's timing.
-@MainActor
-func within<T: Sendable>(
-    _ what: String, seconds: Double = 20, _ body: @escaping @MainActor () async throws -> T
+/// caller isn't on the main actor, so the watchdog still fires when the main actor is stuck; it only bounds the wait
+/// and never drives the test's timing.
+func onMain<T: Sendable>(
+    _ what: String, seconds: Double = 30, _ body: @escaping @MainActor @Sendable () async throws -> T
 ) async throws -> T {
     let gate = ResumeOnce<T>()
     return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, any Error>) in
@@ -113,11 +113,9 @@ struct MenuHarness {
     }
 
     /// Performs an action, then takes the controller's snapshot (as the stream would deliver it).
-    func perform(_ action: MenuAction) async throws {
-        try await within("\(action)") {
-            await model.perform(action)
-            model.apply(await controller.snapshot())
-        }
+    func perform(_ action: MenuAction) async {
+        await model.perform(action)
+        model.apply(await controller.snapshot())
     }
 
     var firstLine: String { model.entries.first?.line ?? "" }
@@ -127,183 +125,213 @@ struct MenuHarness {
     }
 }
 
-@MainActor
+/// Each test runs its body on the main actor under a hard timeout.
 @Suite struct AppModelTests {
     @Test func pickArmsTheWindow() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        #expect(h.model.context.displayState == .armed)
-        #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px")
-        #expect(h.model.icon.sentence == "Skreenrek is ready to record Safari at 1280 × 800 pixels.")
+        try await onMain("pickArmsTheWindow") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            #expect(h.model.context.displayState == .armed)
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px")
+            #expect(h.model.icon.sentence == "Skreenrek is ready to record Safari at 1280 × 800 pixels.")
+        }
     }
 
     @Test func choosingASizeWhileArmedResizesNow() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        try await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 720))))
-        #expect(h.resizer.calls.count == 1)
-        #expect(h.resizer.calls.first?.requested.width == 640)
-        #expect(h.resizer.calls.first?.requested.height == 360)
-        #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 720 px · exact size")
-        #expect(h.model.settings.sizeChoice == .size(PixelSize(width: 1280, height: 720)))
+        try await onMain("choosingASizeWhileArmedResizesNow") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 720))))
+            #expect(h.resizer.calls.count == 1)
+            #expect(h.resizer.calls.first?.requested.width == 640)
+            #expect(h.resizer.calls.first?.requested.height == 360)
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 720 px · exact size")
+            #expect(h.model.settings.sizeChoice == .size(PixelSize(width: 1280, height: 720)))
+        }
     }
 
     @Test func aSizeTheWindowCantTakeShowsNotExact() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
-        try await h.perform(.pickWindow)
-        try await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
-        #expect(
-            h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
-        #expect(h.model.context.error == nil)
+        try await onMain("aSizeTheWindowCantTakeShowsNotExact") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+            await h.perform(.pickWindow)
+            await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
+            #expect(
+                h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+            #expect(h.model.context.error == nil)
+        }
     }
 
     @Test func choosingASizeWhileIdleOnlySetsTheNextSize() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.chooseSize(.keepCurrent))
-        #expect(h.resizer.calls.isEmpty)
-        #expect(h.model.settings.sizeChoice == .keepCurrent)
+        try await onMain("choosingASizeWhileIdleOnlySetsTheNextSize") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.chooseSize(.keepCurrent))
+            #expect(h.resizer.calls.isEmpty)
+            #expect(h.model.settings.sizeChoice == .keepCurrent)
+        }
     }
 
     @Test func customSizeAsksWithTheDisplayScale() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        h.effects.sizeAnswer = PixelSize(width: 1000, height: 600)
-        try await h.perform(.customSize)
-        #expect(h.effects.sizeAsked.first?.0 == PixelSize(width: 1280, height: 800))
-        #expect(h.effects.sizeAsked.first?.1 == 2)
-        #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1000 × 600 px · exact size")
+        try await onMain("customSizeAsksWithTheDisplayScale") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            h.effects.sizeAnswer = PixelSize(width: 1000, height: 600)
+            await h.perform(.customSize)
+            #expect(h.effects.sizeAsked.first?.0 == PixelSize(width: 1280, height: 800))
+            #expect(h.effects.sizeAsked.first?.1 == 2)
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1000 × 600 px · exact size")
+        }
     }
 
     @Test func resizeWithoutAccessibilityShowsTheErrorRowUntilTheMenuClosesOnce() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        h.permissions.accessibility = .missing
-        try await h.perform(.chooseSize(.size(PixelSize(width: 1440, height: 900))))
-        #expect(h.firstLine.contains("Can't resize windows"))
-        #expect(h.model.icon.symbol == "exclamationmark.triangle")
+        try await onMain("resizeWithoutAccessibilityShowsTheErrorRowUntilTheMenuClosesOnce") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            h.permissions.accessibility = .missing
+            await h.perform(.chooseSize(.size(PixelSize(width: 1440, height: 900))))
+            #expect(h.firstLine.contains("Can't resize windows"))
+            #expect(h.model.icon.symbol == "exclamationmark.triangle")
 
-        h.model.menuWillOpen()
-        try await within("menu close") { await h.model.menuDidClose() }
-        #expect(h.model.context.error == nil)
-        #expect(h.model.context.displayState == .armed)
+            h.model.menuWillOpen()
+            await h.model.menuDidClose()
+            #expect(h.model.context.error == nil)
+            #expect(h.model.context.displayState == .armed)
+        }
     }
 
     @Test func recordWithoutScreenRecordingShowsItsFix() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        h.permissions.screenRecording = .missing
-        try await h.perform(.record)
-        // Record resized first to the chosen size, then stopped at the permission.
-        #expect(h.resizer.calls.count == 1)
-        #expect(
-            h.model.entries.prefix(2).map(\.line) == [
-                "[exclamationmark.triangle] Screen Recording is off | Allow Skreenrek in System Settings › Privacy & "
-                    + "Security, then reopen it.",
-                "Open Privacy Settings…",
-            ])
-        try await h.perform(.openPrivacySettings(.screenRecording))
-        #expect(h.effects.opened == [PrivacyPane.url(.screenRecording)])
+        try await onMain("recordWithoutScreenRecordingShowsItsFix") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            h.permissions.screenRecording = .missing
+            await h.perform(.record)
+            // Record resized first to the chosen size, then stopped at the permission.
+            #expect(h.resizer.calls.count == 1)
+            #expect(
+                h.model.entries.prefix(2).map(\.line) == [
+                    "[exclamationmark.triangle] Screen Recording is off | Allow Skreenrek in System Settings › Privacy & "
+                        + "Security, then reopen it.",
+                    "Open Privacy Settings…",
+                ])
+            await h.perform(.openPrivacySettings(.screenRecording))
+            #expect(h.effects.opened == [PrivacyPane.url(.screenRecording)])
+        }
     }
 
     @Test func theNextActionClearsTheError() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        h.picker.failure = SkreenrekError.permissionDenied(.screenRecording)
-        try await h.perform(.pickWindow)
-        #expect(h.model.context.displayState == .error)
-        h.picker.failure = nil
-        try await h.perform(.pickWindow)
-        #expect(h.model.context.displayState == .armed)
+        try await onMain("theNextActionClearsTheError") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            h.picker.failure = SkreenrekError.permissionDenied(.screenRecording)
+            await h.perform(.pickWindow)
+            #expect(h.model.context.displayState == .error)
+            h.picker.failure = nil
+            await h.perform(.pickWindow)
+            #expect(h.model.context.displayState == .armed)
+        }
     }
 
     @Test func recordSkipsTheResizeWhenTheWindowAlreadyHasTheSize() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.pickWindow)
-        try await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
-        h.permissions.screenRecording = .missing
-        try await h.perform(.record)
-        #expect(h.resizer.calls.count == 1)
+        try await onMain("recordSkipsTheResizeWhenTheWindowAlreadyHasTheSize") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
+            h.permissions.screenRecording = .missing
+            await h.perform(.record)
+            #expect(h.resizer.calls.count == 1)
+        }
     }
 
     @Test func togglesAndFrameRateFeedTheController() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.toggleCursor)
-        try await h.perform(.toggleEvents)
-        try await h.perform(.chooseFrameRate(.fps30))
-        let settings = await h.controller.currentSettings
-        #expect(!settings.cursor)
-        #expect(!settings.events)
-        #expect(settings.fps == .fps30)
-        #expect(h.model.entries.map(\.line).contains("Show Cursor"))
-        #expect(h.model.entries.map(\.line).contains("Frame Rate ▸ 30 fps"))
+        try await onMain("togglesAndFrameRateFeedTheController") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.toggleCursor)
+            await h.perform(.toggleEvents)
+            await h.perform(.chooseFrameRate(.fps30))
+            let settings = await h.controller.currentSettings
+            #expect(!settings.cursor)
+            #expect(!settings.events)
+            #expect(settings.fps == .fps30)
+            #expect(h.model.entries.map(\.line).contains("Show Cursor"))
+            #expect(h.model.entries.map(\.line).contains("Frame Rate ▸ 30 fps"))
+        }
     }
 
     @Test func systemActionsGoToTheEffects() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        try await h.perform(.showInFinder(path: "/a/clip.mp4"))
-        try await h.perform(.copyFilePath(path: "/a/clip.mp4"))
-        try await h.perform(.copySnippet("<video>"))
-        try await h.perform(.copyErrorDetails("error: x"))
-        try await h.perform(.openSettings)
-        try await h.perform(.quit)
-        #expect(h.effects.revealed == ["/a/clip.mp4"])
-        #expect(h.effects.copied == ["/a/clip.mp4", "<video>", "error: x"])
-        #expect(h.effects.settingsOpened == 1)
-        #expect(h.effects.quitCalls == 1)
+        try await onMain("systemActionsGoToTheEffects") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            await h.perform(.showInFinder(path: "/a/clip.mp4"))
+            await h.perform(.copyFilePath(path: "/a/clip.mp4"))
+            await h.perform(.copySnippet("<video>"))
+            await h.perform(.copyErrorDetails("error: x"))
+            await h.perform(.openSettings)
+            await h.perform(.quit)
+            #expect(h.effects.revealed == ["/a/clip.mp4"])
+            #expect(h.effects.copied == ["/a/clip.mp4", "<video>", "error: x"])
+            #expect(h.effects.settingsOpened == 1)
+            #expect(h.effects.quitCalls == 1)
+        }
     }
 
     @Test func discardAsksFirst() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        h.effects.discardAnswer = false
-        try await h.perform(.discard)
-        #expect(h.effects.discardAsked == 1)
+        try await onMain("discardAsksFirst") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            h.effects.discardAnswer = false
+            await h.perform(.discard)
+            #expect(h.effects.discardAsked == 1)
+        }
     }
 
     @Test func chooseOutputFolderStoresAndPushesIt() async throws {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        let folder = URL(fileURLWithPath: "/tmp/skreenrek-clips", isDirectory: true)
-        h.effects.folderAnswer = folder
-        try await h.perform(.chooseOutputFolder)
-        #expect(h.model.settings.outputFolder == folder)
-        #expect(await h.controller.currentSettings.outputFolder == folder)
+        try await onMain("chooseOutputFolderStoresAndPushesIt") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            let folder = URL(fileURLWithPath: "/tmp/skreenrek-clips", isDirectory: true)
+            h.effects.folderAnswer = folder
+            await h.perform(.chooseOutputFolder)
+            #expect(h.model.settings.outputFolder == folder)
+            #expect(await h.controller.currentSettings.outputFolder == folder)
+        }
     }
 
-    @Test func quitDecisions() {
-        let h = MenuHarness()
-        defer { h.cleanUp() }
-        #expect(h.model.quitDecision == .now)
-        h.model.apply(UIFixtures.recording(.mcp))
-        #expect(h.model.quitDecision == .askToStop)
-        #expect(h.model.wantsStopHotKey)
-        var writing = UIFixtures.recording(.mcp)
-        writing.state = .writing
-        h.model.apply(writing)
-        #expect(h.model.quitDecision == .afterWriting)
-        #expect(!h.model.wantsStopHotKey)
+    @Test func quitDecisions() async throws {
+        try await onMain("quitDecisions") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            #expect(h.model.quitDecision == .now)
+            h.model.apply(UIFixtures.recording(.mcp))
+            #expect(h.model.quitDecision == .askToStop)
+            #expect(h.model.wantsStopHotKey)
+            var writing = UIFixtures.recording(.mcp)
+            writing.state = .writing
+            h.model.apply(writing)
+            #expect(h.model.quitDecision == .afterWriting)
+            #expect(!h.model.wantsStopHotKey)
+        }
     }
 
-    @Test func lastClipTitleComesFromTheRecording() {
-        var tracker = LastClipTracker()
-        tracker.observe(UIFixtures.recording(.menu))
-        var done = UIFixtures.idle
-        done.lastClip = RenderSamples.clip()
-        tracker.observe(done)
-        #expect(tracker.title == "Safari — localhost:3000")
-        // A later snapshot with the same clip keeps the title.
-        tracker.observe(done)
-        #expect(tracker.title == "Safari — localhost:3000")
+    @Test func lastClipTitleComesFromTheRecording() async throws {
+        try await onMain("lastClipTitleComesFromTheRecording") {
+            var tracker = LastClipTracker()
+            tracker.observe(UIFixtures.recording(.menu))
+            var done = UIFixtures.idle
+            done.lastClip = RenderSamples.clip()
+            tracker.observe(done)
+            #expect(tracker.title == "Safari — localhost:3000")
+            // A later snapshot with the same clip keeps the title.
+            tracker.observe(done)
+            #expect(tracker.title == "Safari — localhost:3000")
+        }
     }
 }

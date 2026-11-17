@@ -1,64 +1,104 @@
 import AppKit
 import Foundation
 import SkreenrekUI
+import Synchronization
 import Testing
 
-/// `debug render-ui` writes non-empty PNGs of the expected sizes in both appearances.
-@MainActor
+/// `skreenrek debug render-ui` writes non-empty PNGs of the expected sizes in both appearances.
+///
+/// It runs the built `skreenrek` binary as a child process with a hard timeout, so AppKit's offscreen windows and
+/// drawing never occupy this test process's main thread or concurrency pool, and a stuck render fails the test
+/// instead of hanging `swift test`.
 @Suite struct RenderUITests {
-    @Test func rendersEverySurfaceInBothAppearances() throws {
+    static let timeoutSeconds = 120.0
+
+    @Test func rendersEverySurfaceInBothAppearances() async throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("skreenrek-render-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        let written = try UIRenderer.renderAll(to: folder)
-        let names = Set(written.map(\.url.lastPathComponent))
+        let status = try await Self.run(["debug", "render-ui", "--out", folder.path])
+        #expect(status == 0)
+
+        var expected: [String] = []
         for appearance in ["light", "dark"] {
             for state in RenderSamples.states.map(\.name) {
-                #expect(names.contains("dropdown-\(state)-\(appearance)@2x.png"))
-                #expect(names.contains("statusrow-\(state)-\(appearance)@2x.png"))
-                #expect(names.contains("menubaricon-\(state)-\(appearance)@2x.png"))
+                for surface in ["dropdown", "statusrow", "menubaricon"] {
+                    expected.append("\(surface)-\(state)-\(appearance)@2x.png")
+                }
             }
-            #expect(names.contains("submenu-size-\(appearance)@2x.png"))
-            #expect(names.contains("submenu-framerate-\(appearance)@2x.png"))
-            #expect(names.contains("settings-default-\(appearance)@2x.png"))
+            expected += [
+                "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
+                "settings-default-\(appearance)@2x.png",
+            ]
+        }
+        let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        #expect(Set(written) == Set(expected))
+
+        var sizes: [String: (Int, Int)] = [:]
+        for name in written {
+            let data = try Data(contentsOf: folder.appendingPathComponent(name))
+            let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+            sizes[name] = (rep.pixelsWide, rep.pixelsHigh)
+            #expect(rep.pixelsWide > 0 && rep.pixelsHigh > 0, "\(name)")
+            #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
         }
 
-        for file in written {
-            let data = try Data(contentsOf: file.url)
-            let rep = try #require(NSBitmapImageRep(data: data), "\(file.url.lastPathComponent)")
-            #expect(rep.pixelsWide == file.pixelWidth)
-            #expect(rep.pixelsHigh == file.pixelHeight)
-            #expect(Self.hasVisiblePixels(rep), "\(file.url.lastPathComponent) is empty")
-        }
-
-        func size(_ name: String) throws -> (Int, Int) {
-            let file = try #require(written.first { $0.url.lastPathComponent == name })
-            return (file.pixelWidth, file.pixelHeight)
-        }
-        // Status rows: 300 pt wide, 48 pt tall (64 pt when the detail wraps) at 2×.
+        // Status rows: 300 pt wide, 48 pt tall (64 pt when the detail wraps) at 2×; dropdowns 300 pt wide.
         for appearance in ["light", "dark"] {
-            #expect(try size("statusrow-idle-\(appearance)@2x.png") == (600, 96))
-            #expect(try size("statusrow-recording-\(appearance)@2x.png") == (600, 96))
-            #expect(try size("statusrow-armednotexact-\(appearance)@2x.png") == (600, 96))
-            #expect(try size("statusrow-errorwindowclosed-\(appearance)@2x.png") == (600, 128))
-            #expect(try size("dropdown-idle-\(appearance)@2x.png").0 == 600)
-            #expect(try size("settings-default-\(appearance)@2x.png").0 == 960)
+            #expect(sizes["statusrow-idle-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
+            #expect(sizes["statusrow-recording-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
+            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
+            #expect(sizes["statusrow-errorwindowclosed-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))
+            #expect(sizes["settings-default-\(appearance)@2x.png"]?.0 == 960)
         }
-        for file in written where file.url.lastPathComponent.hasPrefix("dropdown-") {
-            #expect(file.pixelWidth == 600)
+        for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("statusrow-") {
+            #expect(size.0 == 600, "\(name)")
         }
+        // The appearance really was forced.
+        let light = try Data(contentsOf: folder.appendingPathComponent("dropdown-idle-light@2x.png"))
+        let dark = try Data(contentsOf: folder.appendingPathComponent("dropdown-idle-dark@2x.png"))
+        #expect(light != dark)
     }
 
-    /// Light and dark differ, so the appearance really was forced.
-    @Test func appearancesDiffer() throws {
-        let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("skreenrek-render-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let written = try UIRenderer.renderAll(to: folder)
-        let light = try #require(written.first { $0.url.lastPathComponent == "dropdown-idle-light@2x.png" })
-        let dark = try #require(written.first { $0.url.lastPathComponent == "dropdown-idle-dark@2x.png" })
-        #expect(try Data(contentsOf: light.url) != Data(contentsOf: dark.url))
+    /// The `skreenrek` executable from the same build as this test bundle (`swift build` puts both in one products
+    /// folder), found from the loaded `.xctest` bundle or the test runner's arguments.
+    static func binary() throws -> URL {
+        let candidates = (Bundle.allBundles + Bundle.allFrameworks).map(\.bundlePath)
+            + ProcessInfo.processInfo.arguments + [Bundle.main.bundlePath]
+        for path in candidates {
+            guard let range = path.range(of: ".xctest") else { continue }
+            let bundle = URL(fileURLWithPath: String(path[..<range.upperBound]))
+            let url = bundle.deletingLastPathComponent().appendingPathComponent("skreenrek")
+            if FileManager.default.isExecutableFile(atPath: url.path) { return url }
+        }
+        Issue.record("No skreenrek binary beside the test bundle (checked \(candidates)); run swift build first.")
+        throw CancellationError()
+    }
+
+    /// Runs the binary and returns its exit status, or throws after `timeoutSeconds` (killing it).
+    static func run(_ arguments: [String]) async throws -> Int32 {
+        let process = Process()
+        process.executableURL = try binary()
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let exit = ExitOnce()
+        return try await withCheckedThrowingContinuation { continuation in
+            exit.set(continuation)
+            process.terminationHandler = { exit.finish(.success($0.terminationStatus)) }
+            do {
+                try process.run()
+            } catch {
+                exit.finish(.failure(error))
+                return
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds) {
+                guard exit.isPending else { return }
+                process.terminate()
+                exit.finish(.failure(WaitTimedOut(what: "skreenrek debug render-ui", seconds: timeoutSeconds)))
+            }
+        }
     }
 
     static func hasVisiblePixels(_ rep: NSBitmapImageRep) -> Bool {
@@ -76,5 +116,20 @@ import Testing
             }
         }
         return false
+    }
+}
+
+/// Resumes the child-process continuation once, from the exit or the watchdog.
+private final class ExitOnce: Sendable {
+    private let continuation = Mutex<CheckedContinuation<Int32, any Error>?>(nil)
+
+    func set(_ continuation: CheckedContinuation<Int32, any Error>) {
+        self.continuation.withLock { $0 = continuation }
+    }
+
+    var isPending: Bool { continuation.withLock { $0 != nil } }
+
+    func finish(_ result: Result<Int32, any Error>) {
+        continuation.withLock { $0.take() }?.resume(with: result)
     }
 }
