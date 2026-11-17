@@ -22,6 +22,13 @@ public final class SyntheticFrameSource: FrameSource {
         public var size: PixelSize
         public var fps: FrameRate
         public var showsCursor: Bool
+
+        public init(target: CaptureTarget, size: PixelSize, fps: FrameRate, showsCursor: Bool) {
+            self.target = target
+            self.size = size
+            self.fps = fps
+            self.showsCursor = showsCursor
+        }
     }
 
     private struct State {
