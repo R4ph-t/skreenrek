@@ -161,7 +161,8 @@ struct MenuHarness {
             await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
             #expect(
                 h.firstLine
-                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact")
+            #expect(h.model.context.sizeChoice == .size(PixelSize(width: 1280, height: 800)))
             #expect(h.model.context.error == nil)
         }
     }

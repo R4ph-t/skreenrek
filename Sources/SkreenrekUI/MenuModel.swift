@@ -67,15 +67,23 @@ public struct StatusRow: Sendable, Hashable {
     /// The state rows (Ready, Recording…, errors) set their title in semibold; the Last Clip row doesn't.
     public var emphasized: Bool
     public var detail: String
-    /// The accessibility sentence for the row: title and detail.
-    public var accessibilityLabel: String { "\(title). \(detail)" }
+    /// A longer explanation for the tooltip and VoiceOver, kept out of the one-line detail (the not-exact reason).
+    public var help: String?
+    /// The accessibility sentence for the row: title, detail and the explanation when there is one.
+    public var accessibilityLabel: String {
+        ["\(title). \(detail)", help].compactMap { $0 }.joined(separator: ". ")
+    }
 
-    public init(symbol: String, tint: Tint = .none, title: String, emphasized: Bool = true, detail: String) {
+    public init(
+        symbol: String, tint: Tint = .none, title: String, emphasized: Bool = true, detail: String,
+        help: String? = nil
+    ) {
         self.symbol = symbol
         self.tint = tint
         self.title = title
         self.emphasized = emphasized
         self.detail = detail
+        self.help = help
     }
 }
 
@@ -203,22 +211,26 @@ public enum MenuModel {
     static let idleRow = StatusRow(
         symbol: StatusIconModel.Symbol.idle, title: UIStrings.Menu.ready, detail: UIStrings.Menu.noWindowPicked)
 
-    /// `viewfinder` · window title · `1280 × 800 px · exact size`, or `… · not exact (min width 1286 px)`.
+    /// `viewfinder` · window title · `1280 × 800 px · exact size`, or `1286 × 800 px · not exact` with the reason
+    /// (`Safari won't go narrower than 1286 px, …`) in the tooltip and VoiceOver label, so the detail stays one line.
     /// A window that was picked but not resized yet shows its size alone.
     static func armedRow(_ context: MenuContext) -> StatusRow {
         let snapshot = context.snapshot
         let size = snapshot.size?.description ?? ""
         var detail = size
+        var help: String?
         if let readback = snapshot.readback, snapshot.window != nil {
-            let note =
-                readback.exact
-                ? UIStrings.Menu.exactSize
-                : UIStrings.Menu.notExact(
-                    ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+            let note = readback.exact ? UIStrings.Menu.exactSize : UIStrings.Menu.notExact
+            if !readback.exact {
+                help = UIStrings.Menu.notExactReason(
+                    app: readback.window.app, requested: readback.requested, actual: readback.actual,
+                    reason: ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+            }
             detail = [size, note].filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
         }
         return StatusRow(
-            symbol: StatusIconModel.Symbol.armed, title: context.targetTitle ?? UIStrings.Menu.region, detail: detail)
+            symbol: StatusIconModel.Symbol.armed, title: context.targetTitle ?? UIStrings.Menu.region, detail: detail,
+            help: help)
     }
 
     /// `0:12 · 1280 × 800 px · 60 fps`.

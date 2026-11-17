@@ -117,16 +117,27 @@ public enum UIStrings {
         /// `30 fps`.
         public static func fps(_ rate: FrameRate) -> String { "\(rate.framesPerSecond) fps" }
 
-        /// `not exact (min width 1286 px)`.
-        public static func notExact(_ reason: NotExactReason) -> String {
+        /// `not exact`: the short note on the armed row. The reason goes to the tooltip and VoiceOver
+        /// (`notExactReason`), so the detail stays on one line.
+        public static let notExact = "not exact"
+
+        /// `Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800.`
+        public static func notExactReason(
+            app: String, requested: PixelSize, actual: PixelSize, reason: NotExactReason
+        ) -> String {
+            let limit: String
             switch reason {
-            case .minWidth(let px): "not exact (min width \(px) px)"
-            case .minHeight(let px): "not exact (min height \(px) px)"
-            case .maxWidth(let px): "not exact (max width \(px) px)"
-            case .maxHeight(let px): "not exact (max height \(px) px)"
-            case .steps: "not exact (resizes in steps)"
+            case .minWidth(let px): limit = "\(app) won't go narrower than \(px) px"
+            case .minHeight(let px): limit = "\(app) won't go shorter than \(px) px"
+            case .maxWidth(let px): limit = "\(app) won't go wider than \(px) px"
+            case .maxHeight(let px): limit = "\(app) won't go taller than \(px) px"
+            case .steps: limit = "\(app) resizes in steps"
             }
+            return "\(limit), so the clip is \(dimensions(actual)) instead of \(dimensions(requested))."
         }
+
+        /// `1280 × 800`, without the unit.
+        static func dimensions(_ size: PixelSize) -> String { "\(size.width) × \(size.height)" }
 
         /// The detail lines join their parts with a middle dot.
         public static let separator = " · "
@@ -274,7 +285,8 @@ public enum UIStrings {
         Menu.showCursor, Menu.writeClickEvents, Menu.recordWindow, Menu.lastClip, Menu.showInFinder,
         Menu.copyFilePath, Menu.copySnippet, Menu.openOutputFolder, Menu.settings, Menu.quit, Menu.stopRecording,
         Menu.discardRecording, Menu.savingClip, Menu.region, Menu.keepCurrentSize, Menu.customSize, Menu.portrait,
-        Menu.square, Menu.exactSize, Menu.startedFromMenu, Menu.startedFromCommandLine, Menu.startedOverMCP,
+        Menu.square, Menu.exactSize, Menu.notExact,
+        Menu.startedFromMenu, Menu.startedFromCommandLine, Menu.startedOverMCP,
         Errors.recordingStopped, Errors.screenRecordingOff, Errors.screenRecordingDetail, Errors.cantResize,
         Errors.cantResizeDetail, Errors.notExact, Errors.couldntSave, Errors.somethingWentWrong,
         Errors.copyErrorDetails, Errors.openPrivacySettings, Errors.openAccessibilitySettings, Errors.pickAnotherSize,

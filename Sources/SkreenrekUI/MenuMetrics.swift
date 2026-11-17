@@ -95,6 +95,7 @@ public final class StatusRowView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.staticText)
         setAccessibilityLabel(row.accessibilityLabel)
+        toolTip = row.help
         layoutRow()
     }
 
