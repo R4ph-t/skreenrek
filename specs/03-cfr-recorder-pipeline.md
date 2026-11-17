@@ -194,9 +194,18 @@ events.json and the HyperFrames snippet (04), the controller and state machine (
   `SkreenrekCoreTests` need the real clock.
 - **`SCStreamFrameSource`.** As specified (filters, size, `minimumFrameInterval`, cursor, `420v`, `queueDepth` 6, no
   audio), plus `colorMatrix` = ITU-R 709 to match the writer's tags. Region `sourceRect` = px ÷ the filter's
-  `pointPixelScale`. Window closed is detected three ways: `didStopWithError`, a `.stopped` frame status, and a
-  0.5 s `CGWindowListCopyWindowInfo` check (window IDs need no permission). `userDeclined`/`missingEntitlements` map
-  to `permission_denied` (Screen Recording). `SCStreamFrameSource.screenRecordingAllowed` wraps the non-prompting
+  `pointPixelScale`. Frames go through `FrameStreamFeed` (Core): an `AsyncThrowingStream` with
+  `.bufferingNewest(1)`, so a lagging recorder never piles up ScreenCaptureKit's IOSurfaces (at most one waiting in
+  the stream plus the scheduler's two), and every frame it drops is counted. `FrameSource.droppedFrameCount`
+  (defaults to 0, so the fakes are unchanged) exposes that count; the session adds it to `sourceFramesSkipped`, so
+  a lossy recording is never reported clean. `SourceFloodTests` floods 50 frames from a pool with an allocation
+  limit while the recorder's consumer is held: the pool never runs dry, and 49 drops become 49 skipped. A stream that
+  stops on its own (`didStopWithError` or a `.stopped` frame status) ends with "window closed" only when the window
+  is really gone (`windowExists`, a `CGWindowListCopyWindowInfo` check by ID, which needs no permission); otherwise
+  it ends with `recording_failed` (`Screen capture stopped: <reason>`). A 0.5 s check of the same kind also ends the
+  stream when the window disappears. `userDeclined`/`missingEntitlements` map to `permission_denied` (Screen
+  Recording). The decision is the pure `SCStreamFrameSource.endError(stoppedWith:windowID:windowExists:)`, covered
+  by `StreamEndTests`. `SCStreamFrameSource.screenRecordingAllowed` wraps the non-prompting
   preflight so tests never name the API. Not run here (needs the permission).
 - **Output folder.** Slugs fold accents and full-width forms, turn every other run into one `-`, trim, cap at 40.
   A name that slugifies to nothing falls back to the app slug; an app name with no ASCII letters or digits gives
