@@ -13,6 +13,7 @@ let package = Package(
         .target(name: "SkreenrekTesting", dependencies: ["SkreenrekCore"]),
         .executableTarget(name: "skreenrek", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
         .testTarget(name: "SkreenrekCoreTests", dependencies: ["SkreenrekCore", "SkreenrekTesting"]),
+        .testTarget(name: "SkreenrekSystemTests", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
     ],
     swiftLanguageModes: [.v6]
 )
