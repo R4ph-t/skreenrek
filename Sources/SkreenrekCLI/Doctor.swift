@@ -3,8 +3,9 @@ import SkreenrekControl
 import SkreenrekCore
 
 extension Runner {
-    /// One line per check (Screen Recording, direct capture, Accessibility, the app's version and that it runs, the output folder,
-    /// the CLI path, the socket) with ✓ or ✗ and a fix. Exit 3 when Screen Recording or direct capture is missing, 1 when the app
+    /// One line per check (Screen Recording, direct capture, Accessibility, the app's version and that it runs, the
+    /// output folder, the CLI path, each connected agent's command, the socket) with ✓ or ✗ and a fix. Exit 3 when
+    /// Screen Recording or direct capture is missing, 1 when the app
     /// can't be reached, else 0.
     func doctor() async throws -> Int32 {
         let body: DoctorBody
@@ -18,7 +19,7 @@ extension Runner {
             return failure.exit
         }
         if mode.json {
-            try sayJSON(body)
+            try sayJSON(DoctorReport(body: body, agents: agentCommandChecks()))
         } else {
             say(doctorLines(body: body, appFailure: nil))
         }
@@ -75,10 +76,24 @@ extension Runner {
         }
         let cli = commandLineTool()
         lines.append((cli.onPath, "Command-line tool", cli.detail))
+        for check in agentCommandChecks() {
+            let command = f.tilde(check.command)
+            let detail = check.ok ? command
+                : "\(command) \(check.exists ? "isn't executable" : "is missing"). \(check.hint ?? "")"
+            lines.append((check.ok, check.agent.name, detail))
+        }
         let socket = f.tilde(body?.socket ?? environment.socketPath.path)
         lines.append((body != nil, "Socket", body != nil ? socket : "Nothing answers at \(socket)."))
         let width = lines.map(\.label.count).max() ?? 0
         return lines.map { f.doctorLine(ok: $0.ok, label: $0.label, detail: $0.detail, labelWidth: width) }.joined()
+    }
+
+    /// The command each connected agent runs, from the agent setup ledger in this home.
+    func agentCommandChecks() -> [AgentCommandCheck] {
+        AgentInstaller(
+            home: environment.home, executablePath: environment.executablePath,
+            path: environment.variables["PATH"] ?? ""
+        ).commandChecks()
     }
 
     /// This executable, and whether `skreenrek` on `PATH` runs it.
@@ -94,5 +109,19 @@ extension Runner {
             false,
             "\(format.tilde(me)) isn't on your PATH as skreenrek. Link it: ln -s \"\(me)\" ~/.local/bin/skreenrek"
         )
+    }
+}
+
+/// `doctor --json`: the app's report plus `agents`, the CLI's check of each connected agent's command.
+struct DoctorReport: Encodable {
+    var body: DoctorBody
+    var agents: [AgentCommandCheck]
+
+    private enum Keys: String, CodingKey { case agents }
+
+    func encode(to encoder: any Encoder) throws {
+        try body.encode(to: encoder)
+        var container = encoder.container(keyedBy: Keys.self)
+        try container.encode(agents, forKey: .agents)
     }
 }
