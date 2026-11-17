@@ -24,31 +24,36 @@ public final class AgentsPanelState {
     }
 }
 
+/// The Agents section: one row per agent with a `terminal.fill` tile, its status and Connect or Remove.
 struct AgentsSection: View {
     @Bindable var panel: AgentsPanelState
 
     var body: some View {
-        Section(UIStrings.Agents.title) {
+        Section {
             ForEach(panel.connections) { connection in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(connection.agent.name).font(.system(size: 13))
-                            Text(connection.status).font(.system(size: 12)).foregroundStyle(.secondary)
+                SettingsRow(symbol: "terminal.fill") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(connection.agent.name).font(.system(size: 13))
+                                Text(connection.status).font(.system(size: 12)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 8)
+                            Button(connection.connected ? UIStrings.Agents.remove : UIStrings.Agents.connect) {
+                                panel.change(connection.agent, remove: connection.connected)
+                            }
                         }
-                        Spacer(minLength: 8)
-                        Button(connection.connected ? UIStrings.Agents.remove : UIStrings.Agents.connect) {
-                            panel.change(connection.agent, remove: connection.connected)
+                        .disabled(!connection.detected && !connection.connected)
+                        if let result = panel.results.first(where: { $0.agent == connection.agent }) {
+                            if !result.success { detail(result.message) }
+                            ForEach(result.warnings, id: \.self) { detail($0) }
                         }
-                    }
-                    .disabled(!connection.detected && !connection.connected)
-                    if let result = panel.results.first(where: { $0.agent == connection.agent }) {
-                        if !result.success { detail(result.message) }
-                        ForEach(result.warnings, id: \.self) { detail($0) }
                     }
                 }
                 .accessibilityElement(children: .contain)
             }
+        } header: {
+            SettingsSectionHeader(title: UIStrings.Agents.title)
         }
     }
 

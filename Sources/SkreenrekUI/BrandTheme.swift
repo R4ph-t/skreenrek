@@ -2,75 +2,62 @@ import AppKit
 import SkreenrekCore
 import SwiftUI
 
-/// Shared pieces of the v2 direction mockups. Render-only: nothing in the shipping app uses them.
-enum DirectionTheme {
-    /// C's placeholder brand accent, a warm record red, until the chosen logo gives the real one.
-    static let accent = Color(red: 1.0, green: 0.27, blue: 0.23)
-    /// C's header tile behind the white mark: graphite, a touch lighter in dark mode.
+/// The branded dropdown's and Settings' shared tones. The accent is the system accent (switches, the selected
+/// segment, the primary item); red stays for record and stop, orange for errors. Everything else is neutral.
+enum BrandTheme {
+    /// The header tile behind the V1 mark: graphite, a touch lighter in dark mode (the kit keeps it graphite, not red).
     static let graphite = Color(
         nsColor: NSColor(name: nil) { appearance in
             NSColor(white: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 0.22 : 0.16, alpha: 1)
         })
-    /// The menu material's tone (the same one the shipping dropdown preview draws on).
-    static let menuBackground = Color(
-        nsColor: NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                ? NSColor(srgbRed: 0.17, green: 0.17, blue: 0.18, alpha: 1)
-                : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1)
-        })
-    /// B's panel: the window material's tone, a touch lighter than the menu in dark mode.
-    static let panelBackground = Color(
-        nsColor: NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                ? NSColor(srgbRed: 0.19, green: 0.19, blue: 0.20, alpha: 1)
-                : NSColor(srgbRed: 0.97, green: 0.97, blue: 0.97, alpha: 1)
-        })
-}
+    /// The menu material's tone, for the composed renders (an offscreen `NSMenu` can't be drawn).
+    static let menuBackground = Color(nsColor: menuBackgroundColor)
+    static let menuBackgroundColor = NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0.17, green: 0.17, blue: 0.18, alpha: 1)
+            : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1)
+    }
 
-/// The placeholder mark: `record.circle` inside `viewfinder` corners. Not the final logo.
-struct BrandMark: View {
-    var size: CGFloat
-    var color: Color = .primary
-
-    var body: some View {
-        ZStack {
-            Image(systemName: "viewfinder").font(.system(size: size, weight: .regular))
-            Image(systemName: "record.circle").font(.system(size: size * 0.5, weight: .semibold))
+    /// The header band: neutral, red while recording, orange for an error. Increase Contrast makes it stronger and
+    /// adds a stroke.
+    static func band(_ kind: DropdownHeader.Kind, increaseContrast: Bool) -> AnyShapeStyle {
+        switch kind {
+        case .recording: AnyShapeStyle(Color.red.opacity(increaseContrast ? 0.24 : 0.14))
+        case .error: AnyShapeStyle(Color.orange.opacity(increaseContrast ? 0.22 : 0.12))
+        default: AnyShapeStyle(increaseContrast ? neutralBandContrast : neutralBand)
         }
-        .foregroundStyle(color)
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+    }
+
+    /// A neutral band that reads on the menu material in both appearances (`.fill.quinary` vanishes in dark).
+    static let neutralBand = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 0, alpha: 0.04)
+        })
+    static let neutralBandContrast = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: 0.14) : NSColor(white: 0, alpha: 0.09)
+        })
+
+    static func bandStroke(_ kind: DropdownHeader.Kind) -> AnyShapeStyle {
+        switch kind {
+        case .recording: AnyShapeStyle(Color.red)
+        case .error: AnyShapeStyle(Color.orange)
+        default: AnyShapeStyle(.separator)
+        }
     }
 }
 
-/// A stand-in app icon (the real one comes with the logo): the placeholder mark in white on the accent.
-struct AppIconPlaceholder: View {
-    var size: CGFloat
-
-    var body: some View {
-        let base = DirectionTheme.accent
-        RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [base.mix(with: .white, by: 0.15), base],
-                    startPoint: .top, endPoint: .bottom)
-            )
-            .overlay(BrandMark(size: size * 0.6, color: .white))
-            .frame(width: size, height: size)
-            .shadow(color: .black.opacity(0.15), radius: size * 0.03, y: size * 0.02)
-            .accessibilityHidden(true)
-    }
-}
-
-/// The clip's first frame, 16:10, with a thin separator stroke and an optional `play.fill` glyph bottom-left.
+/// The clip's first frame, 16:10, with a thin separator stroke (the accent while it's the newest clip from this
+/// session) and a `play.fill` glyph bottom-left.
 struct ClipThumbnail: View {
     var image: NSImage?
     var width: CGFloat
     var height: CGFloat
     var radius: CGFloat
-    var showsPlay = true
-    /// C draws a 1 pt system-accent stroke while the clip is the newest from this session.
     var accentStroke = false
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -79,13 +66,11 @@ struct ClipThumbnail: View {
             } else {
                 Rectangle().fill(.fill.tertiary)
             }
-            if showsPlay {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.6), radius: 1.5)
-                    .padding(5)
-            }
+            Image(systemName: "play.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.6), radius: 1.5)
+                .padding(5)
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
@@ -93,14 +78,14 @@ struct ClipThumbnail: View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(
                     accentStroke ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.separator),
-                    lineWidth: accentStroke ? 1 : 0.5)
+                    lineWidth: accentStroke || contrast == .increased ? 1 : 0.5)
         )
         .accessibilityElement()
-        .accessibilityLabel(UIStrings.Directions.thumbnailLabel)
+        .accessibilityLabel(UIStrings.Brand.thumbnailLabel)
     }
 }
 
-/// A synthetic first frame for the mockups: a light browser window on a local page. Fixed colours, since it stands
+/// A synthetic first frame for the renders: a light browser window on a local page. Fixed colours, since it stands
 /// for video pixels, not UI.
 struct SampleFrame: View {
     var body: some View {
@@ -140,7 +125,7 @@ struct SampleFrame: View {
         .environment(\.colorScheme, .light)
     }
 
-    /// The frame as an image at 2×, the way the app would decode a clip's first frame.
+    /// The frame as an image at 2×, the way the app decodes a clip's first frame.
     @MainActor
     static func image() -> NSImage? {
         let renderer = ImageRenderer(content: SampleFrame())
@@ -149,19 +134,19 @@ struct SampleFrame: View {
     }
 }
 
-/// A System Settings-style icon tile: 22 × 22, radius 6, a white 13 pt symbol on a fill. C makes it monochrome.
+/// A Settings row's icon tile: 22 × 22, radius 6, monochrome (`.fill.tertiary` with a `.primary` 13 pt symbol), so
+/// the only colour in the window is the accent on the switches and the hero.
 struct SettingsIconTile: View {
     var symbol: String
-    var color: Color
-    var monochrome = false
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(monochrome ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(color.gradient))
+                .fill(contrast == .increased ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.tertiary))
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(monochrome ? Color.primary : Color.white)
+                .foregroundStyle(.primary)
         }
         .frame(width: 22, height: 22)
         .accessibilityHidden(true)
@@ -184,64 +169,59 @@ extension EnvironmentValues {
     @Entry var drawsActiveControls = false
 }
 
-/// A trailing switch: the native small switch in the app, an active-state stand-in in the renders. `tint` is C's
-/// accent; nil keeps the system accent.
-struct DirectionSwitch: ViewModifier {
-    var tint: Color?
+/// A trailing switch: the native small switch in the app, an active-state stand-in in the renders.
+struct SettingsSwitch: ViewModifier {
     @Environment(\.drawsActiveControls) private var drawsActive
 
     func body(content: Content) -> some View {
         if drawsActive {
-            content.toggleStyle(DrawnSwitchStyle()).tint(tint)
+            content.toggleStyle(DrawnSwitchStyle())
         } else {
-            content.toggleStyle(.switch).controlSize(.small).tint(tint)
+            content.toggleStyle(.switch).controlSize(.small)
         }
     }
 }
 
-/// The label, then a small switch at the trailing edge, drawn as an active window draws it.
+/// The label, then a small switch at the trailing edge, drawn as an active window draws it (renders only).
 struct DrawnSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 8) {
             configuration.label
             Spacer(minLength: 8)
             Capsule()
-                .fill(configuration.isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.fill.secondary))
+                .fill(configuration.isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.secondary))
                 .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                     Circle().fill(.white).shadow(color: .black.opacity(0.25), radius: 0.8, y: 0.5).padding(2)
                 }
-                .frame(width: 40, height: 22)
-                .onTapGesture { configuration.isOn.toggle() }
+                .frame(width: 32, height: 18)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isToggle)
     }
 }
 
-/// C's frame-rate control: the native segmented picker in the app; in the renders, a stand-in whose selected segment
+/// The frame-rate control: the native segmented picker in the app; in the renders, a stand-in whose selected segment
 /// carries the accent the way an active window draws it.
 struct FrameRateSegments: View {
     @Binding var selection: FrameRate
-    var tint: Color?
     @Environment(\.drawsActiveControls) private var drawsActive
 
     var body: some View {
-        if drawsActive, let tint {
+        if drawsActive {
             HStack(spacing: 2) {
                 ForEach(FrameRate.allCases, id: \.self) { rate in
                     Text(UIStrings.Menu.fps(rate))
                         .font(.system(size: 13, weight: rate == selection ? .medium : .regular))
                         .foregroundStyle(rate == selection ? Color.white : Color.primary)
                         .padding(.horizontal, 10)
-                        .frame(height: 22)
+                        .frame(height: 20)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(rate == selection ? AnyShapeStyle(tint) : AnyShapeStyle(.clear)))
-                        .onTapGesture { selection = rate }
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(rate == selection ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear)))
                 }
             }
             .padding(2)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.fill.tertiary))
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.fill.tertiary))
             .accessibilityElement(children: .contain)
         } else {
             Picker(UIStrings.Settings.defaultFrameRate, selection: $selection) {
@@ -252,7 +232,6 @@ struct FrameRateSegments: View {
             .labelsHidden()
             .pickerStyle(.segmented)
             .fixedSize()
-            .tint(tint)
         }
     }
 }

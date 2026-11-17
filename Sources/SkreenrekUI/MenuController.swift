@@ -1,17 +1,22 @@
 import AppKit
 import SkreenrekCore
+import SwiftUI
 
 /// Renders `AppModel` into the menu-bar status item and its native `NSMenu`. No view logic lives here: it only turns
-/// `StatusIcon` and `[MenuEntry]` into AppKit objects and hands chosen actions back to the model.
+/// `StatusIcon` and `DropdownModel`'s rows into AppKit objects (the header and the Last Clip row as hosted SwiftUI
+/// views, everything else as native items with a leading icon) and hands chosen actions back to the model.
 @MainActor
 public final class MenuController: NSObject, NSMenuDelegate {
     private let model: AppModel
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private let hotKey: StopHotKey
-    private var renderedEntries: [MenuEntry] = []
-    private var statusViews: [Int: StatusRowView] = [:]
+    private let thumbnails = ClipThumbnails()
+    private var renderedRows: [DropdownRow] = []
+    private var headerView: NSHostingView<DropdownHeaderView>?
+    private var clipView: NSHostingView<ClipRowView>?
     private var accessibilityKey: String?
+    private var iconKey: String?
     private var timer: Timer?
 
     public init(model: AppModel) {
@@ -27,6 +32,7 @@ public final class MenuController: NSObject, NSMenuDelegate {
             guard let model else { return }
             Task { await model.perform(.stop) }
         }
+        thumbnails.onLoad = { [weak self] in self?.refreshClipRow() }
         model.onChange = { [weak self] in self?.render() }
         render()
     }
@@ -36,17 +42,23 @@ public final class MenuController: NSObject, NSMenuDelegate {
     public func showDropdown() { statusItem.button?.performClick(nil) }
 
     private func render() {
-        renderIcon(model.icon)
-        if model.menuOpen { renderMenu(model.entries) }
+        let context = model.context
+        renderIcon(model.icon, state: context.displayState)
+        if model.menuOpen { renderMenu(DropdownModel.rows(for: context), context: context) }
         updateTimer()
         updateHotKey()
     }
 
-    private func renderIcon(_ icon: StatusIcon) {
+    /// The V1 menu-bar glyph for the state: a template image (mono), or while recording the bichrome glyph with the
+    /// red record dot, then the elapsed time.
+    private func renderIcon(_ icon: StatusIcon, state: ControllerState) {
         guard let button = statusItem.button else { return }
-        let image = MenuMetrics.symbol(icon.symbol, color: icon.tinted ? .systemRed : nil)
-        image?.isTemplate = !icon.tinted
-        button.image = image
+        let kitState = BrandStatusGlyph.state(for: state)
+        let key = "\(kitState.rawValue) \(icon.tinted)"
+        if key != iconKey {
+            iconKey = key
+            button.image = BrandStatusGlyph.statusItemImage(kitState, accent: icon.tinted)
+        }
         if let elapsed = icon.elapsed {
             button.imagePosition = .imageLeading
             button.attributedTitle = NSAttributedString(
@@ -64,47 +76,98 @@ public final class MenuController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func renderMenu(_ entries: [MenuEntry]) {
-        guard entries != renderedEntries else { return }
-        if Self.onlyStatusRowsDiffer(entries, renderedEntries) {
-            // Only status text changed (the elapsed time): update those rows in place so hover and focus stay.
-            for (index, entry) in entries.enumerated() {
-                if case .status(let row) = entry { statusViews[index]?.update(row) }
-            }
-            renderedEntries = entries
+    private func renderMenu(_ rows: [DropdownRow], context: MenuContext) {
+        guard rows != renderedRows else { return }
+        if DropdownModel.onlyHeaderDiffers(rows, renderedRows), let headerView {
+            // Only the header changed (the elapsed time): update it in place so hover and focus stay.
+            for case .header(let header) in rows { headerView.rootView = DropdownHeaderView(header: header) }
+            renderedRows = rows
             return
         }
         menu.removeAllItems()
-        statusViews = [:]
-        for (index, entry) in entries.enumerated() {
-            let item = makeItem(entry)
-            if case .status = entry, let view = item.view as? StatusRowView { statusViews[index] = view }
-            menu.addItem(item)
-        }
-        renderedEntries = entries
+        headerView = nil
+        clipView = nil
+        for row in rows { menu.addItem(makeItem(row, context: context)) }
+        renderedRows = rows
     }
 
-    private func makeItem(_ entry: MenuEntry) -> NSMenuItem {
-        switch entry {
-        case .status(let row):
+    private func makeItem(_ row: DropdownRow, context: MenuContext) -> NSMenuItem {
+        switch row {
+        case .header(let header):
+            let view = Self.hosted(DropdownHeaderView(header: header))
+            headerView = view
             let item = NSMenuItem()
-            item.view = StatusRowView(row)
+            item.view = view
+            return item
+        case .clip(let clip):
+            let view = Self.hosted(ClipRowView(clip: clip, thumbnail: thumbnails.image(for: clip.path)))
+            clipView = view
+            let item = NSMenuItem()
+            item.view = view
             return item
         case .separator:
             return .separator()
-        case .header(let title):
+        case .sectionHeader(let title):
             return .sectionHeader(title: title)
+        case .info(let text):
+            // "Started by …": 11 pt tertiary, no icon, in the text column.
+            let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            item.attributedTitle = NSAttributedString(
+                string: text, attributes: [.font: MenuMetrics.infoFont, .foregroundColor: NSColor.tertiaryLabelColor])
+            return item
         case .item(let model):
-            return makeItem(model)
+            let item = makeItem(model)
+            item.image = Self.icon(DropdownModel.symbol(for: model.action), DropdownModel.iconTint(for: model, context: context))
+            return item
         case .submenu(let submenu):
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             if let detail = submenu.detail { item.attributedTitle = Self.titleWithDetail(submenu.title, detail) }
+            item.image = Self.icon(DropdownModel.symbol(forSubmenu: submenu.title), .neutral)
             let child = NSMenu(title: submenu.title)
             child.autoenablesItems = false
             for entry in submenu.entries { child.addItem(makeItem(entry)) }
             item.submenu = child
             return item
         }
+    }
+
+    /// A submenu entry (the Size and Frame Rate choices): plain items, no icons.
+    private func makeItem(_ entry: MenuEntry) -> NSMenuItem {
+        switch entry {
+        case .separator: return .separator()
+        case .header(let title): return .sectionHeader(title: title)
+        case .item(let model): return makeItem(model)
+        case .status(let row): return NSMenuItem(title: row.title, action: nil, keyEquivalent: "")
+        case .submenu(let submenu):
+            let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
+            let child = NSMenu(title: submenu.title)
+            for entry in submenu.entries { child.addItem(makeItem(entry)) }
+            item.submenu = child
+            return item
+        }
+    }
+
+    /// The leading icon: a 13 pt template symbol that follows the menu's highlight, or red (Record Window, Stop
+    /// Recording) or the accent (Pick Window… before a window is picked) for the primary item.
+    static func icon(_ symbol: String?, _ tint: DropdownModel.IconTint) -> NSImage? {
+        guard let symbol, let image = MenuMetrics.symbol(symbol, pointSize: MenuMetrics.iconPointSize, color: tint.nsColor)
+        else { return nil }
+        image.isTemplate = tint.nsColor == nil
+        return image
+    }
+
+    static func hosted<V: View>(_ view: V) -> NSHostingView<V> {
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+        return hosting
+    }
+
+    /// The thumbnail finished loading: show it in the open menu's clip row.
+    private func refreshClipRow() {
+        guard let clipView else { return }
+        let clip = clipView.rootView.clip
+        clipView.rootView = ClipRowView(clip: clip, thumbnail: thumbnails.image(for: clip.path))
     }
 
     private func makeItem(_ model: MenuItemModel) -> NSMenuItem {
@@ -130,7 +193,7 @@ public final class MenuController: NSObject, NSMenuDelegate {
     /// `Size` with `1280 × 800 px` right-aligned in the quiet colour, before the submenu arrow.
     static func titleWithDetail(_ title: String, _ detail: String) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
-        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: MenuMetrics.width - MenuMetrics.textX - 40)]
+        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: MenuMetrics.width - MenuMetrics.iconTextX - 40)]
         let text = NSMutableAttributedString(
             string: title, attributes: [.font: MenuMetrics.titleFont, .paragraphStyle: paragraph])
         text.append(
@@ -161,10 +224,6 @@ public final class MenuController: NSObject, NSMenuDelegate {
                     .foregroundColor: enabled ? NSColor.secondaryLabelColor : NSColor.quaternaryLabelColor,
                 ]))
         return text
-    }
-
-    static func onlyStatusRowsDiffer(_ a: [MenuEntry], _ b: [MenuEntry]) -> Bool {
-        a.count == b.count && zip(a, b).allSatisfy { ($0.isStatus && $1.isStatus) || $0 == $1 }
     }
 
     @objc private func choose(_ sender: NSMenuItem) {
@@ -201,8 +260,9 @@ public final class MenuController: NSObject, NSMenuDelegate {
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === self.menu else { return }
-        renderedEntries = []
-        renderMenu(model.entries)
+        renderedRows = []
+        let context = model.context
+        renderMenu(DropdownModel.rows(for: context), context: context)
     }
 
     public func menuWillOpen(_ menu: NSMenu) {
@@ -222,12 +282,5 @@ final class ActionBox: NSObject {
 
     init(_ action: MenuAction) {
         self.action = action
-    }
-}
-
-extension MenuEntry {
-    var isStatus: Bool {
-        if case .status = self { return true }
-        return false
     }
 }

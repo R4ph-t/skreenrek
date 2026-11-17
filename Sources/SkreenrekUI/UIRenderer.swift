@@ -3,8 +3,40 @@ import SkreenrekControl
 import SkreenrekCore
 import SwiftUI
 
-/// `skreenrek debug render-ui --out DIR`: the menu-bar icons, status rows, a composed dropdown for each state, the
-/// Size and Frame Rate submenus and the Settings window, as PNGs at 2× in light and dark, named
+/// What `skreenrek debug render-ui` was asked for.
+public enum RenderUIRequest: Sendable, Equatable {
+    /// The shipping UI. `--direction c` is kept as an alias: C is the shipping UI.
+    case shipping(out: URL)
+    /// `--direction size13`: Designer's spec 13 v2 Size states (submenu, Custom Size panel, armed menu).
+    case size13(out: URL)
+
+    /// Parses the arguments after the executable: `debug render-ui --out DIR [--direction c|size13]`, flags in any
+    /// order. Nil for anything else (the CLI handles it).
+    public static func parse(_ arguments: [String]) -> RenderUIRequest? {
+        guard arguments.count >= 2, arguments[0] == "debug", arguments[1] == "render-ui" else { return nil }
+        var out: String?
+        var direction: String?
+        var rest = arguments.dropFirst(2)[...]
+        while let flag = rest.popFirst() {
+            guard let value = rest.popFirst() else { return nil }
+            switch flag {
+            case "--out" where out == nil: out = value
+            case "--direction" where direction == nil: direction = value.lowercased()
+            default: return nil
+            }
+        }
+        guard let out else { return nil }
+        let folder = URL(fileURLWithPath: (out as NSString).expandingTildeInPath, isDirectory: true)
+        switch direction {
+        case nil, "c": return .shipping(out: folder)
+        case "size13": return .size13(out: folder)
+        default: return nil
+        }
+    }
+}
+
+/// `skreenrek debug render-ui --out DIR`: the menu-bar icons, a composed dropdown for each state, the Size and Frame
+/// Rate submenus, the Settings window, the picker, the HUD and onboarding, as PNGs at 2× in light and dark, named
 /// `<surface>-<state>-<light|dark>@2x.png`. How screenshots reach Designer without a hand session.
 @MainActor
 public enum UIRenderer {
@@ -26,25 +58,37 @@ public enum UIRenderer {
 
     public static let scale: CGFloat = 2
 
+    @discardableResult
+    public static func render(_ request: RenderUIRequest) throws -> [Rendered] {
+        switch request {
+        case .shipping(let out): try renderAll(to: out)
+        case .size13(let out): try Size13Renderer.render(to: out)
+        }
+    }
+
     /// Renders every surface into `folder` (created when missing) and returns the files written, in order.
     @discardableResult
     public static func renderAll(to folder: URL) throws -> [Rendered] {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let thumbnail = SampleFrame.image()
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-preview-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        // Claude Code and Codex found, Cursor not installed: every agent row form shows.
+        for agent in [".claude", ".codex"] {
+            try FileManager.default.createDirectory(
+                at: home.appendingPathComponent(agent), withIntermediateDirectories: true)
+        }
         var written: [Rendered] = []
         for appearance in Appearance.allCases {
-            func save(_ view: NSView, _ surface: String, _ state: String) throws {
+            func save(_ view: NSView, _ surface: String, _ state: String, active: Bool = false) throws {
                 let name = "\(surface)-\(state)-\(appearance.rawValue)@2x.png"
-                written.append(try write(view, appearance: appearance, to: folder.appendingPathComponent(name)))
+                written.append(
+                    try write(view, appearance: appearance, active: active, to: folder.appendingPathComponent(name)))
             }
             for sample in RenderSamples.states {
-                let context = sample.context
-                try save(MenuBarIconPreview(StatusIconModel.icon(for: context)), "menubaricon", sample.name)
-                // The Last Clip samples show the Last Clip row; the others their state row.
-                let rows = MenuModel.entries(for: context).compactMap(\.statusRow)
-                if let row = sample.name.hasPrefix("lastclip") ? rows.last : rows.first {
-                    try save(StatusRowPreview(row), "statusrow", sample.name)
-                }
-                try save(DropdownPreview(MenuModel.entries(for: context)), "dropdown", sample.name)
+                try save(menuBarIcon(sample.context), "menubaricon", sample.name)
+                try save(dropdown(sample.context, thumbnail: thumbnail), "dropdown", sample.name, active: true)
             }
             let base = RenderSamples.armed.context
             try save(
@@ -53,7 +97,7 @@ public enum UIRenderer {
                         base.sizeChoice, display: RenderSamples.display, window: base.snapshot.window
                     ).entries, width: MenuMetrics.sizeSubmenuWidth), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
-            try save(settingsView(), "settings", "default")
+            try save(settingsView(home: home), "settings", "default", active: true)
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
                           size: NSSize(width: 280, height: 56)), "picker", "label")
             try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
@@ -101,21 +145,35 @@ public enum UIRenderer {
         return hosting
     }
 
+    /// The status item as the menu bar draws it: the V1 glyph (mono, or bichrome with the red dot while recording)
+    /// and the elapsed time.
+    static func menuBarIcon(_ context: MenuContext) -> NSView {
+        let icon = StatusIconModel.icon(for: context)
+        return BrandStatusGlyphView(
+            state: BrandStatusGlyph.state(for: context.displayState), style: icon.tinted ? .bichrome : .mono,
+            elapsed: icon.elapsed, sentence: icon.sentence)
+    }
+
+    /// The dropdown for `context`, composed around the live menu's header and clip views.
+    static func dropdown(_ context: MenuContext, thumbnail: NSImage?) -> NSView {
+        RefitHostingView.fitted(
+            DropdownPreviewView(context: context, thumbnail: thumbnail)
+                .environment(\.controlActiveState, .key).environment(\.drawsActiveControls, true))
+    }
+
     /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).
-    static func settingsView() -> NSView {
+    static func settingsView(home: URL) -> NSView {
         let defaults = UserDefaults(suiteName: "skreenrek.render-ui.\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
         let panel = SettingsPanelState(
             permissions: StaticPermissions(screenRecording: .allowed, accessibility: .missing),
             loginItem: StaticLoginItem(),
-            agents: AgentsPanelState(installer: AgentInstaller(
-                home: FileManager.default.temporaryDirectory.appendingPathComponent("skreenrek-preview-\(UUID().uuidString)"),
-                executablePath: "/unused/skreenrek", path: "")))
-        let hosting = NSHostingView(
-            rootView: SettingsView(store: store, panel: panel, actions: .none, version: SkreenrekVersion.current))
-        hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
-        return hosting
+            agents: AgentsPanelState(
+                installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")))
+        return RefitHostingView.fitted(
+            SettingsView(store: store, panel: panel, actions: .none, version: SkreenrekVersion.current)
+                .environment(\.controlActiveState, .key).environment(\.drawsActiveControls, true))
     }
 
     /// Draws `view` at 2× with the appearance forced and writes a PNG.
@@ -143,7 +201,7 @@ public enum UIRenderer {
         container.addSubview(view)
         view.frame.origin = .zero
         view.layoutSubtreeIfNeeded()
-        if view is NSHostingView<SettingsView> || view is any RenderRefitting {
+        if view is any RenderRefitting {
             let size = view.fittingSize
             view.frame = NSRect(origin: .zero, size: size)
             window.setContentSize(size)
@@ -186,13 +244,6 @@ public enum UIRenderer {
 final class ActiveRenderWindow: NSWindow {
     override var isKeyWindow: Bool { true }
     override var isMainWindow: Bool { true }
-}
-
-extension MenuEntry {
-    var statusRow: StatusRow? {
-        if case .status(let row) = self { return row }
-        return nil
-    }
 }
 
 // MARK: - Sample states
@@ -339,45 +390,8 @@ final class StaticLoginItem: LoginItemService {
 
 // MARK: - Preview views
 
-/// The menu-bar icon as the status item draws it: 22 pt tall, the symbol plus the elapsed time while recording, on
-/// a menu-bar-like backdrop.
-final class MenuBarIconPreview: NSView {
-    static let height: CGFloat = 24
-    private let icon: StatusIcon
-
-    init(_ icon: StatusIcon) {
-        self.icon = icon
-        let titleWidth =
-            icon.elapsed.map {
-                ceil((" " + $0 as NSString).size(withAttributes: [.font: MenuMetrics.elapsedFont]).width)
-            } ?? 0
-        super.init(frame: NSRect(x: 0, y: 0, width: 16 + 16 + titleWidth, height: Self.height))
-        setAccessibilityLabel(icon.sentence)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override var isFlipped: Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor.windowBackgroundColor.setFill()
-        bounds.fill()
-        let symbolRect = NSRect(x: 8, y: (bounds.height - 16) / 2, width: 16, height: 16)
-        MenuMetrics.symbol(icon.symbol, color: icon.tinted ? .systemRed : .labelColor)?.draw(in: symbolRect)
-        if let elapsed = icon.elapsed {
-            let text = " " + elapsed as NSString
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: MenuMetrics.elapsedFont, .foregroundColor: NSColor.labelColor,
-            ]
-            let size = text.size(withAttributes: attributes)
-            text.draw(at: NSPoint(x: 24, y: (bounds.height - size.height) / 2), withAttributes: attributes)
-        }
-    }
-}
-
-/// A composed dropdown: the same entries the `NSMenu` shows, laid out with the design spec's metrics on the menu
-/// material's colours (an offscreen `NSMenu` can't be drawn).
+/// A composed submenu (Size, Frame Rate): the same entries the `NSMenu` shows, laid out with the design spec's metrics
+/// on the menu material's colours (an offscreen `NSMenu` can't be drawn).
 final class DropdownPreview: NSView {
     /// The rows in order, with the entry each one draws.
     private(set) var rows: [(entry: MenuEntry, view: NSView)] = []
@@ -412,41 +426,19 @@ final class DropdownPreview: NSView {
     }
 
     /// The menu material's tone in each appearance.
-    static let menuBackground = NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.17, green: 0.17, blue: 0.18, alpha: 1)
-            : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1)
-    }
+    static var menuBackground: NSColor { BrandTheme.menuBackgroundColor }
 
     static func view(_ entry: MenuEntry, width: CGFloat = MenuMetrics.width) -> NSView {
         let view: NSView =
             switch entry {
-            case .status(let row): StatusRowView(row)
+            case .status(let row): MenuItemPreview(item: MenuItemModel(row.title, action: nil))
             case .separator: SeparatorPreview()
             case .header(let title): MenuItemPreview(header: title)
             case .item(let item): MenuItemPreview(item: item)
             case .submenu(let submenu): MenuItemPreview(submenu: submenu)
             }
-        if case .status = entry { return view }
         view.frame.size.width = width
         return view
-    }
-}
-
-/// One status row on the menu's backdrop.
-final class StatusRowPreview: NSView {
-    init(_ row: StatusRow) {
-        let view = StatusRowView(row)
-        super.init(frame: view.frame)
-        addSubview(view)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func draw(_ dirtyRect: NSRect) {
-        DropdownPreview.menuBackground.setFill()
-        bounds.fill()
     }
 }
 
@@ -540,3 +532,9 @@ final class MenuItemPreview: NSView {
         (title as NSString).draw(at: NSPoint(x: MenuMetrics.textX, y: y), withAttributes: attributes)
     }
 }
+
+/// A hosting view the offscreen render re-measures once it sits in a window (grouped forms and wrapping text only
+/// settle there).
+protocol RenderRefitting: NSView {}
+
+final class RefitHostingView<Content: View>: NSHostingView<Content>, RenderRefitting {}

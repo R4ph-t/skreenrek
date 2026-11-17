@@ -6,7 +6,8 @@
 
 // swift-format-ignore-file
 
-/// The V1 logo kit, embedded. Used only by the v2 direction C mockups.
+/// The V1 logo kit, embedded as string literals (no SwiftPM resources): the menu-bar glyphs, the icon artwork the
+/// mark is drawn from, and the icon PNGs.
 enum BrandKit {
     /// The menu-bar states, in the kit's order.
     enum MenuBarState: String, CaseIterable, Sendable {

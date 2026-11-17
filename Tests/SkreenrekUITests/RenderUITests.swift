@@ -23,7 +23,7 @@ import Testing
         var expected: [String] = []
         for appearance in ["light", "dark"] {
             for state in RenderSamples.states.map(\.name) {
-                for surface in ["dropdown", "statusrow", "menubaricon"] {
+                for surface in ["dropdown", "menubaricon"] {
                     expected.append("\(surface)-\(state)-\(appearance)@2x.png")
                 }
             }
@@ -66,14 +66,13 @@ import Testing
             }
         }
 
-        // Status rows: 300 pt wide, 48 pt tall (64 pt when the detail wraps) at 2×; dropdowns 300 pt wide.
+        // Dropdowns 300 pt wide; the V1 menu-bar item 24 pt tall, wider while it shows the elapsed time.
         for appearance in ["light", "dark"] {
-            #expect(sizes["statusrow-idle-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-recording-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-lastclipmov-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-lastclipprores-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-errorwindowclosed-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))
+            for state in RenderSamples.states.map(\.name) {
+                #expect(sizes["menubaricon-\(state)-\(appearance)@2x.png"]?.1 == 48, "\(state)")
+            }
+            let idle = sizes["menubaricon-idle-\(appearance)@2x.png"]?.0 ?? 0
+            #expect(sizes["menubaricon-recording-\(appearance)@2x.png"]?.0 ?? 0 > idle)
             #expect(sizes["settings-default-\(appearance)@2x.png"]?.0 == 960)
             #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
             #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
@@ -90,7 +89,7 @@ import Testing
                 #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 800))
             }
         }
-        for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("statusrow-") {
+        for (name, size) in sizes where name.hasPrefix("dropdown-") {
             #expect(size.0 == 600, "\(name)")
         }
         // The appearance really was forced.
@@ -99,60 +98,18 @@ import Testing
         #expect(light != dark)
     }
 
-    @Test func rendersEveryDirectionWithAll() async throws {
+    /// `--direction c` is an alias for the shipping render.
+    @Test func directionCIsTheShippingUI() async throws {
         let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("skreenrek-render-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("skreenrek-render-c-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        let status = try await Self.run(["debug", "render-ui", "--direction", "all", "--out", folder.path])
+        let status = try await Self.run(["debug", "render-ui", "--direction", "c", "--out", folder.path])
         #expect(status == 0)
-
-        let expected = await MainActor.run { Set(DirectionRenderer.fileNames) }
-        #expect(expected.contains("dropdown-idle-light@2x.png"))
-        #expect(expected.contains("settings-default-dark@2x.png"))
-        #expect(
-            try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a", "b", "c", "c-menubar"])
-        for direction in ["a", "b", "c"] {
-            let sub = folder.appendingPathComponent(direction)
-            let written = try FileManager.default.contentsOfDirectory(atPath: sub.path)
-            #expect(Set(written) == expected, "\(direction)")
-            for name in written {
-                let data = try Data(contentsOf: sub.appendingPathComponent(name))
-                let rep = try #require(NSBitmapImageRep(data: data), "\(direction)/\(name)")
-                #expect(Self.hasVisiblePixels(rep), "\(direction)/\(name) is empty")
-                // A and C: the 300 pt menu; B: the 320 pt panel; Settings: 480 pt.
-                let width = name.hasPrefix("settings-") ? 960 : direction == "b" ? 640 : 600
-                #expect(rep.pixelsWide == width, "\(direction)/\(name)")
-            }
-            let light = try Data(contentsOf: sub.appendingPathComponent("dropdown-recording-light@2x.png"))
-            let dark = try Data(contentsOf: sub.appendingPathComponent("dropdown-recording-dark@2x.png"))
-            #expect(light != dark)
-        }
-
-        // C's V1 menu-bar status item: five states × mono/bichrome × light/dark, 24 pt tall.
-        let menubar = folder.appendingPathComponent("c-menubar")
-        let menuBarNames = await MainActor.run { Set(DirectionRenderer.menuBarFileNames) }
-        #expect(menuBarNames.count == 20)
-        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: menubar.path)) == menuBarNames)
-        for name in menuBarNames {
-            let data = try Data(contentsOf: menubar.appendingPathComponent(name))
-            let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
-            #expect(rep.pixelsHigh == 48, "\(name)")
-            #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
-        }
-        // The recording item carries the elapsed time, so it's wider than idle.
-        let idle = try #require(
-            NSBitmapImageRep(data: try Data(contentsOf: menubar.appendingPathComponent("menubar-idle-mono-light@2x.png"))))
-        let recording = try #require(
-            NSBitmapImageRep(
-                data: try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-light@2x.png"))))
-        #expect(recording.pixelsWide > idle.pixelsWide)
-        // The template layer follows the appearance; bichrome adds colour.
-        let monoLight = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-light@2x.png"))
-        let monoDark = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-dark@2x.png"))
-        let bichrome = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-bichrome-light@2x.png"))
-        #expect(monoLight != monoDark)
-        #expect(monoLight != bichrome)
+        let written = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
+        #expect(written.contains("dropdown-recording-dark@2x.png"))
+        #expect(written.contains("settings-default-light@2x.png"))
+        #expect(written.contains("submenu-size-light@2x.png"))
     }
 
     /// `--direction size13` writes only the spec 13 v2 size previews, by their spec names.
