@@ -74,7 +74,10 @@ struct RecordCommand: ParsableCommand {
     @Option(help: ArgumentHelp("The clip folder's name instead of the app.", valueName: "SLUG")) var name: String?
     @Option(help: ArgumentHelp("Also copy the clip into this HyperFrames assets folder.", valueName: "DIR"))
     var assets: String?
-    @Option(help: ArgumentHelp("h264 or hevc.", valueName: "h264|hevc")) var codec: String?
+    @Option(help: ArgumentHelp("h264, hevc or prores.", valueName: "h264|hevc|prores")) var codec: String?
+    @Option(help: ArgumentHelp("mp4 or mov (default mp4).", valueName: "mp4|mov")) var format: String?
+    @Option(help: ArgumentHelp("Compression preset (default high).", valueName: "low|medium|high|max")) var quality: String?
+    @Option(help: ArgumentHelp("Average bitrate in Mbps, from 1 to 200.", valueName: "Mbps")) var bitrate: Double?
     @Flag(help: "Wait until the recording stops; Ctrl-C stops and saves.") var wait = false
     @OptionGroup var global: GlobalOptions
 }

@@ -246,7 +246,12 @@ struct Runner: Sendable {
         params.outDir = c.out.map { Values.folder($0, home: home, base: cwd) }
         params.assetsDir = c.assets.map { Values.folder($0, home: home, base: cwd) }
         params.name = c.name
-        params.codec = try c.codec.map(Values.codec)
+        let output = try OutputSettings.resolve(container: c.format, codec: c.codec,
+            quality: c.quality, bitrateMbps: c.bitrate)
+        params.codec = output.codec.rawValue
+        params.format = output.container.rawValue
+        params.quality = output.quality?.rawValue
+        params.bitrateMbps = output.requestedBitrateMbps
         return params
     }
 

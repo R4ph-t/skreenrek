@@ -78,11 +78,19 @@ struct HumanFormat: Sendable {
     /// or used the software encoder.
     func saved(_ body: StopBody) -> String {
         let r = body.recording
-        var lines = [
-            check() + " Saved \(TimeFormat.minutesSeconds(r.duration)) · "
-                + "\(PixelSize(width: r.width, height: r.height)) · \(r.fps) fps",
-            "  clip    \(tilde(body.files.clip))",
-        ]
+        var saved = check() + " Saved \(TimeFormat.minutesSeconds(r.duration)) · "
+            + "\(PixelSize(width: r.width, height: r.height)) · \(r.fps) fps"
+        if !r.video.isDefault {
+            let bitrate = r.video.bitrateMbps.map {
+                String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), $0)
+            } ?? "0.0"
+            saved += " · \(r.video.formatLabel) · \(bitrate) Mbps"
+        }
+        var lines = [saved]
+        if r.video.codec == .prores {
+            lines.append("note:  ProRes doesn't play in Chrome or Firefox. Use --codec h264 for web pages.")
+        }
+        lines.append("  clip    \(tilde(body.files.clip))")
         if let events = body.files.events { lines.append("  events  \(tilde(events))") }
         lines.append("  snippet \(tilde(body.files.snippet))")
         if let note = Self.statsNote(r.stats) { lines.append(style.dim("  note    \(note)")) }

@@ -114,15 +114,18 @@ public struct StartBody: Sendable, Hashable, Codable {
     public var startedAt: String
     public var readback: Readback?
     public var fps: Int
+    public var video: OutputSettings
 
-    public init(recordingId: String, startedAt: String, readback: Readback?, fps: Int) {
+    public init(recordingId: String, startedAt: String, readback: Readback?, fps: Int,
+        video: OutputSettings = try! .resolve()) {
         self.recordingId = recordingId
         self.startedAt = startedAt
         self.readback = readback
         self.fps = fps
+        self.video = video
     }
 
-    private enum CodingKeys: String, CodingKey { case recordingId, startedAt, readback, fps }
+    private enum CodingKeys: String, CodingKey { case recordingId, startedAt, readback, fps, video }
 
     public func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -130,6 +133,7 @@ public struct StartBody: Sendable, Hashable, Codable {
         try c.encode(startedAt, forKey: .startedAt)
         try c.encode(readback, forKey: .readback)
         try c.encode(fps, forKey: .fps)
+        try c.encode(video, forKey: .video)
     }
 }
 
@@ -144,20 +148,22 @@ public struct StopBody: Sendable, Hashable, Codable {
         public var width: Int
         public var height: Int
         public var codec: VideoCodec
+        public var video: VideoReadback
         public var startedAt: String
         public var startedBy: StartedBy
         public var stats: RecordingStats
 
         public init(
             id: String, duration: Double, fps: Int, width: Int, height: Int, codec: VideoCodec, startedAt: String,
-            startedBy: StartedBy, stats: RecordingStats
+            startedBy: StartedBy, stats: RecordingStats, video: VideoReadback? = nil
         ) {
             self.id = id
             self.duration = duration
             self.fps = fps
             self.width = width
             self.height = height
-            self.codec = codec
+            self.codec = video?.codec ?? codec
+            self.video = video ?? VideoReadback(width: width, height: height, scale: 1, codec: codec)
             self.startedAt = startedAt
             self.startedBy = startedBy
             self.stats = stats

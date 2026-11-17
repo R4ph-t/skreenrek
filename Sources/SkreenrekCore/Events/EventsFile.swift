@@ -100,21 +100,7 @@ public struct EventsFile: Sendable, Hashable, Codable {
         }
     }
 
-    public struct Video: Sendable, Hashable, Codable {
-        public var file: String
-        public var width: Int
-        public var height: Int
-        public var scale: Double
-        public var codec: VideoCodec
-
-        public init(file: String = "clip.mp4", width: Int, height: Int, scale: Double, codec: VideoCodec) {
-            self.file = file
-            self.width = width
-            self.height = height
-            self.scale = scale
-            self.codec = codec
-        }
-    }
+    public typealias Video = VideoReadback
 
     /// `{kind: "window", app, bundleId, title, windowId, frame}` or `{kind: "region", displayId, rect}`.
     public enum Source: Sendable, Hashable, Codable {
