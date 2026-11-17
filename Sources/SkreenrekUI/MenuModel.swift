@@ -24,6 +24,8 @@ public enum MenuAction: Sendable, Hashable {
     case chooseOutputFolder
     /// Opens onboarding step 1, where each missing permission can be allowed.
     case showPermissions
+    /// The footer's Update available line: opens Settings, where the Updates row installs it.
+    case showUpdate
 }
 
 /// A key equivalent shown in the dropdown. No numeric shortcuts.
@@ -174,7 +176,7 @@ public enum MenuModel {
             entries += lastClipEntries(clip, title: context.lastClipTitle, context: context)
         }
         entries.append(.separator)
-        entries += footer
+        entries += footer(context)
         return entries
     }
 
@@ -192,7 +194,7 @@ public enum MenuModel {
             .item(MenuItemModel(UIStrings.Menu.stopRecording, action: .stop, shortcut: .stop, isDefault: true)))
         entries.append(.item(MenuItemModel(UIStrings.Menu.discardRecording, action: .discard)))
         entries.append(.separator)
-        entries += footer
+        entries += footer(context)
         return entries
     }
 
@@ -205,12 +207,18 @@ public enum MenuModel {
         ]
         if let origin = originRow(context.snapshot) { entries.append(.item(MenuItemModel(origin, action: nil))) }
         entries.append(.separator)
-        entries += footer
+        entries += footer(context)
         return entries
     }
 
-    private static var footer: [MenuEntry] {
-        [
+    /// Open Output Folder, Settings…, Quit, after `Update available · 1.0.3` while a newer release waits.
+    private static func footer(_ context: MenuContext) -> [MenuEntry] {
+        let update = context.updateAvailable.map {
+            MenuEntry.item(
+                MenuItemModel(
+                    UIStrings.Updates.menuAvailable + UIStrings.Menu.separator + $0, action: .showUpdate))
+        }
+        return [update].compactMap { $0 } + [
             .item(MenuItemModel(UIStrings.Menu.openOutputFolder, action: .openOutputFolder)),
             .item(MenuItemModel(UIStrings.Menu.settings, action: .openSettings, shortcut: .settings)),
             .item(MenuItemModel(UIStrings.Menu.quit, action: .quit, shortcut: .quit)),

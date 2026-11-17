@@ -2,9 +2,9 @@ import AppKit
 import SkreenrekCore
 import SwiftUI
 
-/// The dropdown's header: a 40 pt tile, then the title and the detail, on a 64 pt band (taller when an error's detail
-/// wraps or while recording) inset 6 pt from the menu's edges. The live menu hosts it in an `NSMenuItem.view`; the renders draw the
-/// same view.
+/// The dropdown's header: a 40 pt tile, then the title and the detail, then the compact Record or Stop pill, on a
+/// 64 pt band (taller when an error's detail wraps) inset 6 pt from the menu's edges. The live menu hosts it in an
+/// `NSMenuItem.view`; the renders draw the same view.
 struct DropdownHeaderView: View {
     /// The band is 64 pt; it sits 2 pt in from the row's top and bottom (and 6 pt from the menu's sides).
     static let bandHeight: CGFloat = 64
@@ -12,65 +12,59 @@ struct DropdownHeaderView: View {
     static var minHeight: CGFloat { bandHeight + bandInset * 2 }
 
     let header: DropdownHeader
+    /// The pill's action. The live menu closes itself and hands it to `AppModel`; the renders pass nothing.
+    var perform: (MenuAction) -> Void = { _ in }
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            tile
+            tile.accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(header.title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                    // `Recording Safari — localhost:3000` fits by shrinking a little; longer titles lose their middle.
+                    // `Recording Safari — localhost:3000` fits by shrinking a little; longer titles lose their
+                    // middle.
                     .minimumScaleFactor(0.9)
                     .truncationMode(header.kind == .recording ? .middle : .tail)
-                detail
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityLabel(header.accessibilityLabel)
+                // The pill shares the detail line, so the title keeps the band's full width.
+                HStack(alignment: .center, spacing: 6) {
+                    detail.accessibilityHidden(true)
+                    if let control = header.control {
+                        Spacer(minLength: 0)
+                        HeaderControlButton(control: control) { perform(control.action) }
+                    }
+                }
             }
-            Spacer(minLength: 0)
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, header.control == nil ? 14 : 10)
         .padding(.leading, 16)
         .padding(.trailing, 14)
         .frame(width: MenuMetrics.width)
         .frame(minHeight: Self.minHeight)
         .background(band)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityLabel(header.accessibilityLabel)
+        .accessibilityElement(children: .contain)
         .help(header.help ?? "")
     }
 
     @ViewBuilder
     private var detail: some View {
-        if let elapsed = header.elapsed, header.kind == .recording {
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(elapsed).font(.system(size: 22, weight: .medium)).monospacedDigit()
-                Text(UIStrings.Menu.separator + header.detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-            }
-        } else {
-            Text(header.detail)
-                .font(.system(size: 12))
-                .foregroundStyle(header.kind == .notExact ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
-                .lineLimit(header.kind == .notExact ? 1 : nil)
-                .monospacedDigit()
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text(header.detail)
+            .font(.system(size: 12))
+            .foregroundStyle(header.kind == .notExact ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+            .lineLimit(header.control != nil || header.kind == .notExact ? 1 : nil)
+            .minimumScaleFactor(header.control != nil ? 0.85 : 1)
+            .monospacedDigit()
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
     private var tile: some View {
         switch header.kind {
-        case .recording:
-            // The shape and the fill both change, so colour isn't the only cue.
-            Circle()
-                .fill(Color.red)
-                .overlay(Image(systemName: "record.circle.fill").font(.system(size: 20)).foregroundStyle(.white))
-                .frame(width: 40, height: 40)
         case .saving:
             plainTile {
                 if reduceMotion {
@@ -83,7 +77,8 @@ struct DropdownHeaderView: View {
             plainTile {
                 Image(systemName: header.symbol).font(.system(size: 20)).foregroundStyle(.orange)
             }
-        case .idle, .armed, .notExact:
+        case .idle, .armed, .notExact, .recording:
+            // Recording keeps the brand tile: the red band and the Stop pill (a square, not only a colour) say it.
             KitMarkTile(size: 40)
         }
     }
@@ -106,6 +101,76 @@ struct DropdownHeaderView: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, Self.bandInset)
+    }
+}
+
+/// The header's compact pill, 24 pt tall: Record is a neutral capsule with an 8 pt red dot; Stop is a red capsule
+/// with a white 8 pt square, `Stop` and the elapsed time. Same 12 pt medium label as the rest of the menu chrome.
+struct HeaderControlButton: View {
+    static let height: CGFloat = 24
+
+    let control: HeaderControl
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                mark
+                Text(control.title)
+                if let elapsed = control.elapsed {
+                    Text(elapsed).monospacedDigit().opacity(0.85)
+                }
+            }
+            .font(.system(size: 12, weight: .medium))
+            .lineLimit(1)
+            .fixedSize()
+        }
+        .buttonStyle(HeaderPillStyle(kind: control.kind))
+        .disabled(!control.enabled)
+        .accessibilityLabel(control.accessibilityLabel)
+        .help(control.accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        switch control.kind {
+        case .record:
+            Circle().fill(Color.red).frame(width: 8, height: 8)
+        case .stop:
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(Color.white).frame(width: 8, height: 8)
+        }
+    }
+}
+
+/// The pill's capsule: neutral fill for Record, solid red for Stop; darker while pressed, a stroke with Increase
+/// Contrast.
+struct HeaderPillStyle: ButtonStyle {
+    let kind: HeaderControl.Kind
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(kind == .stop ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
+            .padding(.horizontal, 9)
+            .frame(height: HeaderControlButton.height)
+            .background(Capsule().fill(fill(pressed: configuration.isPressed)))
+            .overlay {
+                if contrast == .increased {
+                    Capsule().strokeBorder(kind == .stop ? AnyShapeStyle(Color.primary) : AnyShapeStyle(.separator))
+                }
+            }
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.5)
+    }
+
+    private func fill(pressed: Bool) -> AnyShapeStyle {
+        switch kind {
+        case .stop:
+            AnyShapeStyle(Color.red.opacity(pressed ? 0.8 : 1))
+        case .record:
+            pressed || contrast == .increased ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.tertiary)
+        }
     }
 }
 

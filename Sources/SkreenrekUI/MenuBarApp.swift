@@ -57,6 +57,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
     private var hud: RecordingHUD?
+    private var updates: UpdateChecker?
+    private var updateTimer: Timer?
 
     public init(host: HeadlessHost, permissions: any PermissionProbe, requester: any PermissionRequester,
                 defaults: UserDefaults = .standard) {
@@ -81,7 +83,9 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             install: { installer.run(agents: $0) }, relaunch: { AppRelauncher.relaunch() })
         let onboarding = OnboardingWindowController(model: onboardingModel)
         self.onboarding = onboarding
-        let panel = SettingsPanelState(permissions: permissions, loginItem: MainAppLoginItem(), agents: agents)
+        let updates = makeUpdateChecker(model: model, effects: effects)
+        let panel = SettingsPanelState(
+            permissions: permissions, loginItem: MainAppLoginItem(), agents: agents, updates: updates)
         let settingsWindow = SettingsWindowController(
             store: store, panel: panel,
             actions: SettingsActions(
@@ -116,11 +120,37 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             }
             await model.start()
             if !onboardingModel.completed { onboarding.show() }
+            await updates.checkIfDue()
         }
+    }
+
+    /// The update check: on launch, then hourly the timer asks whether 24 h have passed. The dropdown's footer
+    /// follows its state.
+    private func makeUpdateChecker(model: AppModel, effects: SystemEffects) -> UpdateChecker {
+        let method = HomebrewUpgrader.method()
+        let updates = UpdateChecker(
+            feed: GitHubReleaseFeed(), installer: method == .homebrew ? HomebrewUpgrader() : nil, method: method,
+            defaults: defaults, openURL: { effects.open($0) }, relaunch: { AppRelauncher.relaunch() })
+        updates.onChange = { [weak model, weak updates] in
+            model?.updateAvailable = updates?.availableVersion?.description
+        }
+        model.updateAvailable = updates.availableVersion?.description
+        let timer = Timer(timeInterval: 60 * 60, repeats: true) { [weak updates] _ in
+            MainActor.assumeIsolated {
+                guard let updates else { return }
+                Task { await updates.checkIfDue() }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        updateTimer = timer
+        self.updates = updates
+        return updates
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
+        // The cask's `uninstall quit:` asks the app to quit mid-upgrade; stay up so the upgrade can offer Relaunch.
+        if updates?.isInstalling == true { return .terminateCancel }
         switch model.quitDecision {
         case .now:
             return .terminateNow

@@ -47,6 +47,53 @@ import Testing
         #expect(error.fixes.map(\.title) == ["Show in Finder", "Copy Error Details"])
     }
 
+    @Test func headerCarriesACompactRecordOrStopControl() throws {
+        // Idle: Record, dimmed until a window is picked (like the Record Window item).
+        let idle = try #require(DropdownModel.header(for: try Self.sample("idle")).control)
+        #expect(idle.kind == .record && !idle.enabled)
+        #expect(idle.title == "Record" && idle.elapsed == nil)
+        #expect(idle.action == .record)
+        #expect(idle.accessibilityLabel == "Record Window")
+
+        for name in ["armed", "armednotexact", "lastclip"] {
+            let control = DropdownModel.header(for: try Self.sample(name)).control
+            #expect(control?.kind == .record, "\(name)")
+            #expect(control?.enabled == (name != "lastclip"), "\(name)")
+        }
+
+        // Recording: Stop with the elapsed time; VoiceOver hears the time in words.
+        let stop = try #require(DropdownModel.header(for: try Self.sample("recording")).control)
+        #expect(stop.kind == .stop && stop.enabled)
+        #expect(stop.title == "Stop" && stop.elapsed == "0:12")
+        #expect(stop.action == .stop)
+        #expect(stop.accessibilityLabel == "Stop Recording, 12 seconds")
+
+        // Saving and errors have no control.
+        for name in ["writing", "errorwindowclosed", "errorscreenrecording"] {
+            #expect(DropdownModel.header(for: try Self.sample(name)).control == nil, "\(name)")
+        }
+
+        // The menu keeps its Record Window and Stop Recording items with their shortcuts.
+        let recordingItems = DropdownModel.rows(for: try Self.sample("recording")).compactMap { row -> MenuItemModel? in
+            if case .item(let item) = row { return item }
+            return nil
+        }
+        #expect(recordingItems.first { $0.action == .stop }?.shortcut == .stop)
+        #expect(DropdownModel.rows(for: try Self.sample("armed")).contains { row in
+            if case .item(let item) = row { return item.action == .record && item.enabled }
+            return false
+        })
+    }
+
+    @Test func stopControlTicksWithTheHeaderInPlace() throws {
+        let context = try Self.sample("recording")
+        var later = context
+        later.snapshot.elapsed = 75.2
+        #expect(DropdownModel.header(for: later).control?.elapsed == "1:15")
+        #expect(DropdownModel.header(for: later).control?.accessibilityLabel == "Stop Recording, 1 minute 15 seconds")
+        #expect(DropdownModel.onlyHeaderDiffers(DropdownModel.rows(for: later), DropdownModel.rows(for: context)))
+    }
+
     @Test func notExactReasonMovesToTheTooltipAndVoiceOver() throws {
         let context = try Self.sample("armednotexact")
         let header = DropdownModel.header(for: context)

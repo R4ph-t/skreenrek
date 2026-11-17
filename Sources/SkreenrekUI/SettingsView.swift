@@ -34,14 +34,20 @@ public final class SettingsPanelState {
     /// Shown under the Open at login row after a failed change.
     public var loginError: String?
     public var agents: AgentsPanelState?
+    /// The Updates row; nil hides it.
+    public var updates: UpdateChecker?
 
     @ObservationIgnored private let permissions: any PermissionProbe
     @ObservationIgnored private let loginItem: any LoginItemService
 
-    public init(permissions: any PermissionProbe, loginItem: any LoginItemService, agents: AgentsPanelState? = nil) {
+    public init(
+        permissions: any PermissionProbe, loginItem: any LoginItemService, agents: AgentsPanelState? = nil,
+        updates: UpdateChecker? = nil
+    ) {
         self.permissions = permissions
         self.loginItem = loginItem
         self.agents = agents
+        self.updates = updates
         screenRecording = permissions.screenRecording
         accessibility = permissions.accessibility
         openAtLogin = loginItem.isEnabled
@@ -170,6 +176,11 @@ public struct SettingsView: View {
             } header: {
                 SettingsSectionHeader(title: UIStrings.Settings.permissions)
             }
+            if let updates = panel.updates {
+                Section {
+                    SettingsRow(symbol: "arrow.down.circle") { UpdatesRow(checker: updates) }
+                }
+            }
         }
         .formStyle(.grouped)
         .frame(width: Self.width)
@@ -272,5 +283,45 @@ struct PermissionRow: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// Updates: the title over the state's line, then a spinner while busy and the state's button (Check for Updates,
+/// Update, Retry, Relaunch or Open Release Page).
+struct UpdatesRow: View {
+    let checker: UpdateChecker
+
+    var body: some View {
+        let row = UpdateRowModel(state: checker.state, current: checker.current, method: checker.method)
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(UIStrings.Updates.title).font(.system(size: 13))
+                Text(row.detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(row.quiet ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .monospacedDigit()
+                    .help(row.detail)
+            }
+            .layoutPriority(1)
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 12)
+            HStack(spacing: 8) {
+                if row.busy { ProgressView().controlSize(.small).accessibilityHidden(true) }
+                button(row.button)
+            }
+            .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private func button(_ model: UpdateRowModel.Button) -> some View {
+        let button = Button(model.title) { Task { await checker.perform(model.action) } }.disabled(!model.enabled)
+        if model.prominent {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button
+        }
     }
 }
