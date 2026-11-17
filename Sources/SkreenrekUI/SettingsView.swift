@@ -184,13 +184,15 @@ struct PermissionRow: View {
             Spacer(minLength: 8)
             if status == .allowed {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).frame(width: 16)
+                        .foregroundStyle(Color(nsColor: .systemGreen))
                     Text(UIStrings.Settings.allowed).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
-                    Image(systemName: "circle.dashed").foregroundStyle(.secondary).accessibilityHidden(true)
+                    Image(systemName: "circle.dashed").font(.system(size: 16)).frame(width: 16)
+                        .foregroundStyle(.secondary).accessibilityHidden(true)
                     Button(UIStrings.Settings.openSystemSettings, action: open)
                 }
             }

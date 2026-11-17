@@ -238,6 +238,7 @@ public final class AppModel {
         do {
             try await body()
         } catch let error as SkreenrekError {
+            await controller.reportActionFailure(error)
             Self.log.info("Menu action failed: \(error.code, privacy: .public)")
             actionError = error
             onChange?()

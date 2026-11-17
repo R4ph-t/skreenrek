@@ -96,11 +96,14 @@ public struct ControllerSnapshot: Sendable, Hashable {
     public var lastClip: StopBody?
     /// The failure the error state holds.
     public var error: SkreenrekError?
+    /// Effective HUD option of the active recording (including CLI/MCP overrides).
+    public var hud: Bool
 
     public init(
         state: ControllerState, elapsed: TimeInterval? = nil, window: WindowInfo? = nil, region: PixelRect? = nil,
         displayId: DisplayID? = nil, size: PixelSize? = nil, readback: Readback? = nil, fps: FrameRate,
-        startedBy: StartedBy? = nil, client: String? = nil, lastClip: StopBody? = nil, error: SkreenrekError? = nil
+        startedBy: StartedBy? = nil, client: String? = nil, lastClip: StopBody? = nil, error: SkreenrekError? = nil,
+        hud: Bool = true
     ) {
         self.state = state
         self.elapsed = elapsed
@@ -114,5 +117,6 @@ public struct ControllerSnapshot: Sendable, Hashable {
         self.client = client
         self.lastClip = lastClip
         self.error = error
+        self.hud = hud
     }
 }

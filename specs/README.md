@@ -22,7 +22,7 @@ factory skips it; 09 waits until it is `Done`. Every spec merges when `make chec
 | 08 | [Menu-bar icon, dropdown, Settings and the stop shortcut](08-menu-bar-dropdown-and-settings.md) | Done | 05 | 5–7 h | 0 h |
 | 11 | [App bundle packaging, Info.plist and ad-hoc signing (hand spec)](11-app-bundle-packaging.md) | Done | 01, by hand (Fraime Lead) | – | 0 h |
 | 09 | [record-window skill, agent setup and the Homebrew formula](09-skill-agent-setup-and-homebrew.md) | Done | 06, 07, 11 | 3–5 h | 0 h |
-| 10 | [Window picker overlay, recording HUD and permissions onboarding](10-picker-hud-and-onboarding.md) | Queued (herdr) | 08, 09 | 6–8 h | 0 h |
+| 10 | [Window picker overlay, recording HUD and permissions onboarding](10-picker-hud-and-onboarding.md) | Done | 08, 09 | 6–8 h | 0 h |
 | 12 | [Output format and compression](12-output-format-and-compression.md) | Done | 03, 04, 06, 07 | 4–6 h | 0 h |
 
 Status values: `Draft` → `Ready` (Raph approved the spec) → `In progress` → `In review` → `Done`.

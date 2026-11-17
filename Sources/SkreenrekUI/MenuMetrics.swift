@@ -28,9 +28,8 @@ public enum MenuMetrics {
     /// The elapsed time beside the menu-bar symbol: SF Mono digits, 12 pt.
     public static var elapsedFont: NSFont { NSFont.monospacedSystemFont(ofSize: 12, weight: .regular) }
 
-    /// Status-row text runs to 4 pt from the right edge, so the design spec's detail lines (e.g.
-    /// `1286 × 800 px · not exact (min width 1286 px)`) fit on one line in SF Pro 12 pt.
-    public static let statusTrailingPadding: CGFloat = 4
+    /// Designer: every status row reserves at least 16 pt; long details wrap like error rows.
+    public static let statusTrailingPadding: CGFloat = 16
     public static var textWidth: CGFloat { width - textX - statusTrailingPadding }
     /// A label's own inset on each side; fields are widened by it so their text starts exactly at `textX`.
     static let labelInset: CGFloat = 2
