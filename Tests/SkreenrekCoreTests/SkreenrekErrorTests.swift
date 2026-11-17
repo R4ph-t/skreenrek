@@ -18,6 +18,8 @@ import Testing
                    actual: PixelSize(width: 1286, height: 800), reason: .minWidth(1286)), 4, "not_exact"),
         (.windowNotFound(query: "--app Safari"), 5, "window_not_found"),
         (.windowAmbiguous(query: "--app Safari", candidates: candidates), 5, "window_ambiguous"),
+        (.windowIndistinct(app: "Safari", count: 2, candidates: candidates), 5, "window_ambiguous"),
+        (.windowIndistinct(app: "Safari", count: 2, candidates: []), 5, "window_ambiguous"),
         (.wrongState(.alreadyRecording(app: nil)), 6, "wrong_state"),
         (.wrongState(.alreadyRecording(app: "Safari")), 6, "wrong_state"),
         (.wrongState(.notRecording), 6, "wrong_state"),

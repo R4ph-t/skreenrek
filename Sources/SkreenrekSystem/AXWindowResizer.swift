@@ -11,16 +11,22 @@ public final class AXWindowResizer: WindowResizer {
         let ref: AXUIElement
     }
 
-    /// Elements found so far, by window ID: once the frame changes it no longer matches the listed frame.
+    /// Elements found so far, by window ID: once the frame changes it no longer matches the listed frame. An entry
+    /// is dropped when its element turns out to be gone (`invalidUIElement`), and the whole cache is cleared once it
+    /// holds `cacheLimit` windows, so a long-lived app process never keeps closed windows' elements.
     private let found = Mutex<[WindowID: Element]>([:])
+    static let cacheLimit = 32
+    /// Lists the app's other windows only to name look-alikes in an ambiguity error; nil names only the one asked for.
+    private let catalog: (any WindowCatalog)?
 
-    public init() {}
+    public init(catalog: (any WindowCatalog)? = nil) {
+        self.catalog = catalog
+    }
 
     /// Accessibility is allowed for this process. Never prompts.
     public static var isTrusted: Bool { AXIsProcessTrusted() }
 
     public func setFrame(_ frame: PointRect, of window: WindowInfo) async throws {
-        let element = try await self.element(for: window)
         var origin = CGPoint(x: frame.x, y: frame.y)
         var size = CGSize(width: frame.width, height: frame.height)
         guard let position = AXValueCreate(.cgPoint, &origin), let extent = AXValueCreate(.cgSize, &size) else {
@@ -28,34 +34,76 @@ public final class AXWindowResizer: WindowResizer {
         }
         // Move first so a larger size isn't clamped at the old position, then size, then move again because some
         // apps shift the origin while they resize.
-        try check(AXUIElementSetAttributeValue(element.ref, kAXPositionAttribute as CFString, position), window)
-        try check(AXUIElementSetAttributeValue(element.ref, kAXSizeAttribute as CFString, extent), window)
-        try check(AXUIElementSetAttributeValue(element.ref, kAXPositionAttribute as CFString, position), window)
+        try await withElement(for: window) { element in
+            try Self.check(AXUIElementSetAttributeValue(element.ref, kAXPositionAttribute as CFString, position), window)
+            try Self.check(AXUIElementSetAttributeValue(element.ref, kAXSizeAttribute as CFString, extent), window)
+            try Self.check(AXUIElementSetAttributeValue(element.ref, kAXPositionAttribute as CFString, position), window)
+        }
     }
 
     public func readFrame(of window: WindowInfo) async throws -> PointRect {
-        let element = try await self.element(for: window)
-        guard let frame = try Self.frame(of: element.ref, window: window) else {
-            throw SkreenrekError.internal(message: "Couldn't read the frame of \(window.app)'s window.")
+        try await withElement(for: window) { element in
+            guard let frame = try Self.frame(of: element.ref, window: window) else {
+                throw SkreenrekError.internal(message: "Couldn't read the frame of \(window.app)'s window.")
+            }
+            return frame
         }
-        return frame
     }
 
-    private func element(for window: WindowInfo) async throws -> Element {
+    /// Runs `body` on the window's element. A cached element that is gone is evicted and looked up once more.
+    private func withElement<T>(for window: WindowInfo, _ body: (Element) throws -> T) async throws -> T {
         guard Self.isTrusted else { throw SkreenrekError.permissionDenied(.accessibility) }
-        if let element = found.withLock({ $0[window.id] }) { return element }
+        if let cached = found.withLock({ $0[window.id] }) {
+            do {
+                return try body(cached)
+            } catch let error as SkreenrekError where error.code == "window_not_found" {
+                found.withLock { _ = $0.removeValue(forKey: window.id) }
+            }
+        }
+        let element = try await lookUp(window)
+        do {
+            return try body(element)
+        } catch let error as SkreenrekError where error.code == "window_not_found" {
+            found.withLock { _ = $0.removeValue(forKey: window.id) }
+            throw error
+        }
+    }
+
+    private func lookUp(_ window: WindowInfo) async throws -> Element {
         let app = AXUIElementCreateApplication(window.pid)
         var value: CFTypeRef?
         try check(AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value), window)
         let elements = (value as? [AXUIElement]) ?? []
+        // A window whose frame can't be read is only a non-candidate; it never fails the whole match.
         let snapshots = try elements.map { element in
-            AXWindowSnapshot(title: Self.title(of: element), frame: try Self.frame(of: element, window: window))
+            AXWindowSnapshot(title: Self.title(of: element), frame: try Self.readableFrame(of: element, window: window))
         }
         let scale = await Self.scale(for: window.frame)
-        let index = try AXWindowMatch.pick(window, among: snapshots, scale: scale)
+        let index: Int
+        do {
+            index = try AXWindowMatch.pick(window, among: snapshots, scale: scale)
+        } catch let error as SkreenrekError where error.code == "window_ambiguous" {
+            // Ask again with the app's listed windows, so each look-alike carries its own window ID.
+            let siblings = (try? await catalog?.windows())?.filter { $0.pid == window.pid } ?? []
+            index = try AXWindowMatch.pick(window, among: snapshots, siblings: siblings, scale: scale)
+        }
         let element = Element(ref: elements[index])
-        found.withLock { $0[window.id] = element }
+        found.withLock { cache in
+            if cache.count >= Self.cacheLimit { cache.removeAll() }
+            cache[window.id] = element
+        }
         return element
+    }
+
+    /// The frame, or nil when this one window can't be read. Only a missing permission is an error.
+    private static func readableFrame(of element: AXUIElement, window: WindowInfo) throws -> PointRect? {
+        do {
+            return try frame(of: element, window: window)
+        } catch let error as SkreenrekError where error.code == "permission_denied" {
+            throw error
+        } catch {
+            return nil
+        }
     }
 
     @MainActor

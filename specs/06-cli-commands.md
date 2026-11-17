@@ -1,6 +1,6 @@
 # 06: CLI commands, output and exit codes
 
-Status: Queued (herdr) · Branch: – · Depends on: 05 (controller and socket) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/06-cli-commands · Depends on: 05 (controller and socket) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -85,4 +85,61 @@ with a `hint:`, and the design spec's exit codes. It launches the app hidden whe
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Targets.** `SkreenrekCLI` (library) and `SkreenrekCLITests`. `swift-argument-parser` is pinned `exact: "1.8.2"`
+  (the newest 1.x; builds warning-free on Swift 6.2). ArgumentParser only parses: `CLI.run(_:environment:)` runs the
+  parsed command, so output, errors and exit codes are the design spec's. Help and `--version` print on stdout and exit
+  0; every parse or validation error exits 2 (`code: "usage"`, hint `Run: skreenrek <command> --help`).
+  `--json --quiet --no-color` also work before the command (`skreenrek --json status`).
+- **Environment seam.** `CLIEnvironment` carries stdout/stderr, the TTY flags, the process environment, home, the
+  shell's folder (relative `--out`/`--assets` resolve against it before they go to the app), the socket path, the
+  executable path, the launcher, the interrupt source, the clock that times the launch wait, and `debug perf`'s seams.
+  New seams: `AppLauncher` and `InterruptSource` in `SkreenrekCore/Seams`, real `WorkspaceAppLauncher` and
+  `SignalInterruptSource` in `SkreenrekSystem`, `FakeAppLauncher` and `FakeInterruptSource` in `SkreenrekTesting`.
+- **Tests** run the CLI in process against a `HeadlessHost` with fakes over a real socket (`CLIHarness`), every wait
+  under a 30 s watchdog, no sleeps (the launch wait and durations are driven by `ManualClock`).
+- **Dispatch (open question, built with the default).** `LaunchMode.decide`: no arguments and stdin not a TTY → app;
+  `skreenrek app` (exactly) → app; no arguments in a terminal → help; anything else → CLI. A `-psn_…` argument counts
+  as none. The CLI runs on a detached task while the main thread parks in `dispatchMain()`.
+- **App launch.** A socket that doesn't answer → if the executable resolves (through symlinks) to
+  `…/Skreenrek.app/Contents/MacOS/skreenrek`, the bundle opens hidden (`activates = false`, `hides = true`) and the
+  socket is retried every 50 ms for up to 10 s for `hello` (`Skreenrek didn't start within 10 seconds.` otherwise).
+  Outside a bundle: `error: Skreenrek isn't running.` / `hint:  Open Skreenrek.app, or run: skreenrek app`, exit 1.
+  A `hello` with another protocol version is `internal` with the reopen hint.
+- **Decisions where the design spec has no copy:**
+  - `discard` prints `✓ Discarded the recording.`; `pick` prints the window as a `windows` row, a region as
+    `region X,Y,W,H on display N  W × H px`, or `Pick cancelled.` (exit 0).
+  - `status`: `idle`; `armed · Terminal — zsh · 640 × 400 px`; `recording · Safari — localhost:3000 · 0:12`
+    (`region 640 × 360 px` for a region); `error · <message>`. Parts are joined with ` · `.
+  - `resize`/`record --size` with `--allow-inexact` and a size that isn't exact: the usual `✓` line with the actual
+    size, then `  note    not exact: 1280 × 800 px was asked for`, exit 0. (`resize` got `--allow-inexact` because
+    the design spec's not-exact hint offers it.)
+  - The `stop` note counts `framesDropped` as "dropped frames" and `sourceFramesSkipped` as "skipped frames"
+    (singular for 1), then `software encoder`; it is the last line and dim on a TTY.
+  - `record --wait --json` prints only the final stop body (one JSON document). A `--wait` whose recording is
+    discarded elsewhere prints the discard line and exits 0. A recording that ended before `record.wait` arrived is
+    read back from `status` (its `lastClip` or `error`). Ctrl-C is listened for from before `record.start`, so it never
+    kills the command with a recording left running.
+  - `doctor` lines: Screen Recording, Accessibility, Skreenrek app (version, running; ✗ when the app's version isn't
+    this command's), Output folder, Command-line tool (✓ when `skreenrek` on `PATH` resolves to this executable, else
+    the `ln -s` fix), Socket. Without the app it prints the app, CLI and socket lines and exits 1; `--json` prints the
+    controller's `DoctorBody` (exit 3 without Screen Recording) or the error envelope.
+  - `NO_COLOR` set to any value (even empty) turns colour off. stderr is coloured only when both stdout and stderr are
+    TTYs. Colours: `✓` green, `●`/`✗`/`error:` red, notes dim.
+  - The ambiguous-window error keeps the app's hint line (`Pass one of the IDs above, e.g. skreenrek record 4127`),
+    because every error has a hint.
+- **`debug perf`** (hidden): `--app NAME [--title T] [--runs 10] [--long] [--keep] [--json]`. Each timed start is a
+  1 s recording at 60 fps whose `stats.startToFirstFrameMs` (the app's start call to the first frame appended) feeds
+  the nearest-rank p95. Clips record with events and HUD off into `$TMPDIR/skreenrek-perf-<id>/`, are read with
+  `AVAssetReader` without decoding (sample count, equal sample durations), and are judged on 0 dropped, 0 skipped,
+  hardware encoder, exact `fps × seconds` frames, constant frame duration and stop → finalized (500 ms, 1 s for the
+  15-minute `--long` clip at 60 fps 1920 × 1080). `--json` prints `{met, rows: [{check, measured, target, met}],
+  clips}`. Exit 0 when every row is met, 1 otherwise; a failed recording exits with its own code.
+- **Spec 02 review follow-ups (PR #12).** `AXWindowMatch.pick` takes the app's listed windows (`siblings`) and
+  throws the new `SkreenrekError.windowIndistinct` (code `window_ambiguous`, exit 5) whose candidates each carry a
+  distinct listed window ID (the one asked for first), with a dedicated message and hint (`… can't tell them apart` /
+  `Move or resize one of them by hand so they differ, then try again.`), since passing one of those IDs again can't
+  help. `AXWindowResizer(catalog:)` lists the siblings only on ambiguity. A window whose AX frame can't be read is a
+  non-candidate instead of failing the match (only `apiDisabled` still fails). The element cache drops an entry on
+  `invalidUIElement` and retries the lookup once, and clears itself at 32 entries.
+- **Not done here:** `mcp` (07), `setup agents` and the CLI symlink (09), the picker UI (10). `pick` returns the app's
+  `The window picker isn't available yet.` (`internal`, exit 1) until 10.
