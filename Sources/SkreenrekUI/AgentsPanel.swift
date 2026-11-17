@@ -28,7 +28,7 @@ struct AgentsSection: View {
     @Bindable var panel: AgentsPanelState
 
     var body: some View {
-        Section("Agents") {
+        Section(UIStrings.Agents.title) {
             ForEach(panel.connections) { connection in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 12) {
@@ -37,7 +37,7 @@ struct AgentsSection: View {
                             Text(connection.status).font(.system(size: 12)).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
-                        Button(connection.connected ? "Remove" : "Connect") {
+                        Button(connection.connected ? UIStrings.Agents.remove : UIStrings.Agents.connect) {
                             panel.change(connection.agent, remove: connection.connected)
                         }
                     }
