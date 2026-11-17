@@ -18,7 +18,7 @@ import Testing
             (["record", "--app", "Safari", "--fps", "45"], "error: Frame rate 45 isn't offered.\nhint:  Pass --fps 30 or --fps 60.\n"),
             (["record", "--app", "Safari", "--fps", "sixty"], ""),
             (["resize", "--app", "Safari", "--size", "1280"], "error: \"1280\" isn't a size.\nhint:  Pass --size WxH in pixels, e.g. --size 1280x800.\n"),
-            (["record", "--app", "Safari", "--codec", "av1"], "error: \"av1\" isn't a codec Skreenrek can record.\nhint:  Use --codec h264 or hevc.\n"),
+            (["record", "--app", "Safari", "--codec", "av1"], "error: \"av1\" isn't a codec Skreenrek can record.\nhint:  Use --codec h264, hevc or prores.\n"),
             (["record", "--app", "Safari", "--duration", "soon"], "error: \"soon\" isn't a duration.\nhint:  Pass --duration as 30s, 2m, 1m30s or plain seconds.\n"),
             (["record", "abc"], "error: \"abc\" isn't a window ID.\nhint:  Pass a numeric ID from: skreenrek windows, or use --app NAME.\n"),
             (["record", "4127", "--app", "Safari"], "error: Pass a window ID or --app, not both.\nhint:  Drop the window ID, or drop --app.\n"),

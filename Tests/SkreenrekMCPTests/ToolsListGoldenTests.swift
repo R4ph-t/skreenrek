@@ -113,6 +113,20 @@ import Testing
                     "description" : "Also copy the clip into this HyperFrames assets folder and point the snippet at it.",
                     "type" : "string"
                   },
+                  "bitrateMbps" : {
+                    "maximum" : 200,
+                    "minimum" : 1,
+                    "type" : "number"
+                  },
+                  "codec" : {
+                    "default" : "h264",
+                    "enum" : [
+                      "h264",
+                      "hevc",
+                      "prores"
+                    ],
+                    "type" : "string"
+                  },
                   "cursor" : {
                     "default" : true,
                     "description" : "Show the cursor in the video.",
@@ -132,6 +146,14 @@ import Testing
                     "default" : true,
                     "description" : "Write events.json.",
                     "type" : "boolean"
+                  },
+                  "format" : {
+                    "default" : "mp4",
+                    "enum" : [
+                      "mp4",
+                      "mov"
+                    ],
+                    "type" : "string"
                   },
                   "fps" : {
                     "description" : "Frames per second (default from Settings, otherwise 60).",
@@ -153,6 +175,16 @@ import Testing
                   },
                   "outDir" : {
                     "description" : "The folder for the clip folder (default: ~/Movies/Skreenrek or Settings).",
+                    "type" : "string"
+                  },
+                  "quality" : {
+                    "default" : "high",
+                    "enum" : [
+                      "low",
+                      "medium",
+                      "high",
+                      "max"
+                    ],
                     "type" : "string"
                   },
                   "region" : {
