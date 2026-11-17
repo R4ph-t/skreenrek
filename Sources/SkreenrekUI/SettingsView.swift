@@ -173,13 +173,23 @@ struct PermissionRow: View {
     let title: String
     let detail: String
     let status: PermissionStatus
+    /// The v2 direction mockups (A and C): "Open Settings…" and a one-line detail. The shipping window leaves it off.
+    var compact = false
     let open: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13))
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+            if compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 13))
+                    Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+                }
+                .layoutPriority(1)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 13))
+                    Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             if status == .allowed {
@@ -191,7 +201,9 @@ struct PermissionRow: View {
             } else {
                 HStack(spacing: 8) {
                     Image(systemName: "circle.dashed").foregroundStyle(.secondary).accessibilityHidden(true)
-                    Button(UIStrings.Settings.openSystemSettings, action: open)
+                    Button(
+                        compact ? UIStrings.Directions.openSettings : UIStrings.Settings.openSystemSettings,
+                        action: open)
                 }
             }
         }

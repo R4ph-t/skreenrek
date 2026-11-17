@@ -80,7 +80,6 @@ struct DirectionDropdownView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.separator, lineWidth: 1)
         )
-        .tint(branded ? DirectionTheme.accent : nil)
     }
 
     @ViewBuilder
@@ -120,9 +119,12 @@ struct DirectionDropdownView: View {
         }
     }
 
+    /// Red only for Stop (and C's Record Window); C's other primary item (Pick Window…) takes the system accent.
     private func symbolColor(_ item: MenuItemModel) -> Color {
         if item.action == .stop { return .red }
-        if branded, DirectionModel.isPrimary(item, context: context) { return DirectionTheme.accent }
+        if branded, DirectionModel.isPrimary(item, context: context) {
+            return item.action == .record ? .red : .accentColor
+        }
         return .secondary
     }
 }
@@ -183,7 +185,6 @@ private struct MenuItemRow: View {
 struct DirectionHeaderView: View {
     let header: DirectionHeader
     let branded: Bool
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -192,7 +193,7 @@ struct DirectionHeaderView: View {
                 Text(header.title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.tail)
                 detail
             }
             Spacer(minLength: 0)
@@ -242,7 +243,7 @@ struct DirectionHeaderView: View {
         case .idle, .armed, .notExact:
             if branded {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(DirectionTheme.accent)
+                    .fill(DirectionTheme.graphite)
                     .overlay(BrandMark(size: 22, color: .white))
                     .frame(width: 40, height: 40)
             } else {
@@ -271,17 +272,21 @@ struct DirectionHeaderView: View {
         }
     }
 
-    private var bandColor: Color {
+    /// Neutral unless something needs attention: red only while recording, orange only for an error.
+    private var bandColor: AnyShapeStyle {
         switch header.kind {
-        case .recording: Color.red.opacity(0.14)
-        case .error: Color.orange.opacity(0.12)
-        default: DirectionTheme.accent.opacity(colorScheme == .dark ? 0.16 : 0.10)
+        case .recording: AnyShapeStyle(Color.red.opacity(0.14))
+        case .error: AnyShapeStyle(Color.orange.opacity(0.12))
+        default: AnyShapeStyle(.fill.quinary)
         }
     }
 }
 
-/// A's Last Clip row (64 pt): a 72 × 45 thumbnail, then the title (middle-truncated) and the detail.
+/// A's Last Clip row (64 pt): a 72 × 45 thumbnail centred vertically, then the title (tail-truncated), the summary
+/// in `.secondary` and the start time or format in `.tertiary`.
 struct DirectionClipRow: View {
+    static let height: CGFloat = 64
+
     let clip: DirectionClip
     let thumbnail: NSImage?
     let branded: Bool
@@ -289,20 +294,22 @@ struct DirectionClipRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             ClipThumbnail(image: thumbnail, width: 72, height: 45, radius: 4, accentStroke: branded)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(clip.title).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
-                Text(clip.detail)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(clip.title).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
+                Text(clip.summary)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                if let note = clip.note {
+                    Text(note).font(.system(size: 12)).foregroundStyle(.tertiary).monospacedDigit().lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }
         .padding(.leading, 12)
         .padding(.trailing, 16)
-        .padding(.vertical, 8)
-        .frame(minHeight: 64)
+        .frame(height: Self.height)
         .accessibilityElement(children: .combine)
     }
 }

@@ -17,8 +17,11 @@ struct DirectionSettingsView: View {
     var agentIcon: (AgentClient) -> NSImage? = { _ in nil }
 
     private var monochrome: Bool { direction == .c }
-    /// C's brand accent, only on the switches and the selected segment (and the hero icon).
-    private var accent: Color? { direction == .c ? DirectionTheme.accent : nil }
+    /// C's selected segment and switches take the system accent; red stays for record and stop.
+    private var accent: Color? { direction == .c ? Color.accentColor : nil }
+    /// A and C shorten the permission button to "Open Settings…" so the detail stays on one line; B keeps A's
+    /// first-review rows unchanged.
+    private var compactPermissions: Bool { direction != .b }
 
     var body: some View {
         Form {
@@ -96,13 +99,13 @@ struct DirectionSettingsView: View {
                 row(tile: tile("rectangle.dashed.badge.record", .purple)) {
                     PermissionRow(
                         title: UIStrings.Settings.screenRecording, detail: UIStrings.Settings.screenRecordingDetail,
-                        status: panel.screenRecording
+                        status: panel.screenRecording, compact: compactPermissions
                     ) { actions.openPrivacyPane(.screenRecording) }
                 }
                 row(tile: tile("accessibility", .blue)) {
                     PermissionRow(
                         title: UIStrings.Settings.accessibility, detail: UIStrings.Settings.accessibilityDetail,
-                        status: panel.accessibility
+                        status: panel.accessibility, compact: compactPermissions
                     ) { actions.openPrivacyPane(.accessibility) }
                 }
             } header: {
@@ -170,7 +173,7 @@ struct DirectionSettingsView: View {
     /// version, and the repository link on the right, 88 pt tall.
     private var brandedHero: some View {
         HStack(alignment: .center, spacing: 14) {
-            AppIconPlaceholder(size: 56)
+            AppIconPlaceholder(size: 56, graphite: true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(UIStrings.productName).font(.system(size: 20, weight: .semibold, design: .rounded))
                 Text(version).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()

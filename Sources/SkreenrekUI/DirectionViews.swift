@@ -6,6 +6,11 @@ import SwiftUI
 enum DirectionTheme {
     /// C's placeholder brand accent, a warm record red, until the chosen logo gives the real one.
     static let accent = Color(red: 1.0, green: 0.27, blue: 0.23)
+    /// C's header tile behind the white mark: graphite, a touch lighter in dark mode.
+    static let graphite = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            NSColor(white: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 0.22 : 0.16, alpha: 1)
+        })
     /// The menu material's tone (the same one the shipping dropdown preview draws on).
     static let menuBackground = Color(
         nsColor: NSColor(name: nil) { appearance in
@@ -41,12 +46,15 @@ struct BrandMark: View {
 /// A stand-in app icon (the real one comes with the logo): the placeholder mark in white on the accent.
 struct AppIconPlaceholder: View {
     var size: CGFloat
+    /// C: graphite, matching its header tile. A and B keep the warm placeholder.
+    var graphite = false
 
     var body: some View {
+        let base = graphite ? Color(white: 0.16) : DirectionTheme.accent
         RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [DirectionTheme.accent.mix(with: .white, by: 0.15), DirectionTheme.accent],
+                    colors: [base.mix(with: .white, by: graphite ? 0.1 : 0.15), base],
                     startPoint: .top, endPoint: .bottom)
             )
             .overlay(BrandMark(size: size * 0.6, color: .white))
@@ -63,7 +71,7 @@ struct ClipThumbnail: View {
     var height: CGFloat
     var radius: CGFloat
     var showsPlay = true
-    /// C draws a 1 pt accent stroke while the clip is the newest from this session.
+    /// C draws a 1 pt system-accent stroke while the clip is the newest from this session.
     var accentStroke = false
 
     var body: some View {
@@ -86,7 +94,7 @@ struct ClipThumbnail: View {
         .overlay(
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(
-                    accentStroke ? AnyShapeStyle(DirectionTheme.accent) : AnyShapeStyle(.separator),
+                    accentStroke ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.separator),
                     lineWidth: accentStroke ? 1 : 0.5)
         )
         .accessibilityElement()
