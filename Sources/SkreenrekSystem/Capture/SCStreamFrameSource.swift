@@ -24,6 +24,8 @@ public final class SCStreamFrameSource: FrameSource {
 
     private let excludedBundleID: String?
     private let running = Mutex<Running?>(nil)
+    /// The latest start's stream, kept after stop so the recorder can read its drop count.
+    private let lastFeed = Mutex<FrameStreamFeed?>(nil)
     private let sampleQueue = DispatchQueue(label: "it.fraime.skreenrek.capture", qos: .userInteractive)
 
     /// - Parameter excludedBundleID: the app left out of region captures (Skreenrek itself).
@@ -33,6 +35,8 @@ public final class SCStreamFrameSource: FrameSource {
 
     /// Whether Screen Recording is already allowed. Never prompts.
     public static var screenRecordingAllowed: Bool { CGPreflightScreenCaptureAccess() }
+
+    public var droppedFrameCount: Int { lastFeed.withLock { $0?.droppedCount ?? 0 } }
 
     public func start(target: CaptureTarget, size: PixelSize, fps: FrameRate, showsCursor: Bool) async throws
         -> AsyncThrowingStream<CapturedFrame, any Error>
@@ -76,15 +80,16 @@ public final class SCStreamFrameSource: FrameSource {
         configuration.capturesAudio = false
         if let sourceRect { configuration.sourceRect = sourceRect }
 
-        let (frames, continuation) = AsyncThrowingStream<CapturedFrame, any Error>.makeStream()
-        let isWindow = if case .window = target { true } else { false }
-        let output = StreamOutput(continuation: continuation, isWindow: isWindow)
+        let feed = FrameStreamFeed()
+        lastFeed.withLock { $0 = feed }
+        let windowID: CGWindowID? = if case .window(let info) = target { CGWindowID(info.id.rawValue) } else { nil }
+        let output = StreamOutput(feed: feed, windowID: windowID)
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
         do {
             try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: sampleQueue)
             try await stream.startCapture()
         } catch {
-            continuation.finish()
+            feed.finish()
             throw Self.mapStartError(error)
         }
 
@@ -105,10 +110,10 @@ public final class SCStreamFrameSource: FrameSource {
         }
         running.withLock { $0 = Running(stream: stream, output: output, watcher: watcher) }
         let streamID = ObjectIdentifier(stream)
-        continuation.onTermination = { [weak self] _ in
+        feed.onTermination { [weak self] in
             Task { await self?.stop(only: streamID) }
         }
-        return frames
+        return feed.stream
     }
 
     public func stop() async {
@@ -130,7 +135,7 @@ public final class SCStreamFrameSource: FrameSource {
     }
 
     /// Whether the window is still in the window list (no permission needed for the ID alone).
-    static func windowExists(_ windowID: CGWindowID) -> Bool {
+    public static func windowExists(_ windowID: CGWindowID) -> Bool {
         guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[CFString: Any]] else {
             return false
         }
@@ -144,6 +149,18 @@ public final class SCStreamFrameSource: FrameSource {
             || nsError.code == SCStreamError.Code.missingEntitlements.rawValue
     }
 
+    /// How a stream that stopped on its own ends: `permission_denied` for a permission error; for a window,
+    /// "window closed" only when the window is really gone; otherwise `recording_failed` with the reason.
+    public static func endError(
+        stoppedWith error: (any Error)?, windowID: CGWindowID?,
+        windowExists: (CGWindowID) -> Bool = SCStreamFrameSource.windowExists
+    ) -> any Error {
+        if let error, isPermissionError(error) { return SkreenrekError.permissionDenied(.screenRecording) }
+        if let windowID, !windowExists(windowID) { return FrameSourceError.windowClosed }
+        let reason = error.map { "Screen capture stopped: \($0.localizedDescription)" } ?? "Screen capture stopped."
+        return SkreenrekError.recordingFailed(.other(reason))
+    }
+
     static func mapStartError(_ error: any Error) -> any Error {
         if error is SkreenrekError { return error }
         if isPermissionError(error) { return SkreenrekError.permissionDenied(.screenRecording) }
@@ -153,20 +170,16 @@ public final class SCStreamFrameSource: FrameSource {
 
 /// Receives ScreenCaptureKit's sample buffers on the capture queue and yields the original pixel buffers.
 private final class StreamOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
-    private let continuation: AsyncThrowingStream<CapturedFrame, any Error>.Continuation
-    private let isWindow: Bool
+    private let feed: FrameStreamFeed
+    private let windowID: CGWindowID?
 
-    init(continuation: AsyncThrowingStream<CapturedFrame, any Error>.Continuation, isWindow: Bool) {
-        self.continuation = continuation
-        self.isWindow = isWindow
+    init(feed: FrameStreamFeed, windowID: CGWindowID?) {
+        self.feed = feed
+        self.windowID = windowID
     }
 
     func end(throwing error: (any Error)?) {
-        if let error {
-            continuation.finish(throwing: error)
-        } else {
-            continuation.finish()
-        }
+        feed.finish(throwing: error)
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -180,9 +193,9 @@ private final class StreamOutput: NSObject, SCStreamOutput, SCStreamDelegate, @u
         case .complete:
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             let hostTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
-            continuation.yield(CapturedFrame(pixelBuffer: pixelBuffer, hostTime: hostTime))
+            feed.yield(CapturedFrame(pixelBuffer: pixelBuffer, hostTime: hostTime))
         case .stopped:
-            if isWindow { end(throwing: FrameSourceError.windowClosed) }
+            end(throwing: SCStreamFrameSource.endError(stoppedWith: nil, windowID: windowID))
         default:
             // Idle, blank, suspended or started: nothing new to show; the recorder repeats the last frame.
             return
@@ -190,12 +203,6 @@ private final class StreamOutput: NSObject, SCStreamOutput, SCStreamDelegate, @u
     }
 
     func stream(_ stream: SCStream, didStopWithError error: any Error) {
-        if SCStreamFrameSource.isPermissionError(error) {
-            end(throwing: SkreenrekError.permissionDenied(.screenRecording))
-        } else if isWindow {
-            end(throwing: FrameSourceError.windowClosed)
-        } else {
-            end(throwing: SkreenrekError.recordingFailed(.other("Screen capture stopped: \(error.localizedDescription)")))
-        }
+        end(throwing: SCStreamFrameSource.endError(stoppedWith: error, windowID: windowID))
     }
 }
