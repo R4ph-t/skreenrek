@@ -73,6 +73,9 @@ public enum SkreenrekError: Error, Sendable, Hashable {
     case windowNotFound(query: String)
     /// Exit 5: candidates are front to back.
     case windowAmbiguous(query: String, candidates: [WindowCandidate])
+    /// Exit 5: `count` windows of `app` look the same to Accessibility (same title and frame), so the one to resize
+    /// can't be told apart. `candidates` are the listed ones among them, each with its own window ID.
+    case windowIndistinct(app: String, count: Int, candidates: [WindowCandidate])
     /// Exit 6.
     case wrongState(WrongStateReason)
     /// Exit 7: a partial clip may exist.
@@ -86,7 +89,7 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .usage: 2
         case .permissionDenied: 3
         case .notExact: 4
-        case .windowNotFound, .windowAmbiguous: 5
+        case .windowNotFound, .windowAmbiguous, .windowIndistinct: 5
         case .wrongState: 6
         case .recordingFailed: 7
         case .interrupted: 130
@@ -101,7 +104,7 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .permissionDenied: "permission_denied"
         case .notExact: "not_exact"
         case .windowNotFound: "window_not_found"
-        case .windowAmbiguous: "window_ambiguous"
+        case .windowAmbiguous, .windowIndistinct: "window_ambiguous"
         case .wrongState: "wrong_state"
         case .recordingFailed: "recording_failed"
         case .interrupted: "interrupted"
@@ -133,6 +136,11 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .windowAmbiguous(let query, let candidates):
             return (["\(candidates.count) windows match \(query). Pass a window ID:"]
                 + Self.candidateLines(candidates)).joined(separator: "\n")
+        case .windowIndistinct(let app, let count, let candidates):
+            let sentence = "\(app) has \(count) windows with the same title and size, so Skreenrek can't tell them apart"
+            return candidates.isEmpty
+                ? sentence + "."
+                : ([sentence + ":"] + Self.candidateLines(candidates)).joined(separator: "\n")
         case .wrongState(.alreadyRecording(let app?)):
             return "Skreenrek is already recording \(app)."
         case .wrongState(.alreadyRecording(nil)):
@@ -183,6 +191,8 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .windowAmbiguous(_, let candidates):
             let id = candidates.first.map { String($0.id.rawValue) } ?? "<id>"
             return "Pass one of the IDs above, e.g. skreenrek record \(id)"
+        case .windowIndistinct:
+            return "Move or resize one of them by hand so they differ, then try again."
         case .wrongState(.alreadyRecording):
             return "Run: skreenrek stop"
         case .wrongState(.notRecording):

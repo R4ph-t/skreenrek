@@ -24,8 +24,9 @@ exit(2)
 enum HeadlessApp {
     static func run() -> Never {
         let clock = HostTimeClock()
+        let catalog = SCWindowCatalog()
         let seams = ControllerSeams(
-            catalog: SCWindowCatalog(), resizer: AXWindowResizer(), frameSource: SCStreamFrameSource(),
+            catalog: catalog, resizer: AXWindowResizer(catalog: catalog), frameSource: SCStreamFrameSource(),
             mouse: NSEventMouseSource(clock: clock), clock: clock, permissions: SystemPermissionProbe(),
             disk: VolumeDiskSpaceProbe(), encoder: .requireHardware)
         let host = HeadlessHost(seams: seams)

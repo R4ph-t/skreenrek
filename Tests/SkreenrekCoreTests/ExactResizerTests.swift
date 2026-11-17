@@ -242,18 +242,56 @@ import Testing
         #expect(try AXWindowMatch.pick(Self.window, among: byFrame) == 0)
     }
 
-    @Test func twoEqualMatchesAreAmbiguous() {
+    @Test func twoEqualMatchesAreAmbiguousWithDistinctListedIDs() {
         let same = AXWindowSnapshot(title: "localhost:3000", frame: Self.window.frame)
+        var twin = Self.window
+        twin.id = WindowID(4199)
+        var otherApp = Self.window
+        otherApp.id = WindowID(5000)
+        otherApp.pid = 1
         let error = #expect(throws: SkreenrekError.self) {
-            try AXWindowMatch.pick(Self.window, among: [same, same], scale: 2)
+            try AXWindowMatch.pick(Self.window, among: [same, same], siblings: [otherApp, twin, Self.window], scale: 2)
         }
         #expect(error?.code == "window_ambiguous")
         #expect(error?.exitCode == 5)
-        if case .windowAmbiguous(_, let candidates)? = error {
-            #expect(candidates.map(\.size) == [PixelSize(width: 1280, height: 800), PixelSize(width: 1280, height: 800)])
-        } else {
-            Issue.record("expected window_ambiguous")
+        guard case .windowIndistinct(let app, let count, let candidates)? = error else {
+            Issue.record("expected windowIndistinct, got \(String(describing: error))")
+            return
         }
+        #expect(app == "Safari" && count == 2)
+        // Every candidate is a real listed window with its own ID: the window asked for first, then its twin.
+        #expect(candidates.map(\.id) == [WindowID(4127), WindowID(4199)])
+        #expect(Set(candidates.map(\.id)).count == candidates.count)
+        #expect(candidates.map(\.size) == [PixelSize(width: 1280, height: 800), PixelSize(width: 1280, height: 800)])
+        #expect(error?.message == """
+            Safari has 2 windows with the same title and size, so Skreenrek can't tell them apart:
+              4127  Safari  localhost:3000  1280 × 800 px
+              4199  Safari  localhost:3000  1280 × 800 px
+            """)
+        #expect(error?.hint == "Move or resize one of them by hand so they differ, then try again.")
+    }
+
+    @Test func lookAlikesNoListedWindowAccountsForNeverReuseAnID() {
+        let same = AXWindowSnapshot(title: "localhost:3000", frame: Self.window.frame)
+        let error = #expect(throws: SkreenrekError.self) {
+            try AXWindowMatch.pick(Self.window, among: [same, same, same], scale: 2)
+        }
+        guard case .windowIndistinct(_, let count, let candidates)? = error else {
+            Issue.record("expected windowIndistinct")
+            return
+        }
+        #expect(count == 3)
+        #expect(candidates.map(\.id) == [WindowID(4127)])
+    }
+
+    @Test func anUnreadableWindowIsSkippedNotFatal() throws {
+        // The resizer reports a window whose frame can't be read as a nil frame: it can't match by frame, and the
+        // readable window still matches.
+        let snapshots = [
+            AXWindowSnapshot(title: nil, frame: nil),
+            AXWindowSnapshot(title: "localhost:3000", frame: Self.window.frame),
+        ]
+        #expect(try AXWindowMatch.pick(Self.window, among: snapshots) == 1)
     }
 
     @Test func noMatchIsNotFound() {
