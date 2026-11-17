@@ -161,6 +161,23 @@ import Testing
         #expect(home.exists(AgentClient.claude.skill))
     }
 
+    @Test func defaultRemovalIncludesOwnedAgentsWhoseFolderWasDeleted() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "{\"theme\":\"dark\",\"mcpServers\":{\"other\":{}}}\n"
+        try home.write(AgentClient.claude.config, original)
+        #expect(home.installer.run(agents: [.claude]).allSatisfy { $0.success })
+        try FileManager.default.removeItem(at: home.file(".claude"))
+        #expect(home.installer.connections().first { $0.agent == .claude }?.connected == false)
+        let results = home.installer.run(remove: true)
+        #expect(results.map(\.agent) == [.claude])
+        #expect(results.allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.claude.config) == original)
+        #expect(!home.exists(".claude"))
+        #expect(home.installer.run(remove: true).isEmpty)
+        #expect(home.installer.run(agents: [.claude]).allSatisfy { $0.success })
+    }
+
     @Test func cliLinkAndPathWarning() throws {
         let home = try Home()
         defer { home.temp.cleanUp() }

@@ -96,8 +96,9 @@ public struct AgentInstaller: Sendable {
 
     /// Empty selection means detected agents; --cli alone only links the CLI. Removal includes owned, vanished agents.
     public func run(agents: [AgentClient] = [], remove: Bool = false) -> [AgentSetupResult] {
+        let owned = remove && agents.isEmpty ? (try? load()) ?? [:] : [:]
         let selected = agents.isEmpty
-            ? connections().filter { $0.agent != .cli && ($0.detected || (remove && $0.connected)) }.map(\.agent)
+            ? connections().filter { $0.agent != .cli && ($0.detected || owned[$0.agent.rawValue] != nil) }.map(\.agent)
             : AgentClient.allCases.filter(agents.contains)
         guard !selected.isEmpty else { return [] }
         do {
