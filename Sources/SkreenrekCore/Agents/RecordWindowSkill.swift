@@ -15,8 +15,9 @@ Run `skreenrek doctor --json`. If a permission is missing, tell the user which o
 ## Steps
 
 1. List windows with `skreenrek_list_windows` or `skreenrek windows --json`. Pick a window ID.
-2. Start with `skreenrek_start_recording` (windowId, width, height, fps: 60) or
-   `skreenrek record <window> --size WxH --fps 60 --json`. Read `exact` from the read-back.
+2. Start with `skreenrek_start_recording` (windowId, size: "1080p", fps: 60) or
+   `skreenrek record <window> --size 1080p --fps 60 --json`. Sizes are the clip's pixels: 720p, 1080p, 1440p, 4k,
+   square, portrait, or WxH. Skreenrek sizes the window to fit the display. Read `exact` from the read-back.
    If it isn't true, stop and report the actual size. Never claim an exact size without the read-back.
 3. Do the actions.
 4. Stop with `skreenrek_stop_recording` or `skreenrek stop --json`.
