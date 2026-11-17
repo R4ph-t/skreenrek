@@ -25,7 +25,11 @@ design spec's "Menu-bar icon", "Dropdown" and "Settings" sections and the dropdo
    disabled "Started by Claude Code over MCP" / "Started from the menu" / "Started from the command line" row, Stop
    Recording ⌃⌘⎋ as the default item, Discard Recording…, Open Output Folder, Settings…, Quit); writing; each of the
    six error rows in the design spec's error-copy table with its fix items; and the Last Clip section (Show in Finder,
-   Copy File Path, Copy HyperFrames Snippet). Size submenu and Frame Rate submenu exactly as specified; Custom Size…
+   Copy File Path, Copy HyperFrames Snippet). When the last clip isn't H.264 MP4, the status row's detail line
+   appends the format in the same quiet style (`0:42 · 1280 × 800 px · 60 fps · ProRes MOV · 10:24`); default
+   H.264 MP4 clips keep `0:42 · 1280 × 800 px · 60 fps · 10:24` (Designer's 2026-11-17 addition; labels
+   `H.264` / `HEVC` / `ProRes` and `MP4` / `MOV`). A missing container (clips from before spec 12) is treated
+   as `mp4`. No new dropdown or Settings controls. Size submenu and Frame Rate submenu exactly as specified; Custom Size…
    opens a sheet with px fields and the pt equivalent in 12 pt secondary text. Choosing a size while armed resizes
    immediately through the controller. Size, frame rate and picking are hidden while recording.
 4. `MenuController` (AppKit, thin) renders `MenuModel` into an `NSStatusItem` with an `NSMenu`: 300 pt wide, 24 pt
@@ -71,9 +75,10 @@ Picker overlay, recording HUD and onboarding (10); Agents rows (09); Sparkle upd
 ## How to test (Raph)
 
 1. No hand test is needed to merge: CI `factory check` must be green. The tests cover `StatusIconModel` for the five
-   states (symbol, tint, sentence), `MenuModel` entries and copy for every state and error row, the Size and Frame
-   Rate submenus, the copy audit, `SettingsStore` round trips, and `debug render-ui` producing non-empty PNGs of the
-   expected sizes (300 pt wide rows, 48 pt status rows) in both appearances.
+   states (symbol, tint, sentence), `MenuModel` entries and copy for every state and error row, the Last Clip
+   detail line with and without a non-default format suffix, the Size and Frame Rate submenus, the copy audit,
+   `SettingsStore` round trips, and `debug render-ui` producing non-empty PNGs of the expected sizes (300 pt wide
+   rows, 48 pt status rows) in both appearances.
 2. Optional smoke (after hand spec 11, 3 min): open Skreenrek.app, open the menu in light and dark, pick a size, open
    Settings.
 

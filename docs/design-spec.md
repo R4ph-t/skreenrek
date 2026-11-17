@@ -372,3 +372,91 @@ Fraime Lead checks these on a real Mac (Apple silicon, 2× display, plus one 1×
 - **Terminal and other apps that snap to a size step** (character cells) can't always hit an exact pixel size. v1 reports it honestly (exit 4, `--allow-inexact`). Padding or cropping to the exact size is deferred.
 - **Odd pixel sizes on 2× displays** are rejected in v1. Supporting them would need sub-point window frames, which macOS doesn't offer.
 - **Developer ID / notarization credentials:** whether the factory already has them is Fraime Lead's check. The brief's fallback applies.
+
+## Output format and compression (design addition, 2026-11-17)
+
+Agents can pick the file format, codec and compression. Defaults don't change: H.264 in MP4 at `high` quality. The menu-bar dropdown and Settings stay as they are; this is CLI and MCP only.
+
+### CLI flags (on `record`)
+
+| Flag | Values | Default |
+|---|---|---|
+| `--format` | `mp4` \| `mov` | `mp4` |
+| `--codec` | `h264` \| `hevc` \| `prores` | `h264` |
+| `--quality` | `low` \| `medium` \| `high` \| `max` | `high` |
+| `--bitrate` | number of Mbps, `1`–`200`, decimals allowed (e.g. `12`, `7.5`) | none |
+
+- `--quality` and `--bitrate` can't be combined. With `--bitrate`, the encoder targets that average bitrate. With `--quality`, the engine picks a bitrate that scales with width × height × fps, so `high` looks the same at any size.
+- `prores` needs `--format mov`. It's ProRes 422, and `--quality` picks the flavour: `low` = Proxy, `medium` = LT, `high` = 422, `max` = 422 HQ. ProRes doesn't take `--bitrate`.
+- `max` is the name for the "near-lossless" preset. Don't call it lossless, because it isn't.
+- The clip file follows the format: `clip.mp4` or `clip.mov`. The snippet and `files.clip` point at the real file name.
+- When the codec is `prores`, human output adds one line after `✓ Saved …`: `note:  ProRes doesn't play in Chrome or Firefox. Use --codec h264 for web pages.` `--json` and `--quiet` don't print it.
+- Human success line, non-default case only: `✓ Saved 0:42 · 1280 × 800 px · 60 fps · HEVC MOV · 9.8 Mbps`. With the defaults it stays as it is now.
+
+### MCP parameters (`skreenrek_start_recording`)
+
+Added: `format?` (`"mp4"` | `"mov"`), `codec?` (`"h264"` | `"hevc"` | `"prores"`), `quality?` (`"low"` | `"medium"` | `"high"` | `"max"`), `bitrateMbps?` (number, 1–200). The defaults and rules are the same as the CLI. The output gains `video: { container, codec, profile, quality, requestedBitrateMbps }`, holding the settings as resolved at start.
+
+### Read-back JSON
+
+Same keys in `record --json`, `stop --json` (inside `recording`), `skreenrek_stop_recording`, and `events.json` (inside `video`):
+
+```json
+"video": {
+  "file": "clip.mov",
+  "container": "mov",
+  "codec": "hevc",
+  "profile": "main",
+  "quality": "high",
+  "requestedBitrateMbps": null,
+  "bitrateMbps": 9.8,
+  "width": 1280, "height": 800, "scale": 2
+}
+```
+
+- `container` is `mp4` or `mov`, and `codec` is `h264`, `hevc` or `prores`. Both are read from the written file, not echoed from the request.
+- `profile` is the codec's own profile: `high` (H.264), `main` (HEVC), or `proxy`, `lt`, `422` or `422hq` (ProRes).
+- `quality` is the preset used, or `null` when `--bitrate` was given.
+- `requestedBitrateMbps` is the asked-for value, or `null` with a preset.
+- `bitrateMbps` is the actual average for the whole file (size × 8 ÷ duration), rounded to 0.1. It's only known after stop, so in the `record --json` / start output it's `null`.
+- In `stop --json`, the existing `recording.codec` stays a plain string (same value as `video.codec`) for compatibility.
+
+### Errors
+
+All of these exit 2 with code `usage`, are checked before any resize or recording starts, and follow the usual shape (`error:` plus one sentence, then `hint:` plus the exact fix):
+
+```
+error: ProRes can only be saved as a .mov file.
+hint:  Add --format mov, or use --codec h264 or --codec hevc.
+
+error: Bitrate must be between 1 and 200 Mbps. You passed 500.
+hint:  Pass a --bitrate from 1 to 200, or use --quality high.
+
+error: Use either --quality or --bitrate, not both.
+hint:  Drop one. --bitrate sets an exact target; --quality picks one for the window size.
+
+error: ProRes doesn't take a bitrate. Its quality comes from --quality.
+hint:  Replace --bitrate with --quality low, medium, high or max.
+
+error: "av1" isn't a codec Skreenrek can record.
+hint:  Use --codec h264, hevc or prores.
+
+error: "webm" isn't a format Skreenrek can save.
+hint:  Use --format mp4 or mov.
+
+error: "ultra" isn't a quality preset.
+hint:  Use --quality low, medium, high or max, or set --bitrate in Mbps.
+```
+
+In MCP, the same message and hint go into `{error:{code:"usage", message, hint}}`, and the hints use parameter names instead of flags (`format: "mov"`, `bitrateMbps`, `quality: "high"`).
+
+### Menu-bar dropdown and Settings
+
+There are no new controls; the dropdown keeps Frame Rate only. The one visible change: when the last clip isn't H.264 MP4, its Last Clip status row adds the format to the end of the detail line, in the same quiet style: `0:42 · 1280 × 800 px · 60 fps · ProRes MOV · 10:24`. Default clips show nothing extra.
+
+### Acceptance
+
+- `ffprobe` on each combination (h264/hevc × mp4/mov, prores × mov) reports the codec and container the read-back says, and the constant-frame-rate check from criterion 2 still passes.
+- `--bitrate 8` gives an actual `bitrateMbps` within ±15% of 8 on a 60 s recording with motion.
+- Each error above can be triggered, exits 2 before anything is resized, and prints that exact copy.
+- With no new flags, output is identical to today: `clip.mp4`, H.264, and the same success line.

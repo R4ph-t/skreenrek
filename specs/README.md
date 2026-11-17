@@ -4,7 +4,7 @@ Specs for the factory (Manufacture, `.factory/project.conf`) live here, one bran
 first `Ready` row whose `Depends on` are all `Done`. `AUTO_MERGE=1`: it merges on a green `factory check` plus a `merge`
 verdict; `Risk: high` specs and risky paths wait for a Merge OK.
 
-Skreenrek v1 is specs 01–11, planned in Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)" (Notion, Bot Docs)
+Skreenrek v1 is specs 01–12, planned in Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)" (Notion, Bot Docs)
 from Designer's spec. 11 is a hand spec (guarded files: Info.plist, `scripts/`, `Makefile`, `.github/`), so the
 factory skips it; 09 waits until it is `Done`. Every spec merges on a green `factory check` with no hand test.
 
@@ -23,6 +23,7 @@ factory skips it; 09 waits until it is `Done`. Every spec merges on a green `fac
 | 11 | [App bundle packaging, Info.plist and ad-hoc signing (hand spec)](11-app-bundle-packaging.md) | Done | 01, by hand (Fraime Lead) | – | 0 h |
 | 09 | [record-window skill, agent setup and the Homebrew formula](09-skill-agent-setup-and-homebrew.md) | Queued (herdr) | 06, 07, 11 | 3–5 h | 0 h |
 | 10 | [Window picker overlay, recording HUD and permissions onboarding](10-picker-hud-and-onboarding.md) | Queued (herdr) | 08, 09 | 6–8 h | 0 h |
+| 12 | [Output format and compression](12-output-format-and-compression.md) | Queued (herdr) | 03, 04, 06, 07 | 4–6 h | 0 h |
 
 Status values: `Draft` → `Ready` (Raph approved the spec) → `In progress` → `In review` → `Done`.
 **Approval:** Raph merging a spec PR that sets `Status: Ready` is his approval of that spec.
