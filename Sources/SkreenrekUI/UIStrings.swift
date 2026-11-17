@@ -98,6 +98,8 @@ public enum UIStrings {
         public static let square = "square"
 
         public static let exactSize = "exact size"
+        /// Shown whenever Screen Recording or Accessibility is missing, even after onboarding; opens onboarding step 1.
+        public static let permissionsNeeded = "Permissions needed…"
 
         public static let startedFromMenu = "Started from the menu"
         public static let startedFromCommandLine = "Started from the command line"
@@ -229,6 +231,10 @@ public enum UIStrings {
         public static let introduction = "Skreenrek records windows for your coding agents. It needs two permissions. Everything stays on this Mac."
         public static let accessibilityNote = "Without Accessibility you can still record, but windows keep their current size."
         public static let continueButton = "Continue"
+        public static let quitAndReopen = "Quit & Reopen"
+        /// macOS applies a Screen Recording grant only to a new process, so the running app keeps reading "missing".
+        public static let relaunchNote =
+            "After you allow Skreenrek in System Settings, quit and reopen it so macOS applies the change."
         public static let agentsTitle = "Connect your agents"
         public static let agentsIntroduction = "Adds the Skreenrek MCP server and the record-window skill to each agent you pick. You can change this later in Settings."
         public static let skip = "Skip"
@@ -277,6 +283,7 @@ public enum UIStrings {
     public static let allFixed: [String] = [
         Picker.pick, Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
         Onboarding.title, Onboarding.introduction, Onboarding.accessibilityNote, Onboarding.continueButton,
+        Onboarding.quitAndReopen, Onboarding.relaunchNote,
         Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
         Onboarding.cliDetail, Onboarding.notInstalled,
         Agents.title, Agents.connect, Agents.remove,
@@ -285,7 +292,7 @@ public enum UIStrings {
         Menu.showCursor, Menu.writeClickEvents, Menu.recordWindow, Menu.lastClip, Menu.showInFinder,
         Menu.copyFilePath, Menu.copySnippet, Menu.openOutputFolder, Menu.settings, Menu.quit, Menu.stopRecording,
         Menu.discardRecording, Menu.savingClip, Menu.region, Menu.keepCurrentSize, Menu.customSize, Menu.portrait,
-        Menu.square, Menu.exactSize, Menu.notExact,
+        Menu.square, Menu.exactSize, Menu.notExact, Menu.permissionsNeeded,
         Menu.startedFromMenu, Menu.startedFromCommandLine, Menu.startedOverMCP,
         Errors.recordingStopped, Errors.screenRecordingOff, Errors.screenRecordingDetail, Errors.cantResize,
         Errors.cantResizeDetail, Errors.notExact, Errors.couldntSave, Errors.somethingWentWrong,

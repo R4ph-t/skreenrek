@@ -22,6 +22,8 @@ public enum MenuAction: Sendable, Hashable {
     case copyErrorDetails(String)
     case openPrivacySettings(Permission)
     case chooseOutputFolder
+    /// Opens onboarding step 1, where each missing permission can be allowed.
+    case showPermissions
 }
 
 /// A key equivalent shown in the dropdown. No numeric shortcuts.
@@ -143,6 +145,9 @@ public enum MenuModel {
             entries += errorEntries(error, lastClip: context.snapshot.lastClip)
         } else {
             entries.append(.status(context.isArmed ? armedRow(context) : idleRow))
+        }
+        if context.permissionsMissing {
+            entries.append(.item(MenuItemModel(UIStrings.Menu.permissionsNeeded, action: .showPermissions)))
         }
         entries.append(.separator)
         entries.append(

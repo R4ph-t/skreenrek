@@ -84,6 +84,7 @@ public enum UIRenderer {
                 let model = OnboardingModel(permissions: StaticPermissions(screenRecording: sample.screen, accessibility: sample.accessibility),
                     requester: PreviewPermissionRequester(), defaults: defaults,
                     agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) }, install: { _ in [] })
+                for permission in sample.requested { model.request(permission) }
                 try save(host(OnboardingView(model: model), size: OnboardingView.size), "onboarding", sample.name)
             }
         }
@@ -220,10 +221,11 @@ public enum RenderSamples {
     }
 
     static func context(
-        _ snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, title: String? = nil
+        _ snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, title: String? = nil,
+        permissionsMissing: Bool = false
     ) -> MenuContext {
         MenuContext(
-            snapshot: snapshot, actionError: actionError, lastClipTitle: title,
+            snapshot: snapshot, actionError: actionError, lastClipTitle: title, permissionsMissing: permissionsMissing,
             timeZone: TimeZone(identifier: "Europe/Paris")!, locale: Locale(identifier: "en_GB"))
     }
 
@@ -258,6 +260,9 @@ public enum RenderSamples {
                 ControllerSnapshot(
                     state: .armed, window: safari, displayId: 1, size: PixelSize(width: 1286, height: 800),
                     readback: readback(actual: PixelSize(width: 1286, height: 800)), fps: .fps60))),
+        Sample(
+            name: "permissionsneeded",
+            context: context(ControllerSnapshot(state: .idle, fps: .fps60), permissionsMissing: true)),
         Sample(
             name: "recording",
             context: context(

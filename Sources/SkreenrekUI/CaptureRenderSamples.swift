@@ -11,6 +11,8 @@ public enum CaptureRenderSamples {
         public let step: Int
         public let screen: PermissionStatus
         public let accessibility: PermissionStatus
+        /// Permissions requested in this run (they show Quit & Reopen while still missing).
+        public var requested: [Permission] = []
     }
     public static let hudStates: [HUDSample] = [
         HUDSample(name: "recording", state: .recording(target: "Safari", seconds: 12)),
@@ -27,6 +29,9 @@ public enum CaptureRenderSamples {
         OnboardingSample(name: "permissions-accessibilityallowed", step: 1, screen: .missing, accessibility: .allowed),
         OnboardingSample(name: "permissions-allowed", step: 1, screen: .allowed, accessibility: .allowed),
         OnboardingSample(name: "agents", step: 2, screen: .allowed, accessibility: .allowed),
+        OnboardingSample(
+            name: "permissions-relaunch", step: 1, screen: .missing, accessibility: .missing,
+            requested: [.screenRecording]),
     ]
 }
 

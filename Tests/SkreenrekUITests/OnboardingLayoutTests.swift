@@ -21,6 +21,7 @@ import Testing
                     requester: PreviewPermissionRequester(), defaults: defaults,
                     agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) },
                     install: { _ in [] })
+                for permission in sample.requested { model.request(permission) }
                 let size = NSHostingView(rootView: OnboardingView(model: model)).fittingSize
                 #expect(size == OnboardingView.size, "\(sample.name)")
             }

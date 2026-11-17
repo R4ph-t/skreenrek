@@ -23,6 +23,9 @@ public struct OnboardingView: View {
                 Text(UIStrings.Onboarding.step(model.step)).font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
                 if model.step == 1 {
+                    if model.needsRelaunch {
+                        Button(UIStrings.Onboarding.quitAndReopen) { model.quitAndReopen() }
+                    }
                     Button(UIStrings.Onboarding.continueButton) { model.continueToAgents() }
                         .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                         .disabled(!model.canContinue)
@@ -50,6 +53,10 @@ public struct OnboardingView: View {
             }
             .padding(.horizontal, 12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
             Text(UIStrings.Onboarding.accessibilityNote).font(.system(size: 12)).foregroundStyle(.secondary)
+            if model.needsRelaunch {
+                Text(UIStrings.Onboarding.relaunchNote).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
     private var agents: some View {
