@@ -1,7 +1,8 @@
 import AppKit
 import SkreenrekCore
 
-/// Opens the app bundle with `NSWorkspace`, hidden and without activating it.
+/// Opens the app bundle at the given URL with `NSWorkspace`, hidden and without activating it. Always by URL, never
+/// by bundle ID, so LaunchServices can't pick another registered copy.
 public struct WorkspaceAppLauncher: AppLauncher {
     public init() {}
 

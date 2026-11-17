@@ -65,7 +65,11 @@ import Testing
         #expect(AppConnector.appBundle(executablePath: link.path)?.resolvingSymlinksInPath()
             == bundle.resolvingSymlinksInPath())
         #expect(AppConnector.appBundle(executablePath: "/usr/local/bin/skreenrek") == nil)
-        #expect(AppConnector.appBundle(executablePath: "/Applications/Other.app/Contents/MacOS/skreenrek") == nil)
+        // Whatever bundle encloses the executable is the one to open: never another copy found by bundle ID.
+        #expect(
+            AppConnector.appBundle(executablePath: "/Applications/Other.app/Contents/MacOS/skreenrek")?.path
+                == "/Applications/Other.app")
+        #expect(AppConnector.appBundle(executablePath: "/Applications/Skreenrek/Contents/MacOS/skreenrek") == nil)
         #expect(
             AppConnector.appBundle(executablePath: "/Applications/Skreenrek.app/Contents/MacOS/skreenrek")?.path
                 == "/Applications/Skreenrek.app")
