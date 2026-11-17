@@ -27,3 +27,6 @@ playground.xcworkspace
 
 # Local scratch
 .scratch/
+
+# App bundles (make app)
+build/
