@@ -169,13 +169,14 @@ struct DirectionSettingsView: View {
         .frame(height: 64)
     }
 
-    /// C: the app icon at 56, the name in the wordmark font (a rounded stand-in until the logo) at 20 semibold, the
+    /// C: the V1 app icon (icon-dark) at 56, the name at 20 semibold (SF Pro, the system stand-in for the wordmark's
+    /// Inter SemiBold), the
     /// version, and the repository link on the right, 88 pt tall.
     private var brandedHero: some View {
         HStack(alignment: .center, spacing: 14) {
-            AppIconPlaceholder(size: 56, graphite: true)
+            KitAppIcon(size: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text(UIStrings.productName).font(.system(size: 20, weight: .semibold, design: .rounded))
+                Text(UIStrings.productName).font(.system(size: 20, weight: .semibold))
                 Text(version).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
             }
             Spacer(minLength: 8)

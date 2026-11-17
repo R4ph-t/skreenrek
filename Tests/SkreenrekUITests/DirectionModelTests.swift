@@ -193,7 +193,10 @@ import Testing
                 == .directions([.b], out: out, nested: false))
         #expect(
             RenderUIRequest.parse(["debug", "render-ui", "--out", "/tmp/r", "--direction", "ALL"])
-                == .directions([.a, .b, .c], out: out, nested: true))
+                == .directions([.a, .b, .c, .cMenubar], out: out, nested: true))
+        #expect(
+            RenderUIRequest.parse(["debug", "render-ui", "--direction", "c-menubar", "--out", "/tmp/r"])
+                == .directions([.cMenubar], out: out, nested: false))
         #expect(RenderUIRequest.parse(["debug", "render-ui", "--out", "/tmp/r", "--direction", "d"]) == nil)
         #expect(RenderUIRequest.parse(["debug", "render-ui", "--direction", "a"]) == nil)
         #expect(RenderUIRequest.parse(["debug", "render-ui", "--out"]) == nil)

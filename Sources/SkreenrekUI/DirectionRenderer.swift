@@ -2,15 +2,25 @@ import AppKit
 import SkreenrekCore
 import SwiftUI
 
+/// One `--direction` value: a direction's dropdown and Settings, or C's V1 menu-bar states.
+public enum RenderTarget: String, CaseIterable, Sendable {
+    case a
+    case b
+    case c
+    /// C's menu-bar status item: five states, mono and bichrome, light and dark.
+    case cMenubar = "c-menubar"
+}
+
 /// What `skreenrek debug render-ui` was asked for.
 public enum RenderUIRequest: Sendable, Equatable {
     /// No `--direction`: today's shipping UI and file names.
     case shipping(out: URL)
-    /// `--direction a|b|c` writes that direction into `out`; `--direction all` writes `out/a`, `out/b` and `out/c`.
-    case directions([UIDirection], out: URL, nested: Bool)
+    /// `--direction a|b|c|c-menubar` writes that target into `out`; `--direction all` writes `out/a`, `out/b`,
+    /// `out/c` and `out/c-menubar`.
+    case directions([RenderTarget], out: URL, nested: Bool)
 
-    /// Parses the arguments after the executable: `debug render-ui --out DIR [--direction a|b|c|all]`, flags in any
-    /// order. Nil for anything else (the CLI handles it).
+    /// Parses the arguments after the executable: `debug render-ui --out DIR [--direction a|b|c|c-menubar|all]`,
+    /// flags in any order. Nil for anything else (the CLI handles it).
     public static func parse(_ arguments: [String]) -> RenderUIRequest? {
         guard arguments.count >= 2, arguments[0] == "debug", arguments[1] == "render-ui" else { return nil }
         var out: String?
@@ -28,9 +38,9 @@ public enum RenderUIRequest: Sendable, Equatable {
         let folder = URL(fileURLWithPath: (out as NSString).expandingTildeInPath, isDirectory: true)
         switch direction {
         case nil: return .shipping(out: folder)
-        case "all": return .directions(UIDirection.allCases, out: folder, nested: true)
+        case "all": return .directions(RenderTarget.allCases, out: folder, nested: true)
         case let name?:
-            guard let one = UIDirection(rawValue: name) else { return nil }
+            guard let one = RenderTarget(rawValue: name) else { return nil }
             return .directions([one], out: folder, nested: false)
         }
     }
@@ -64,11 +74,57 @@ public enum DirectionRenderer {
         switch request {
         case .shipping(let out):
             return try UIRenderer.renderAll(to: out)
-        case .directions(let directions, let out, let nested):
-            return try directions.flatMap { direction in
-                try render(direction, to: nested ? out.appendingPathComponent(direction.rawValue) : out)
+        case .directions(let targets, let out, let nested):
+            return try targets.flatMap { target in
+                let folder = nested ? out.appendingPathComponent(target.rawValue) : out
+                switch target {
+                case .a: return try render(.a, to: folder)
+                case .b: return try render(.b, to: folder)
+                case .c: return try render(.c, to: folder)
+                case .cMenubar: return try renderMenuBar(to: folder)
+                }
             }
         }
+    }
+
+    /// C's menu-bar samples: state file name → `RenderSamples` sample name.
+    public static let menuBarStates: [(file: String, sample: String)] = [
+        ("idle", "idle"), ("armed", "armed"), ("recording", "recording"), ("saving", "writing"),
+        ("error", "errorwindowclosed"),
+    ]
+
+    /// `menubar-<state>-<mono|bichrome>-<light|dark>@2x.png`.
+    public static var menuBarFileNames: [String] {
+        UIRenderer.Appearance.allCases.flatMap { appearance in
+            menuBarStates.flatMap { state in
+                BrandStatusGlyph.Style.allCases.map {
+                    "menubar-\(state.file)-\($0.rawValue)-\(appearance.rawValue)@2x.png"
+                }
+            }
+        }
+    }
+
+    /// The V1 status item for each state, as the menu bar would draw it: the template layer follows the bar's
+    /// appearance, bichrome adds the accent layer, and recording shows the elapsed time.
+    @discardableResult
+    public static func renderMenuBar(to folder: URL) throws -> [UIRenderer.Rendered] {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var written: [UIRenderer.Rendered] = []
+        for appearance in UIRenderer.Appearance.allCases {
+            for state in menuBarStates {
+                guard let sample = RenderSamples.states.first(where: { $0.name == state.sample }) else { continue }
+                let icon = StatusIconModel.icon(for: sample.context)
+                let kitState = BrandStatusGlyph.state(for: sample.context.displayState)
+                for style in BrandStatusGlyph.Style.allCases {
+                    let view = BrandStatusGlyphView(
+                        state: kitState, style: style, elapsed: icon.elapsed, sentence: icon.sentence)
+                    let name = "menubar-\(state.file)-\(style.rawValue)-\(appearance.rawValue)@2x.png"
+                    written.append(
+                        try UIRenderer.write(view, appearance: appearance, to: folder.appendingPathComponent(name)))
+                }
+            }
+        }
+        return written
     }
 
     @discardableResult

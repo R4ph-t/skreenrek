@@ -74,7 +74,8 @@ import Testing
         let expected = await MainActor.run { Set(DirectionRenderer.fileNames) }
         #expect(expected.contains("dropdown-idle-light@2x.png"))
         #expect(expected.contains("settings-default-dark@2x.png"))
-        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a", "b", "c"])
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a", "b", "c", "c-menubar"])
         for direction in ["a", "b", "c"] {
             let sub = folder.appendingPathComponent(direction)
             let written = try FileManager.default.contentsOfDirectory(atPath: sub.path)
@@ -91,6 +92,31 @@ import Testing
             let dark = try Data(contentsOf: sub.appendingPathComponent("dropdown-recording-dark@2x.png"))
             #expect(light != dark)
         }
+
+        // C's V1 menu-bar status item: five states × mono/bichrome × light/dark, 24 pt tall.
+        let menubar = folder.appendingPathComponent("c-menubar")
+        let menuBarNames = await MainActor.run { Set(DirectionRenderer.menuBarFileNames) }
+        #expect(menuBarNames.count == 20)
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: menubar.path)) == menuBarNames)
+        for name in menuBarNames {
+            let data = try Data(contentsOf: menubar.appendingPathComponent(name))
+            let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+            #expect(rep.pixelsHigh == 48, "\(name)")
+            #expect(Self.hasVisiblePixels(rep), "\(name) is empty")
+        }
+        // The recording item carries the elapsed time, so it's wider than idle.
+        let idle = try #require(
+            NSBitmapImageRep(data: try Data(contentsOf: menubar.appendingPathComponent("menubar-idle-mono-light@2x.png"))))
+        let recording = try #require(
+            NSBitmapImageRep(
+                data: try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-light@2x.png"))))
+        #expect(recording.pixelsWide > idle.pixelsWide)
+        // The template layer follows the appearance; bichrome adds colour.
+        let monoLight = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-light@2x.png"))
+        let monoDark = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-mono-dark@2x.png"))
+        let bichrome = try Data(contentsOf: menubar.appendingPathComponent("menubar-recording-bichrome-light@2x.png"))
+        #expect(monoLight != monoDark)
+        #expect(monoLight != bichrome)
     }
 
     /// The `skreenrek` executable from the same build as this test bundle (`swift build` puts both in one products

@@ -46,15 +46,13 @@ struct BrandMark: View {
 /// A stand-in app icon (the real one comes with the logo): the placeholder mark in white on the accent.
 struct AppIconPlaceholder: View {
     var size: CGFloat
-    /// C: graphite, matching its header tile. A and B keep the warm placeholder.
-    var graphite = false
 
     var body: some View {
-        let base = graphite ? Color(white: 0.16) : DirectionTheme.accent
+        let base = DirectionTheme.accent
         RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [base.mix(with: .white, by: graphite ? 0.1 : 0.15), base],
+                    colors: [base.mix(with: .white, by: 0.15), base],
                     startPoint: .top, endPoint: .bottom)
             )
             .overlay(BrandMark(size: size * 0.6, color: .white))

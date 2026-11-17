@@ -244,10 +244,7 @@ struct DirectionHeaderView: View {
             }
         case .idle, .armed, .notExact:
             if branded {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(DirectionTheme.graphite)
-                    .overlay(BrandMark(size: 22, color: .white))
-                    .frame(width: 40, height: 40)
+                KitMarkTile(size: 40)
             } else {
                 plainTile {
                     Image(systemName: header.symbol)
