@@ -160,7 +160,8 @@ struct MenuHarness {
             await h.perform(.pickWindow)
             await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
             #expect(
-                h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+                h.firstLine
+                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
             #expect(h.model.context.error == nil)
         }
     }
@@ -216,8 +217,8 @@ struct MenuHarness {
             #expect(h.resizer.calls.count == 1)
             #expect(
                 h.model.entries.prefix(2).map(\.line) == [
-                    "[exclamationmark.triangle] Screen Recording is off | Allow Skreenrek in System Settings › Privacy & "
-                        + "Security, then reopen it.",
+                    "[exclamationmark.triangle] Screen Recording is off | "
+                        + "Allow Skreenrek in System Settings › Privacy & Security, then reopen it.",
                     "Open Privacy Settings…",
                 ])
             await h.perform(.openPrivacySettings(.screenRecording))
