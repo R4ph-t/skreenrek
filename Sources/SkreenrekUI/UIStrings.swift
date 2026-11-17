@@ -224,6 +224,41 @@ public enum UIStrings {
         public static func version(_ version: String) -> String { "Skreenrek \(version)" }
     }
 
+    // MARK: - v2 direction mockups (render-ui only)
+
+    /// Copy the v2 direction mockups add. The menu and Settings copy above is reused unchanged.
+    public enum Directions {
+        /// B's shortened Last Clip button labels; their tooltips keep the full names.
+        public static let finder = "Finder"
+        public static let copyPath = "Copy Path"
+        public static let snippet = "Snippet"
+        /// B and C hero rows.
+        public static let tagline = "Records windows for your coding agents."
+        public static let repoLink = "github.com/R4ph-t/skreenrek"
+        public static let repoURL = "https://github.com/R4ph-t/skreenrek"
+        /// Tooltips and VoiceOver labels for icon-only controls: full sentences.
+        public static let settingsHelp = "Open Skreenrek Settings."
+        public static let moreHelp = "Open the output folder or quit Skreenrek."
+        public static let thumbnailLabel = "The first frame of the last clip."
+        public static let stopHelp = "Stop recording and save the clip. The shortcut is Control-Command-Escape."
+
+        /// `Size: 1280 × 800 px. Click to choose another size.`
+        public static func sizeTileHelp(_ value: String) -> String {
+            "Size: \(value). Click to choose another size."
+        }
+
+        /// `Frame rate: 60 fps. Click to choose another frame rate.`
+        public static func frameRateTileHelp(_ value: String) -> String {
+            "Frame rate: \(value). Click to choose another frame rate."
+        }
+
+        /// B's recording line, lower case after the size: `started by Claude Code`.
+        public static func startedBy(client: String) -> String { "started by \(client)" }
+        public static let startedOverMCP = "started over MCP"
+        public static let startedFromMenu = "started from the menu"
+        public static let startedFromCommandLine = "started from the command line"
+    }
+
     /// Every fixed string above, for the copy audit.
     public static let allFixed: [String] = [
         Agents.title, Agents.connect, Agents.remove,
@@ -247,5 +282,8 @@ public enum UIStrings {
         Settings.stopShortcutKeys, Settings.permissions, Settings.screenRecording, Settings.screenRecordingDetail,
         Settings.accessibility, Settings.accessibilityDetail, Settings.allowed, Settings.openSystemSettings,
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
+        Directions.finder, Directions.copyPath, Directions.snippet, Directions.tagline, Directions.repoLink,
+        Directions.settingsHelp, Directions.moreHelp, Directions.thumbnailLabel, Directions.stopHelp,
+        Directions.startedOverMCP, Directions.startedFromMenu, Directions.startedFromCommandLine,
     ]
 }
