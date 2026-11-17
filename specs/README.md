@@ -16,7 +16,7 @@ factory skips it; 09 waits until it is `Done`. Every spec merges on a green `fac
 | 02 | [Window list and exact resize with read-back](02-window-list-and-exact-resize.md) | Done | 01 | 3–5 h | 0 h |
 | 03 | [Constant-frame-rate recorder pipeline and ScreenCaptureKit frame source](03-cfr-recorder-pipeline.md) | Done | 01 | 6–8 h | 0 h |
 | 04 | [events.json and the HyperFrames snippet](04-events-json-and-hyperframes-snippet.md) | Done | 01 | 3–4 h | 0 h |
-| 05 | [Controller state machine and the local control socket](05-controller-and-local-socket.md) | Queued (herdr) | 02, 03, 04 | 4–6 h | 0 h |
+| 05 | [Controller state machine and the local control socket](05-controller-and-local-socket.md) | Done | 02, 03, 04 | 4–6 h | 0 h |
 | 06 | [CLI commands, output and exit codes](06-cli-commands.md) | Queued (herdr) | 05 | 5–7 h | 0 h |
 | 07 | [stdio MCP server](07-stdio-mcp-server.md) | Queued (herdr) | 06 | 3–4 h | 0 h |
 | 08 | [Menu-bar icon, dropdown, Settings and the stop shortcut](08-menu-bar-dropdown-and-settings.md) | Queued (herdr) | 05 | 5–7 h | 0 h |
