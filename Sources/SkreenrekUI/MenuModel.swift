@@ -258,7 +258,7 @@ public enum MenuModel {
             .header(UIStrings.Menu.lastClip),
             .status(
                 StatusRow(
-                    symbol: "play.rectangle", title: title ?? fallback ?? clip.recording.id, emphasized: false,
+                    symbol: StatusIconModel.Symbol.lastClip, title: title ?? fallback ?? clip.recording.id, emphasized: false,
                     detail: lastClipDetail(clip, timeZone: context.timeZone, locale: context.locale))),
             .item(MenuItemModel(UIStrings.Menu.showInFinder, action: .showInFinder(path: clip.files.clip))),
             .item(MenuItemModel(UIStrings.Menu.copyFilePath, action: .copyFilePath(path: clip.files.clip))),

@@ -175,6 +175,7 @@ public enum UIStrings {
         public static let width = "Width"
         public static let height = "Height"
         public static let px = "px"
+        public static let times = "×"
         public static let setSize = "Set Size"
         public static let cancel = "Cancel"
         public static let enterSize = "Enter a width and height in px."
@@ -231,7 +232,7 @@ public enum UIStrings {
         Errors.chooseOutputFolder,
         Alerts.discardTitle, Alerts.discardMessage, Alerts.discard, Alerts.cancel, Alerts.quitTitle,
         Alerts.stopAndQuit,
-        CustomSize.title, CustomSize.width, CustomSize.height, CustomSize.px, CustomSize.setSize, CustomSize.cancel,
+        CustomSize.title, CustomSize.width, CustomSize.height, CustomSize.px, CustomSize.times, CustomSize.setSize, CustomSize.cancel,
         CustomSize.enterSize,
         Settings.windowTitle, Settings.outputFolder, Settings.choose, Settings.defaultFrameRate, Settings.showCursor,
         Settings.writeClickEvents, Settings.showRecordingIndicator, Settings.openAtLogin, Settings.stopShortcut,

@@ -24,6 +24,8 @@ public enum StatusIconModel {
         public static let recording = "record.circle.fill"
         public static let writing = "arrow.down.circle"
         public static let error = "exclamationmark.triangle"
+        /// The Last Clip row's symbol.
+        public static let lastClip = "play.rectangle"
     }
 
     /// How often the VoiceOver value changes while recording, in seconds.
