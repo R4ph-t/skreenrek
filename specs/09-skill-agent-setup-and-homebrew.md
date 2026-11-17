@@ -1,6 +1,6 @@
 # 09: record-window skill, agent setup and the Homebrew formula
 
-Status: Queued (herdr) · Branch: – · Depends on: 06 (CLI), 07 (MCP), 11 (app bundle, by hand) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Done · Branch: lane/09-skill-agent-setup-and-homebrew · Depends on: 06 (CLI), 07 (MCP), 11 (app bundle, by hand) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -73,4 +73,26 @@ A Homebrew cask, a notarized DMG and Sparkle (after v1, when a Developer ID exis
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- Added the repository skill and its byte-identical embedded Swift string, the shared `AgentInstaller` in Core,
+  `setup agents`, and an Agents section between Stop shortcut and Permissions in Settings. The Settings renderer
+  uses a synthetic home; installer tests use temporary homes, never the user's agent folders.
+- JSON edits replace only the Skreenrek member, preserving other keys, values, order and formatting. Codex gets
+  the specified marker block. Existing user-owned servers and skills are left untouched and reported. First-edit
+  backups of existing files are retained. A private ownership ledger in Application Support records what setup
+  added; removal restores an unchanged config byte for byte, or removes just the owned entry after unrelated edits.
+  Config files are never deleted; a newly created config becomes empty TOML or an empty JSON object on removal.
+- Defaults where no exact setup copy/schema was specified: JSON is an array of `{agent, success, message, warnings}`;
+  human output is one `✓`/`✗` line per selection. No flags selects detected agent folders; `--cli` alone only links
+  the command. A missing PATH entry is a warning, not a failed install. Settings also includes Command-line tool.
+- Setup fails closed on symlinked config files, paths outside the supplied home, duplicate keys, malformed or
+  unsupported TOML, and later user edits to an owned server or skill. The conservative TOML reader supports quoted
+  and dotted keys, strings (including multiline), arrays, inline tables and arrays of tables; date/time literals
+  are left untouched and reported as unsupported. A nonblocking file lock prevents concurrent setup writes.
+- Built the stated distribution default: a repo-local, HEAD-only Homebrew formula, using spec 11's existing
+  bundler and ad-hoc signature. A stable `url`/`sha256` block waits for the v1 tag; no cask or certificate is needed.
+  Cellar paths become `opt/skreenrek` paths for both MCP commands and the optional CLI link.
+- PR #12's distinct AX candidate IDs, invalid-element cache eviction and per-window unreadable-frame handling
+  are already present on the base branch; this lane does not alter those implementations.
+- Validation uses permission-free tests, Ruby syntax checking when available, and `make check` on the Devin
+  macOS VM. Async test waits have watchdogs; no live capture, Accessibility test or menu-bar app launch is used.
+  The optional Homebrew installation smoke is left for a machine where installing the app is intended.

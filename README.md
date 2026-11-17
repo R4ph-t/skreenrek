@@ -6,3 +6,29 @@ windows, resizes one to an exact pixel size and reads the frame back, records it
 
 Free and open source (MIT). Unsandboxed; v1 is ad-hoc signed and installed with a Homebrew build-from-source formula.
 It shares no code with Fraime. The build plan is in `specs/` (index: `specs/README.md`).
+
+## Install
+
+Requires macOS 15 Sequoia or later and Xcode 16 or later. v1 builds from source with Homebrew:
+
+```sh
+brew tap r4ph-t/skreenrek https://github.com/R4ph-t/skreenrek
+brew install --HEAD skreenrek
+mkdir -p ~/Applications
+ln -sfn "$(brew --prefix skreenrek)/Skreenrek.app" ~/Applications/Skreenrek.app
+open ~/Applications/Skreenrek.app
+```
+
+Open the app once to grant Screen Recording and Accessibility. Then connect detected agents:
+
+```sh
+skreenrek setup agents
+skreenrek --version
+```
+
+Setup detects `~/.claude`, `~/.codex` and `~/.cursor`, and installs the `record-window` skill and the `skreenrek`
+MCP server. Use `--claude`, `--codex` or `--cursor` to select clients explicitly, `--cli` to link the command into
+`~/.local/bin`, `--json` for per-agent results, and `--remove` to remove the connections setup added. Existing
+configs get a `.skreenrek-backup` before their first edit. Other servers and settings stay in place.
+
+Skreenrek is ad-hoc signed. macOS may ask for Screen Recording and Accessibility again after an upgrade.
