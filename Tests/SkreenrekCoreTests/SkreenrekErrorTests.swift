@@ -53,8 +53,11 @@ import Testing
     @Test func screenRecordingCopyIsWordForWord() {
         let error = SkreenrekError.permissionDenied(.screenRecording)
         #expect(error.message == "Screen Recording isn't allowed for Skreenrek.")
-        #expect(error.hint == "Allow it in System Settings › Privacy & Security › Screen & System Audio Recording, "
-            + "then run: skreenrek doctor")
+        #expect(error.hint == "Open Skreenrek.app and allow it in System Settings › Privacy & Security › "
+            + "Screen & System Audio Recording, then quit and reopen Skreenrek. Check with: skreenrek doctor")
+        #expect(SkreenrekError.permissionDenied(.accessibility).hint
+            == "Open Skreenrek.app and allow it in System Settings › Privacy & Security › Accessibility. "
+            + "Check with: skreenrek doctor")
     }
 
     @Test func notExactCopyIsWordForWord() {
@@ -99,8 +102,9 @@ import Testing
     @Test func encodesAsTheErrorEnvelope() throws {
         let json = try SkreenrekJSON.string(SkreenrekError.permissionDenied(.screenRecording))
         #expect(json == #"{"error":{"code":"permission_denied","exit":3,"#
-            + #""hint":"Allow it in System Settings › Privacy & Security › Screen & System Audio Recording, "#
-            + #"then run: skreenrek doctor","message":"Screen Recording isn't allowed for Skreenrek."}}"#)
+            + #""hint":"Open Skreenrek.app and allow it in System Settings › Privacy & Security › "#
+            + #"Screen & System Audio Recording, then quit and reopen Skreenrek. Check with: skreenrek doctor","#
+            + #""message":"Screen Recording isn't allowed for Skreenrek."}}"#)
         let envelope = try SkreenrekJSON.decoder().decode(ErrorEnvelope.self, from: Data(json.utf8))
         #expect(envelope.error == SkreenrekError.permissionDenied(.screenRecording).body)
     }

@@ -174,10 +174,12 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .usage(_, let hint):
             return hint
         case .permissionDenied(.screenRecording):
-            return "Allow it in System Settings › Privacy & Security › Screen & System Audio Recording, then run: "
-                + "skreenrek doctor"
+            // macOS applies a Screen Recording grant only after the app relaunches.
+            return "Open Skreenrek.app and allow it in System Settings › Privacy & Security › Screen & System Audio "
+                + "Recording, then quit and reopen Skreenrek. Check with: skreenrek doctor"
         case .permissionDenied(.accessibility):
-            return "Allow it in System Settings › Privacy & Security › Accessibility, then run: skreenrek doctor"
+            return "Open Skreenrek.app and allow it in System Settings › Privacy & Security › Accessibility. "
+                + "Check with: skreenrek doctor"
         case .notExact(_, _, _, let reason):
             switch reason {
             case .minWidth(let px): return "Pick a width of \(px) px or more, or pass --allow-inexact."
