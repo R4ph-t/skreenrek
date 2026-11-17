@@ -8,30 +8,39 @@ description: Record a macOS window at an exact pixel size as a smooth 30/60 fps 
 
 # Record a window
 
+Use the skreenrek MCP tools first: `skreenrek_list_windows`, `skreenrek_pick_window`, `skreenrek_resize_window`,
+`skreenrek_start_recording`, `skreenrek_stop_recording`, `skreenrek_status` and `skreenrek_discard_recording`.
+The MCP server runs outside your sandbox, so it reaches the Skreenrek app even when shell commands can't. Use the
+`skreenrek` CLI only when the MCP tools aren't available.
+
 ## Before you start
 
-Run `skreenrek doctor --json`. If a permission is missing, tell the user which one and stop.
+With MCP, call `skreenrek_status` to check that the app answers; a missing permission comes back as
+`permission_denied` from the first tool that needs it. Without MCP, run `skreenrek doctor --json`. If a permission is
+missing, tell the user which one and stop.
 
 ## Steps
 
-1. List windows with `skreenrek_list_windows` or `skreenrek windows --json`. Pick a window ID.
-2. Start with `skreenrek_start_recording` (windowId, size: "1080p", fps: 60) or
-   `skreenrek record <window> --size 1080p --fps 60 --json`. Sizes are the clip's pixels: 720p, 1080p, 1440p, 4k,
-   square, portrait, or WxH. Skreenrek sizes the window to fit the display. Read `exact` from the read-back.
+1. List windows with `skreenrek_list_windows` (CLI: `skreenrek windows --json`). Pick a window ID.
+2. Start with `skreenrek_start_recording` (windowId, size: "1080p", fps: 60)
+   (CLI: `skreenrek record <window> --size 1080p --fps 60 --json`). Sizes are the clip's pixels: 720p, 1080p, 1440p,
+   4k, square, portrait, or WxH. Skreenrek sizes the window to fit the display. Read `exact` from the read-back.
    If it isn't true, stop and report the actual size. Never claim an exact size without the read-back.
 3. Do the actions.
-4. Stop with `skreenrek_stop_recording` or `skreenrek stop --json`.
+4. Stop with `skreenrek_stop_recording` (CLI: `skreenrek stop --json`).
 5. Report the three paths from `files`: `clip`, `events`, and `snippet`. `events` is omitted with `--no-events`.
 
 ## Rules
 
-- Prefer MCP tools if they're available, otherwise the CLI.
+- Prefer the MCP tools. Use the CLI only when they aren't available.
 - Never record windows showing secrets or tokens.
 - Keep clips short (start just before the first action).
 - One recording at a time.
 - Don't take screenshots with this tool.
 
 ## Errors
+
+MCP tools return the same error codes as the CLI.
 
 | Exit code | Error code | Action |
 | --- | --- | --- |
@@ -42,15 +51,18 @@ Run `skreenrek doctor --json`. If a permission is missing, tell the user which o
 | 4 | `not_exact` | Report the actual size. Pick the size in the hint, or use `--allow-inexact` only if an inexact size is acceptable. |
 | 5 | `window_not_found` | List windows again and pick a window ID. |
 | 5 | `window_ambiguous` | Pick a distinct window ID from the candidates. If Accessibility can't distinguish the windows, change the title or frame and list again. |
-| 6 | `wrong_state` | Check `skreenrek status --json`. Stop the current recording before starting another. |
+| 6 | `wrong_state` | Check `skreenrek_status` (CLI: `skreenrek status --json`). Stop the current recording before starting another. |
 | 7 | `recording_failed` | Report the failure and any partial clip paths. Fix the cause in the hint before retrying. |
 | 130 | — | Interrupted (Ctrl-C during `--wait`; the clip is saved). Report the saved paths. |
 
+If a CLI command fails with error code `sandboxed`, your sandbox blocked it from reaching the app. Switch to the
+skreenrek MCP tools, or ask the user to allow network access for that command.
+
 ## Using the output with HyperFrames
 
-The snippet is in `hyperframes.html` in the clip folder and in `snippet` from `stop --json`.
-Paste it into the composition. Use `--assets DIR` (MCP: `assetsDir`) to drop the clip straight into a project's
-assets folder. Without it, follow the exact `cp` command in the snippet's comment.
+The snippet is in `hyperframes.html` in the clip folder and in `snippet` from `skreenrek_stop_recording` or
+`stop --json`. Paste it into the composition. Use `assetsDir` (CLI: `--assets DIR`) to drop the clip straight into a
+project's assets folder. Without it, follow the exact `cp` command in the snippet's comment.
 
 ```html
 <!-- Skreenrek · Safari — localhost:3000 · 1280×800 px · 60 fps · 42.0 s · clicks: events.json -->
@@ -58,4 +70,10 @@ assets folder. Without it, follow the exact `cp` command in the snippet's commen
        data-start="0" data-duration="42.0" data-track-index="0" muted playsinline></video>
 ```
 """# + "\n"
+
+    /// SHA-256 digests of skills earlier versions installed. Setup replaces them with `text` like its own.
+    static let previousDigests: Set<String> = [
+        "bfe012cdd7b60bd28f9c202fee39c48a4f3f20d47e5c132a0cd638a011b228ef",
+        "d426faf633b6e2c4338f59301116cf101d48d99c83389a50995c6a9907bf8481",
+    ]
 }

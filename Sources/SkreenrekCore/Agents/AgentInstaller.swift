@@ -326,7 +326,7 @@ public struct AgentInstaller: Sendable {
         var updated = ledger
         if remove {
             guard let entry else { return }
-            guard skill == Data(RecordWindowSkill.text.utf8) || skill == entry.originalSkill else {
+            guard Self.isOurSkill(skill) || skill == entry.originalSkill else {
                 throw AgentSetupError("The record-window skill changed after setup. Leave it unchanged and remove its changes manually.")
             }
             if let original {
@@ -341,26 +341,32 @@ public struct AgentInstaller: Sendable {
                 throw AgentSetupError("The Skreenrek connection changed after setup. Review it before reconnecting.")
             }
             // Our entry is unchanged. Keep a working, lasting command byte-for-byte (backups and ledger included);
-            // repoint a missing or versioned one in place.
+            // repoint a missing or versioned one in place, and bring an earlier skill up to date.
             let recorded = Self.recordedCommand(agent, entry)
             let works = recorded.map(files.isExecutable) ?? false
-            if works, let recorded, !Self.isVersioned(recorded) { return }
-            let command: String
-            do { command = try self.command() } catch { if works { return } else { throw error } }
-            guard command != recorded else { return }
-            let server = try serverText(agent, command: command)
-            let repaired: String
-            if agent == .codex, let range = try TOMLConfig.block(in: original) {
-                repaired = original.replacingCharacters(in: range, with: server)
-                try TOMLConfig.validate(repaired)
-            } else {
-                repaired = try JSONConfig.edit(original, server: server)
+            var command = recorded
+            if !works || recorded.map(Self.isVersioned) != false {
+                do { command = try self.command() } catch { if !works { throw error } }
             }
-            config = repaired
-            newSkill = skill
+            let currentSkill = Data(RecordWindowSkill.text.utf8)
+            guard command != recorded || skill != currentSkill else { return }
             var entry = entry
-            entry.installedServer = server
-            entry.insertion = entry.insertion?.undo(original).flatMap { Insertion(original: $0, installed: repaired) }
+            if let command, command != recorded {
+                let server = try serverText(agent, command: command)
+                let repaired: String
+                if agent == .codex, let range = try TOMLConfig.block(in: original) {
+                    repaired = original.replacingCharacters(in: range, with: server)
+                    try TOMLConfig.validate(repaired)
+                } else {
+                    repaired = try JSONConfig.edit(original, server: server)
+                }
+                config = repaired
+                entry.installedServer = server
+                entry.insertion = entry.insertion?.undo(original).flatMap { Insertion(original: $0, installed: repaired) }
+            } else {
+                config = original
+            }
+            newSkill = currentSkill
             updated[agent.rawValue] = entry
         } else {
             guard skill == nil else {
@@ -426,6 +432,13 @@ public struct AgentInstaller: Sendable {
         AgentSetupError("The skreenrek MCP server changed after setup. Leave it unchanged and remove it manually.")
     }
 
+    /// The skill this version installs, or one an earlier version installed unchanged.
+    private static func isOurSkill(_ data: Data?) -> Bool {
+        guard let data else { return false }
+        return data == Data(RecordWindowSkill.text.utf8)
+            || RecordWindowSkill.previousDigests.contains(SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined())
+    }
+
     /// Our entry (and skill) are still exactly what setup wrote.
     private func isInstalled(_ agent: AgentClient, entry: Entry) throws -> Bool {
         let url = home.appendingPathComponent(agent.config)
@@ -433,7 +446,7 @@ public struct AgentInstaller: Sendable {
         if agent == .cli { return (try? fm.destinationOfSymbolicLink(atPath: url.path)) == entry.installedServer }
         let skillURL = home.appendingPathComponent(agent.skill)
         try safe(skillURL)
-        guard try readData(skillURL) == Data(RecordWindowSkill.text.utf8), let text = try read(url) else { return false }
+        guard Self.isOurSkill(try readData(skillURL)), let text = try read(url) else { return false }
         if agent == .codex {
             guard let range = try TOMLConfig.block(in: text) else { return false }
             return String(text[range]) == entry.installedServer
