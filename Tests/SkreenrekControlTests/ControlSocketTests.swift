@@ -177,7 +177,9 @@ import Testing
         _ = try await client.call(.recordDiscard, as: DiscardBody.self)
     }
 
-    @Test func startWithoutScreenRecordingFailsWithExit3AfterTheResize() async throws {
+    /// The capture permissions are checked first: a missing one never resizes the window or touches capture, so
+    /// recording is never where a macOS prompt first appears.
+    @Test func startWithoutScreenRecordingFailsWithExit3BeforeTheResize() async throws {
         let h = try Harness().start()
         defer { h.stop() }
         h.permissions.screenRecording = .missing
@@ -187,7 +189,7 @@ import Testing
         #expect(error.exit == 3)
         #expect(error.code == "permission_denied")
         #expect(error.message == "Screen Recording isn't allowed for Skreenrek.")
-        #expect(h.resizer.calls.count == 1)
+        #expect(h.resizer.calls.isEmpty)
         #expect(h.source.startCalls.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: h.temp.output.path))
         #expect(try await client.call(.status, as: StatusBody.self).state == .idle)
@@ -498,7 +500,7 @@ import Testing
         h.permissions.accessibility = .missing
         let doctor = try await (try await h.client()).call(.doctor, as: DoctorBody.self)
         #expect(doctor.version == SkreenrekVersion.current)
-        #expect(doctor.permissions == .init(screenRecording: .allowed, accessibility: .missing))
+        #expect(doctor.permissions == .init(screenRecording: .allowed, directCapture: .allowed, accessibility: .missing))
         #expect(doctor.outputFolder.path == h.temp.output.path)
         #expect(doctor.outputFolder.writable)
         #expect(doctor.socket == h.temp.socket.path)

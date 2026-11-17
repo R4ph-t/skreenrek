@@ -3,6 +3,10 @@ import Foundation
 /// A permission Skreenrek needs.
 public enum Permission: String, Sendable, Hashable, Codable, CaseIterable {
     case screenRecording
+    /// macOS 15's second Screen Recording step: "Skreenrek is requesting to bypass the system private window picker
+    /// and directly access your screen and audio". ScreenCaptureKit raises it on the first direct capture after
+    /// Screen Recording is allowed. Onboarding raises it on purpose (see `DirectCaptureApproval`).
+    case directCapture
     case accessibility
 }
 
@@ -120,6 +124,8 @@ public enum SkreenrekError: Error, Sendable, Hashable {
             return message
         case .permissionDenied(.screenRecording):
             return "Screen Recording isn't allowed for Skreenrek."
+        case .permissionDenied(.directCapture):
+            return "Direct screen capture isn't approved for Skreenrek yet."
         case .permissionDenied(.accessibility):
             return "Accessibility isn't allowed for Skreenrek."
         case .notExact(let app, let requested, let actual, let reason):
@@ -177,6 +183,9 @@ public enum SkreenrekError: Error, Sendable, Hashable {
             // macOS applies a Screen Recording grant only after the app relaunches.
             return "Open Skreenrek.app and allow it in System Settings › Privacy & Security › Screen & System Audio "
                 + "Recording, then quit and reopen Skreenrek. Check with: skreenrek doctor"
+        case .permissionDenied(.directCapture):
+            return "Open Skreenrek.app and click Allow when macOS asks about the private window picker. "
+                + "Check with: skreenrek doctor"
         case .permissionDenied(.accessibility):
             return "Open Skreenrek.app and allow it in System Settings › Privacy & Security › Accessibility. "
                 + "Check with: skreenrek doctor"

@@ -3,8 +3,8 @@ import SkreenrekControl
 import SkreenrekCore
 
 extension Runner {
-    /// One line per check (Screen Recording, Accessibility, the app's version and that it runs, the output folder,
-    /// the CLI path, the socket) with ✓ or ✗ and a fix. Exit 3 when Screen Recording is missing, 1 when the app
+    /// One line per check (Screen Recording, direct capture, Accessibility, the app's version and that it runs, the output folder,
+    /// the CLI path, the socket) with ✓ or ✗ and a fix. Exit 3 when Screen Recording or direct capture is missing, 1 when the app
     /// can't be reached, else 0.
     func doctor() async throws -> Int32 {
         let body: DoctorBody
@@ -22,8 +22,8 @@ extension Runner {
         } else {
             say(doctorLines(body: body, appFailure: nil))
         }
-        return body.permissions.screenRecording == .allowed ? 0 : SkreenrekError.permissionDenied(.screenRecording)
-            .exitCode
+        let canCapture = body.permissions.screenRecording == .allowed && body.permissions.directCapture != .missing
+        return canCapture ? 0 : SkreenrekError.permissionDenied(.screenRecording).exitCode
     }
 
     /// The doctor report. Without a body (the app couldn't be reached) only the app, CLI and socket lines show.
@@ -39,6 +39,16 @@ extension Runner {
                     : "Not allowed. Allow it in System Settings › Privacy & Security › Screen & System Audio "
                         + "Recording, then quit and reopen Skreenrek."
             ))
+            // Direct capture can only be approved once Screen Recording is in effect, so it shows after that.
+            if sr, let direct = body.permissions.directCapture {
+                lines.append((
+                    direct == .allowed, "Direct capture",
+                    direct == .allowed
+                        ? "Allowed"
+                        : "Not approved yet. Open Skreenrek and click Allow when macOS asks about the private window "
+                            + "picker."
+                ))
+            }
             let ax = body.permissions.accessibility == .allowed
             lines.append((
                 ax, "Accessibility",

@@ -334,10 +334,14 @@ public struct StatusBody: Sendable, Hashable, Codable {
 public struct DoctorBody: Sendable, Hashable, Codable {
     public struct Permissions: Sendable, Hashable, Codable {
         public var screenRecording: PermissionStatus
+        /// macOS 15's private window picker bypass, approved in onboarding. Optional in JSON from older apps.
+        public var directCapture: PermissionStatus?
         public var accessibility: PermissionStatus
 
-        public init(screenRecording: PermissionStatus, accessibility: PermissionStatus) {
+        public init(screenRecording: PermissionStatus, directCapture: PermissionStatus? = nil,
+                    accessibility: PermissionStatus) {
             self.screenRecording = screenRecording
+            self.directCapture = directCapture
             self.accessibility = accessibility
         }
     }

@@ -10,9 +10,9 @@ public struct SCWindowCatalog: WindowCatalog {
     public init(permissions: any PermissionProbe = SystemPermissionProbe()) { self.permissions = permissions }
 
     public func windows() async throws -> [WindowInfo] {
-        // ScreenCaptureKit may prompt on its first content query. An agent request must instead fail
-        // and let onboarding offer the explicit permission button.
-        guard permissions.screenRecording == .allowed else { throw SkreenrekError.permissionDenied(.screenRecording) }
+        // ScreenCaptureKit prompts on its first content query (Screen Recording, then macOS 15's private window picker
+        // bypass). An agent request must instead fail and let onboarding raise those prompts.
+        if let missing = permissions.missingCapturePermission { throw SkreenrekError.permissionDenied(missing) }
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)

@@ -274,8 +274,8 @@ public actor SkreenrekController {
 
     // MARK: - Recording
 
-    /// Starts recording: resolve the target → resize first when a size is given (exit 4 unless `allowInexact`) →
-    /// Screen Recording check → output folder → recorder with events. Returns once the recorder runs, never waiting
+    /// Starts recording: Screen Recording and direct capture check → resolve the target → resize first when a size
+    /// is given (exit 4 unless `allowInexact`) → output folder → recorder with events. Returns once the recorder runs, never waiting
     /// for a frame to be encoded.
     public func start(_ params: StartParams, startedBy: StartedBy, client: String? = nil) async throws -> StartBody {
         clearError()
@@ -304,6 +304,9 @@ public actor SkreenrekController {
     {
         let options = try recordingOptions(params, surface: startedBy)
         let size = try requestedSize(params)
+        // Capture permissions first, before any resize or ScreenCaptureKit call: a missing one fails here (and the app
+        // opens onboarding), so recording is never where a macOS prompt first appears.
+        if let missing = seams.permissions.missingCapturePermission { throw SkreenrekError.permissionDenied(missing) }
 
         // The target, its display and, for a resize, the read-back. The window frame is fixed here: events map
         // against the frame read back at start.
@@ -351,10 +354,6 @@ public actor SkreenrekController {
             case .window(let window): readback?.actual ?? window.pixelSize(on: display)
             case .region(let rect, _): rect.size
             }
-
-        guard seams.permissions.screenRecording == .allowed else {
-            throw SkreenrekError.permissionDenied(.screenRecording)
-        }
 
         let startedAt = Date()
         let folder = try OutputFolder.create(
@@ -580,7 +579,8 @@ public actor SkreenrekController {
         return DoctorBody(
             version: SkreenrekVersion.current,
             permissions: DoctorBody.Permissions(
-                screenRecording: seams.permissions.screenRecording, accessibility: seams.permissions.accessibility),
+                screenRecording: seams.permissions.screenRecording, directCapture: seams.permissions.directCapture,
+                accessibility: seams.permissions.accessibility),
             outputFolder: DoctorBody.OutputFolder(path: folder.path, writable: Self.canWrite(folder)),
             socket: socketPath)
     }
