@@ -98,4 +98,17 @@ bundle and Info.plist (hand spec 11).
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- Swift Testing runs on the toolchain; no XCTest fallback needed.
+- Exit codes live in `SkreenrekExitCode` (0–7 and 130). `SkreenrekError` has one case per error row (exit 1–7);
+  0 (success) and 130 (Ctrl-C during `--wait`, clip saved) aren't errors, so they're exit codes only.
+- `not_exact`, `usage`, `wrong_state`, `recording_failed` and `internal` take their message and hint from the caller
+  (02, 03, 05 build them from the copy quoted in those specs). `window_ambiguous` builds the 02 copy itself.
+- **Not from the design spec (it isn't in the repo):** the Screen Recording and Accessibility messages and hints in
+  `ErrorCopy`, the `window_not_found` copy, and the `window`/`display` sub-objects of `Readback` (`{id, app, title}`
+  and `{id, scale}`; sizes carry `"unit": "px"`, the frame `"unit": "pt"`). Replace them with the design spec's
+  wording and shape.
+- `SyntheticFrames` encodes the frame index as luma `16 + 4 × (index mod 55)`, so a decoded H.264 frame still maps
+  back to its index; the index wraps every 55 frames.
+- `ManualClock.waitForSleepers(_:)` lets a test advance the clock only after the code under test is parked in
+  `sleep(until:)`, with no real sleeps.
+- On the dev Mac the canary printed `.requireHardware accepted`; on the CI VM it is expected to print not accepted.
