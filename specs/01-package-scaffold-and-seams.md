@@ -142,7 +142,9 @@ bundle and Info.plist (hand spec 11).
 - **`EncoderCanaryTests`** collects 30 frames from `SyntheticFrameSource`, writes them through
   `AVAssetWriterInputPixelBufferAdaptor` (H.264, pts n/30, `endSession` at 30/30), and checks track count, natural
   size, `avc1` codec, duration and the `AVAssetReader` sample count. The hardware probe uses a
-  `VTCompressionSession` with `RequireHardwareAcceleratedVideoEncoder` and only prints the result (this Mac: `true`).
+  `VTCompressionSession` with `RequireHardwareAcceleratedVideoEncoder` and only prints the result. It printed `true`
+  on this Mac and, unexpectedly, also on the GitHub macos-15 runner (first CI run of PR #9). Spec 03 still uses
+  `.software` in tests as planned, so CI never depends on it.
 - **`GuardrailTests`** enforce the guardrails in `swift test`: no ScreenCaptureKit/AppKit/ApplicationServices/SwiftUI
   import in Core or Testing, no permission API or ScreenCaptureKit import in tests, no `resources:` in the manifest.
 - `skreenrek --version` prints `skreenrek 0.1.0` (exit 0); anything else prints `usage: skreenrek --version` to
