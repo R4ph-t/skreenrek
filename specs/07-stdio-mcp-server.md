@@ -1,6 +1,6 @@
 # 07: stdio MCP server
 
-Status: Queued (herdr) · Branch: – · Depends on: 06 (CLI) · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/07-stdio-mcp-server · Depends on: 06 (CLI) · Estimate: 3–4 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -56,4 +56,34 @@ Installing the server into agent configs (09), resources and prompts, HTTP trans
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Targets.** `SkreenrekMCP` (Core + Control) holds the server; `SkreenrekCLI` depends on it and runs it for
+  `skreenrek mcp`. No MCP SDK: `JSONValue` plus JSON-RPC 2.0, one message per line. stdin is read on a thread of its
+  own (`StdioLines`), never on the Swift concurrency pool; a line over 4 MiB is cut and answered `-32700`.
+- **Shared launcher.** 06's connect-and-launch logic moved from `SkreenrekCLI/AppConnector` to
+  `SkreenrekControl/ControlConnector` (the same messages, hints and 10 s launch wait), so the CLI and MCP share it.
+  `AppConnector` now delegates to it; `ControlClientError.body` holds the not-running/closed/timed-out bodies both
+  report.
+- **Calls.** Each tool call opens its own control connection as `{kind: "mcp", name}` (with the hidden launch when
+  needed) and closes it after the answer. `tools/call` runs concurrently, so a 60 s `pick` doesn't block `ping`;
+  every other method answers in order. On end of stdin the server waits for calls in flight, then exits 0.
+- **Results.** The app's result JSON goes back as it is (`structuredContent` plus one `text` item with the same
+  compact, sorted JSON), so fields later specs add to the control bodies (12's `video`) reach MCP with no change
+  here. `isError: false` is set explicitly on success.
+- **Errors.** Tool failures (app errors, app not running) are `isError: true` with `{error: {code, message, hint}}`,
+  without the CLI's `exit` field (the design spec's MCP body names only those three). Unknown keys (also inside
+  `region`), wrong types and missing required arguments are `-32602` before the app is contacted; range and state
+  checks (`fps: 45`, wrong state, not exact) are the app's and come back as tool errors. A non-object message or a
+  missing/wrong `jsonrpc` is `-32600`. Responses sent by the client and all notifications are ignored.
+- **Inputs.** Exactly the design spec's MCP table: `skreenrek_resize_window` has no `allowInexact` (not in the table);
+  `codec` and `name` stay CLI-only until 12 adds the format parameters. `outDir`/`assetsDir` resolve `~` and relative
+  paths against the server's folder, as the CLI does.
+- **Lenient start.** Tools work before `initialize` (the client name is then null, `startedBy` still `mcp`).
+  `initialize` without `protocolVersion` answers `2025-06-18`. No `outputSchema` in `tools/list` (optional in
+  `2025-06-18`; left out so the schema snapshot stays the inputs only).
+- **Open question (default built):** the client display names are the table in 4; any other name shows as given, a
+  blank name is null.
+- **Tests.** `SkreenrekMCPTests` drives the server through a real stdin `Pipe` against a `HeadlessHost` with fakes on
+  a real socket: version negotiation, the `tools/list` golden (`ToolsListGoldenTests`, pretty-printed), list → start
+  (width/height) → stop writing clip, events and snippet with `client: "Claude Code"` in the snapshot, status and
+  events.json, not-exact and wrong-state tool errors, the JSON-RPC codes, a pick not blocking ping, the hidden launch,
+  and that stdout holds exactly one response per request. `MCPCommandTests` (CLI) runs `skreenrek mcp` itself.
