@@ -195,7 +195,8 @@ final class FailingLoginItem: LoginItemService {
                 {
                     continue
                 }
-                #expect(text[match.range] == "Skreenrek", "\(text)")
+                let commandReference = text == UIStrings.Onboarding.cliDetail && text[match.range] == "skreenrek"
+                #expect(text[match.range] == "Skreenrek" || commandReference, "\(text)")
             }
         }
     }

@@ -50,8 +50,50 @@ public enum UIRenderer {
             try save(DropdownPreview(MenuModel.sizeSubmenu(base.sizeChoice).entries), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
             try save(settingsView(), "settings", "default")
+            try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
+                          size: NSSize(width: 280, height: 56)), "picker", "label")
+            try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
+            for state in ["window", "keyboard", "region", "window-contrast", "region-contrast", "empty"] {
+                let canvas = PickerCanvas(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+                canvas.increaseContrast = state.hasSuffix("contrast")
+                var display = RenderSamples.display
+                display.visibleFrame = PointRect(x: 0, y: 0, width: 800, height: 600)
+                canvas.display = display
+                var model = PickerModel(windows: [RenderSamples.safari], displays: [display], ownPid: -1)
+                if state == "keyboard" { model.move() }
+                else if state != "empty" { model.hover(CGPoint(x: 200, y: 200)) }
+                if state.hasPrefix("region") { model.beginDrag(CGPoint(x: 100, y: 100)); model.drag(to: CGPoint(x: 500, y: 400)) }
+                canvas.update(model, pointer: CGPoint(x: 500, y: 400))
+                try save(canvas, "picker", state)
+            }
+            for sample in CaptureRenderSamples.hudStates {
+                let view = NSHostingView(rootView: RecordingHUDView(presentation: HUDPresentation(state: sample.state,
+                    reduceMotion: sample.name == "writing-reducedmotion", increaseContrast: sample.name == "recording-contrast")))
+                view.frame = NSRect(origin: .zero, size: view.fittingSize)
+                try save(view, "hud", sample.name)
+            }
+            for contrast in [false, true] {
+                try save(host(RegionOutline(increaseContrast: contrast), size: NSSize(width: 320, height: 200)),
+                         "hud", contrast ? "regionoutline-contrast" : "regionoutline")
+            }
+            for sample in CaptureRenderSamples.onboardingStates {
+                let name = "skreenrek.render-onboarding.\(UUID().uuidString)"
+                let defaults = UserDefaults(suiteName: name)!
+                defer { defaults.removePersistentDomain(forName: name) }
+                defaults.set(sample.step, forKey: "onboarding.step")
+                let model = OnboardingModel(permissions: StaticPermissions(screenRecording: sample.screen, accessibility: sample.accessibility),
+                    requester: PreviewPermissionRequester(), defaults: defaults,
+                    agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) }, install: { _ in [] })
+                try save(host(OnboardingView(model: model), size: NSSize(width: 520, height: 496)), "onboarding", sample.name)
+            }
         }
         return written
+    }
+
+    static func host<V: View>(_ view: V, size: NSSize) -> NSView {
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        return hosting
     }
 
     /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).

@@ -22,15 +22,16 @@ public final class SCStreamFrameSource: FrameSource {
         var watcher: Task<Void, Never>?
     }
 
-    private let excludedBundleID: String?
+    private let filterPlan: CaptureFilterPlan
     private let running = Mutex<Running?>(nil)
     /// The latest start's stream, kept after stop so the recorder can read its drop count.
     private let lastFeed = Mutex<FrameStreamFeed?>(nil)
     private let sampleQueue = DispatchQueue(label: "it.fraime.skreenrek.capture", qos: .userInteractive)
 
     /// - Parameter excludedBundleID: the app left out of region captures (Skreenrek itself).
-    public init(excludedBundleID: String? = Bundle.main.bundleIdentifier) {
-        self.excludedBundleID = excludedBundleID
+    public init(excludedBundleID: String? = Bundle.main.bundleIdentifier,
+                ownPid: Int32 = ProcessInfo.processInfo.processIdentifier) {
+        self.filterPlan = CaptureFilterPlan(ownPid: ownPid, bundleID: excludedBundleID)
     }
 
     /// Whether Screen Recording is already allowed. Never prompts.
@@ -61,7 +62,7 @@ public final class SCStreamFrameSource: FrameSource {
             guard let display = content.displays.first(where: { $0.displayID == displayId }) else {
                 throw SkreenrekError.recordingFailed(.other("The display for this region isn't connected."))
             }
-            let excluded = content.applications.filter { $0.bundleIdentifier == excludedBundleID }
+            let excluded = content.applications.filter { filterPlan.excludes(pid: $0.processID, bundleID: $0.bundleIdentifier) }
             filter = SCContentFilter(display: display, excludingApplications: excluded, exceptingWindows: [])
             let scale = Double(filter.pointPixelScale)
             sourceRect = CGRect(

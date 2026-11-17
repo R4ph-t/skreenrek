@@ -25,7 +25,7 @@ if let request = RenderUIRequest.parse(commandLine) {
 switch LaunchMode.decide(arguments: commandLine, stdinIsTTY: isatty(STDIN_FILENO) == 1) {
 case .app:
     // The menu-bar app: the controller, the control socket and the menu bar (LSUIElement-style, no Dock icon).
-    MainActor.assumeIsolated { MenuBarApp.run(seams: AppSeams.real()) }
+    MainActor.assumeIsolated { MenuBarApp.run(seams: AppSeams.real(), requester: SystemPermissionRequester()) }
 case .help:
     runCLI(["--help"])
 case .cli(let arguments):
@@ -74,6 +74,6 @@ enum AppSeams {
         return ControllerSeams(
             catalog: catalog, resizer: AXWindowResizer(catalog: catalog), frameSource: SCStreamFrameSource(),
             mouse: NSEventMouseSource(clock: clock), clock: clock, permissions: SystemPermissionProbe(),
-            disk: VolumeDiskSpaceProbe(), encoder: .requireHardware)
+            disk: VolumeDiskSpaceProbe(), picker: PickerOverlay(catalog: catalog), encoder: .requireHardware)
     }
 }
