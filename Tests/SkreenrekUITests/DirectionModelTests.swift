@@ -23,7 +23,7 @@ import Testing
         let armed = DirectionModel.header(for: try Self.sample("armed"))
         #expect(armed.kind == .armed)
         #expect(armed.symbol == "viewfinder")
-        #expect(armed.detail == "1280 × 800 px · exact size")
+        #expect(armed.detail == "1280 × 800 px · 60 fps")
 
         let notExact = DirectionModel.header(for: try Self.sample("armednotexact"))
         #expect(notExact.kind == .notExact)
@@ -55,13 +55,13 @@ import Testing
         #expect(header.help == sentence)
         #expect(header.accessibilityLabel == "Safari — localhost:3000. \(sentence)")
         // B's status card keeps the shipping detail.
-        #expect(header.panelDetail == "1286 × 800 px · not exact (min width 1286 px)")
+        #expect(header.panelDetail == "1286 × 800 px · not exact")
         // The Size row keeps the requested size.
         let sizes = DirectionModel.dropdownRows(for: context).compactMap { row -> String? in
             if case .submenu(let submenu) = row, submenu.title == "Size" { return submenu.detail }
             return nil
         }
-        #expect(sizes == ["1280 × 800 px"])
+        #expect(sizes == ["1280 × 800"])
         // An exact window has no tooltip.
         #expect(DirectionModel.header(for: try Self.sample("armed")).help == nil)
     }

@@ -72,7 +72,7 @@ import Testing
         let green = "\u{1B}[32m✓\u{1B}[0m"
         let red = "\u{1B}[31m●\u{1B}[0m"
         let tty = try await h.run(["resize", "--app", "Safari", "--size", "1280x800"], tty: true)
-        #expect(tty.out == "\(green) Safari — localhost:3000 is 1280 × 800 px (640 × 400 pt at 2×)\n")
+        #expect(tty.out == "\(green) Safari — localhost:3000 is 1280 × 800 px (window 1280 × 800 pt at 2×)\n")
         for (arguments, tty, variables) in [
             (["resize", "--app", "Safari", "--size", "1280x800"], false, [String: String]()),
             (["resize", "--app", "Safari", "--size", "1280x800", "--no-color"], true, [:]),

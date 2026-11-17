@@ -61,7 +61,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
                 "[record.circle] Ready | No window picked",
                 "---",
                 "Pick Window…",
-                "Size ▸ 1280 × 800 px",
+                "Size ▸ Current Size",
                 "Frame Rate ▸ 60 fps",
                 "---",
                 "✓ Show Cursor",
@@ -77,7 +77,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
 
     @Test func armedExact() {
         let menu = lines(UIFixtures.context(UIFixtures.armed))
-        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · exact size")
+        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
         #expect(menu.contains("Pick Another Window…"))
         #expect(!menu.contains("Pick Window…"))
         #expect(menu.contains("Record Window"))
@@ -88,14 +88,22 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         snapshot.size = PixelSize(width: 1286, height: 800)
         snapshot.readback = UIFixtures.readback(actual: PixelSize(width: 1286, height: 800))
         let menu = lines(UIFixtures.context(snapshot))
-        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+        // Not exact stays one line; the reason is in the tooltip.
+        #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact")
+        guard case .status(let row)? = MenuModel.entries(for: UIFixtures.context(snapshot)).first else {
+            Issue.record("The menu starts with its status row")
+            return
+        }
+        #expect(row.toolTip == "not exact (min width 1286 px)")
+        #expect(row.accessibilityLabel.hasSuffix("not exact. not exact (min width 1286 px)"))
         #expect(menu.contains("Record Window"))
     }
 
     @Test func armedWithoutReadbackShowsTheSizeAlone() {
         var snapshot = UIFixtures.armed
         snapshot.readback = nil
-        #expect(lines(UIFixtures.context(snapshot))[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px")
+        #expect(
+            lines(UIFixtures.context(snapshot))[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
     }
 
     @Test(arguments: [
@@ -206,24 +214,15 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     @Test func sizeSubmenu() {
         let submenu = MenuModel.sizeSubmenu(.default)
         #expect(submenu.title == "Size")
-        #expect(submenu.detail == "1280 × 800 px")
+        #expect(submenu.detail == "Current Size")
         #expect(
             submenu.entries.map(\.line) == [
-                "Keep Current Size",
-                "---",
-                "1280 × 720 px",
-                "✓ 1280 × 800 px",
-                "1440 × 900 px",
-                "1920 × 1080 px",
-                "1080 × 1920 px · portrait",
-                "1080 × 1080 px · square",
-                "---",
-                "Custom Size…",
+                "720p", "1080p", "1440p", "4K", "---", "Square", "Portrait", "---", "✓ Current Size", "Custom…",
             ])
-        #expect(MenuModel.sizeSubmenu(.keepCurrent).entries.first?.line == "✓ Keep Current Size")
         let custom = MenuModel.sizeSubmenu(.size(PixelSize(width: 1000, height: 600)))
-        #expect(custom.entries.last?.line == "✓ Custom Size…")
-        #expect(custom.detail == "1000 × 600 px")
+        #expect(custom.entries.last?.line == "✓ Custom…")
+        #expect(custom.detail == "1000 × 600")
+        #expect(MenuModel.sizeSubmenu(.size(PixelSize(width: 3840, height: 2160))).detail == "4K")
     }
 
     @Test func frameRateSubmenu() {

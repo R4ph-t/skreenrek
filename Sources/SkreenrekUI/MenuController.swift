@@ -116,6 +116,10 @@ public final class MenuController: NSObject, NSMenuDelegate {
         }
         item.isEnabled = model.enabled
         item.state = model.checked ? .on : .off
+        item.toolTip = model.toolTip
+        if let trailing = model.trailing {
+            item.attributedTitle = Self.titleWithTrailing(model.title, trailing, enabled: model.enabled)
+        }
         if let shortcut = model.shortcut {
             item.keyEquivalent = shortcut.key
             item.keyEquivalentModifierMask = shortcut.control ? [.control, .command] : [.command]
@@ -135,6 +139,26 @@ public final class MenuController: NSObject, NSMenuDelegate {
                 attributes: [
                     .font: MenuMetrics.titleFont, .foregroundColor: NSColor.secondaryLabelColor,
                     .paragraphStyle: paragraph,
+                ]))
+        return text
+    }
+
+    /// A Size preset: `1080p` with `1920 × 1080` right-aligned in 12 pt secondary. Disabled rows dim both.
+    static func titleWithTrailing(_ title: String, _ trailing: String, enabled: Bool) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.tabStops = [NSTextTab(textAlignment: .right, location: MenuMetrics.sizeSubmenuTrailingStop)]
+        let text = NSMutableAttributedString(
+            string: title,
+            attributes: [
+                .font: MenuMetrics.titleFont, .paragraphStyle: paragraph,
+                .foregroundColor: enabled ? NSColor.labelColor : NSColor.tertiaryLabelColor,
+            ])
+        text.append(
+            NSAttributedString(
+                string: "\t" + trailing,
+                attributes: [
+                    .font: MenuMetrics.detailFont, .paragraphStyle: paragraph,
+                    .foregroundColor: enabled ? NSColor.secondaryLabelColor : NSColor.quaternaryLabelColor,
                 ]))
         return text
     }

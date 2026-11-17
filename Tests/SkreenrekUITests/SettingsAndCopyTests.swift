@@ -72,7 +72,8 @@ import Testing
             #expect(SizeChoice(storageValue: "keep") == .keepCurrent)
             #expect(SizeChoice(storageValue: "1280x720") == .size(PixelSize(width: 1280, height: 720)))
             #expect(SizeChoice(storageValue: "0x720") == nil)
-            #expect(SizeChoice.default.storageValue == "1280x800")
+            // Spec 13: a picked window keeps its current size until a preset is chosen.
+            #expect(SizeChoice.default.storageValue == "keep")
         }
     }
 
@@ -133,24 +134,37 @@ final class FailingLoginItem: LoginItemService {
 }
 
 @Suite struct CustomSizeModelTests {
-    @Test func pointsCaption() {
-        let model = CustomSizeModel(current: PixelSize(width: 1280, height: 800), scale: 2)
-        #expect(model.caption == "640 × 400 pt at 2×")
-        #expect(model.size == PixelSize(width: 1280, height: 800))
-        #expect(CustomSizeModel(widthText: "1280", heightText: "800", scale: 1).caption == "1280 × 800 pt at 1×")
+    /// Spec 13's laptop: usable ~1448 × 870 pt.
+    static let laptop = DisplayInfo(
+        id: 1, name: "Built-in Retina Display", scale: 2, frame: PointRect(x: 0, y: 0, width: 1512, height: 982),
+        visibleFrame: PointRect(x: 0, y: 33, width: 1512, height: 934))
+
+    @Test func liveLineShowsTheWindowOnScreen() {
+        let model = CustomSizeModel(current: PixelSize(width: 1920, height: 1080), display: Self.laptop)
+        #expect(model.line == .quiet("Window on screen: 1440 × 810"))
+        #expect(model.size == PixelSize(width: 1920, height: 1080))
     }
 
-    @Test func oddSizeOnRetinaIsRejected() {
-        let model = CustomSizeModel(widthText: "1281", heightText: "800", scale: 2)
+    @Test func tooLargeSaysSoInRed() {
+        let model = CustomSizeModel(widthText: "3840", heightText: "2160", display: Self.laptop)
+        #expect(model.line == .problem("Too large for this display."))
         #expect(model.size == nil)
         #expect(!model.isValid)
-        #expect(model.caption == "Width 1281 px is odd. On a 2× display sizes must be even.")
+    }
+
+    @Test func oddNumbersSnapDownToEvenOnReturn() {
+        var model = CustomSizeModel(widthText: "1721", heightText: "1081", display: Self.laptop)
+        #expect(model.snapped == PixelSize(width: 1720, height: 1080))
+        #expect(model.size == PixelSize(width: 1720, height: 1080))
+        model.snap()
+        #expect(model.widthText == "1720")
+        #expect(model.heightText == "1080")
     }
 
     @Test func emptyFieldsAskForASize() {
-        let model = CustomSizeModel(widthText: "", heightText: "800", scale: 2)
+        let model = CustomSizeModel(widthText: "", heightText: "800", display: Self.laptop)
         #expect(model.size == nil)
-        #expect(model.caption == "Enter a width and height in px.")
+        #expect(model.line == .quiet("Enter a width and height in px."))
     }
 }
 

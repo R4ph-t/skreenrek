@@ -84,6 +84,8 @@ public struct ControllerSnapshot: Sendable, Hashable {
     /// The armed or recorded region, in pixels of `displayId`.
     public var region: PixelRect?
     public var displayId: DisplayID?
+    /// The display of the armed or recorded target, for sizing (its visible frame and scale).
+    public var display: DisplayInfo?
     /// The armed window's size, or the recording's output size.
     public var size: PixelSize?
     /// The armed window's last read-back.
@@ -103,7 +105,7 @@ public struct ControllerSnapshot: Sendable, Hashable {
         state: ControllerState, elapsed: TimeInterval? = nil, window: WindowInfo? = nil, region: PixelRect? = nil,
         displayId: DisplayID? = nil, size: PixelSize? = nil, readback: Readback? = nil, fps: FrameRate,
         startedBy: StartedBy? = nil, client: String? = nil, lastClip: StopBody? = nil, error: SkreenrekError? = nil,
-        hud: Bool = true
+        hud: Bool = true, display: DisplayInfo? = nil
     ) {
         self.state = state
         self.elapsed = elapsed
@@ -118,5 +120,6 @@ public struct ControllerSnapshot: Sendable, Hashable {
         self.lastClip = lastClip
         self.error = error
         self.hud = hud
+        self.display = display
     }
 }

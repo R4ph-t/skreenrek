@@ -17,9 +17,10 @@ import Testing
                         #expect(label.frame.maxX - 2 <= view.bounds.width - 16)
                     }
                     if sample.name == "armednotexact" {
-                        #expect(view.frame.height == 64)
-                        #expect(labels.last?.maximumNumberOfLines == 2)
-                        #expect(labels.last?.stringValue == "1286 × 800 px · not exact (min width 1286 px)")
+                        // Not exact stays one line; the reason is the row's tooltip.
+                        #expect(view.frame.height == 48)
+                        #expect(labels.last?.stringValue == "1286 × 800 px · not exact")
+                        #expect(view.toolTip == "not exact (min width 1286 px)")
                     }
                 }
             }

@@ -12,12 +12,12 @@ import Testing
         let h = try CLIHarness().start()
         defer { h.stop() }
         let cases: [([String], String)] = [
-            (["resize", "--app", "Safari"], "error: Missing expected argument '--size <WxH>'.\nhint:  Run: skreenrek resize --help\n"),
+            (["resize", "--app", "Safari"], "error: Missing expected argument '--size <SIZE>'.\nhint:  Run: skreenrek resize --help\n"),
             (["record", "--bogus"], "error: Unknown option '--bogus'. Did you mean '--out'?\nhint:  Run: skreenrek record --help\n"),
             (["frobnicate"], "error: Unexpected argument 'frobnicate'.\nhint:  Run: skreenrek --help\n"),
             (["record", "--app", "Safari", "--fps", "45"], "error: Frame rate 45 isn't offered.\nhint:  Pass --fps 30 or --fps 60.\n"),
             (["record", "--app", "Safari", "--fps", "sixty"], ""),
-            (["resize", "--app", "Safari", "--size", "1280"], "error: \"1280\" isn't a size.\nhint:  Pass --size WxH in pixels, e.g. --size 1280x800.\n"),
+            (["resize", "--app", "Safari", "--size", "1280"], "error: \"1280\" isn't a size.\nhint:  Pass --size 720p|1080p|1440p|4k|square|portrait, or WxH in pixels, e.g. --size 1920x1080.\n"),
             (["record", "--app", "Safari", "--codec", "av1"], "error: \"av1\" isn't a codec Skreenrek can record.\nhint:  Use --codec h264, hevc or prores.\n"),
             (["record", "--app", "Safari", "--duration", "soon"], "error: \"soon\" isn't a duration.\nhint:  Pass --duration as 30s, 2m, 1m30s or plain seconds.\n"),
             (["record", "abc"], "error: \"abc\" isn't a window ID.\nhint:  Pass a numeric ID from: skreenrek windows, or use --app NAME.\n"),
@@ -26,7 +26,13 @@ import Testing
             (["record", "--app", "Safari", "--region", "0,0,10,10"], "error: Pass a window or --region, not both.\nhint:  Drop the window, or drop --region.\n"),
             (["record", "--region", "0,0,640,360", "--size", "1280x800"], "error: A region already has its size, so it can't be resized.\nhint:  Drop --size, or record a window.\n"),
             (["record", "--app", "Safari", "--display", "2"], "error: --display only works with --region.\nhint:  Add --region X,Y,W,H.\n"),
-            // The app's own check: an odd width on a 2× display.
+            // The app's own checks: an odd width, and a preset that can't fit without scaling up.
+            (["resize", "--app", "Safari", "--size", "4k"], """
+                error: 4K needs a window at least 1920 × 1080 on screen; this display fits 1448 × 885
+                hint:  4K needs room for a 1920 × 1080 pt window. Use a larger display or pick 1440p. \
+                Use --size 1440p, or move the window to a larger display.
+
+                """),
             (["resize", "--app", "Safari", "--size", "1281x800"], ""),
         ]
         for (arguments, stderr) in cases {
@@ -89,7 +95,7 @@ import Testing
     @Test func aSizeThatIsNotExactExits4() async throws {
         let h = try CLIHarness().start()
         defer { h.stop() }
-        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 1286, height: 100))
         let resize = try await h.run(["resize", "--app", "Safari", "--size", "1280x800"])
         #expect(resize.code == 4)
         #expect(resize.out.isEmpty)

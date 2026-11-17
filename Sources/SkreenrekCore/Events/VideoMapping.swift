@@ -18,11 +18,21 @@ public struct VideoMapping: Sendable, Hashable {
         self.offset = offset
     }
 
-    /// A window target maps from its frame; a region maps from its display's frame and its own pixel origin.
-    public init(target: CaptureTarget, display: DisplayInfo) {
+    /// A window target maps from its frame; a region maps from its display's frame and its own pixel origin. A
+    /// window recorded at a `clip` size other than its native pixels maps through the clip's scale and crop
+    /// (`WindowFit.sourceRect`).
+    public init(target: CaptureTarget, display: DisplayInfo, clip: PixelSize? = nil) {
         switch target {
         case .window(let window):
-            self.init(origin: CGPoint(x: window.frame.x, y: window.frame.y), scale: display.scale)
+            let origin = CGPoint(x: window.frame.x, y: window.frame.y)
+            let size = CGSize(width: window.frame.width, height: window.frame.height)
+            guard let clip, clip != window.frame.pixelSize(scale: display.scale), size.width > 0 else {
+                self.init(origin: origin, scale: display.scale)
+                return
+            }
+            let source = WindowFit.sourceRect(window: size, clip: clip) ?? CGRect(origin: .zero, size: size)
+            let scale = Double(clip.width) / source.width
+            self.init(origin: origin, scale: scale, offset: CGPoint(x: source.minX * scale, y: source.minY * scale))
         case .region(let rect, _):
             self.init(
                 origin: CGPoint(x: display.frame.x, y: display.frame.y), scale: display.scale,

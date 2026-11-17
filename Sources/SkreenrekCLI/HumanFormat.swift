@@ -56,11 +56,12 @@ struct HumanFormat: Sendable {
         }.map { $0 + "\n" }.joined()
     }
 
-    /// `resize`: `✓ Safari — localhost:3000 is 1280 × 800 px (640 × 400 pt at 2×)`.
+    /// `resize`: `✓ Safari — localhost:3000 is 1920 × 1080 px (window 1440 × 810 pt at 2×)`: the clip, then the
+    /// window Skreenrek sized for it.
     func resize(_ readback: Readback) -> String {
         let pt = "\(Self.number(readback.frame.width)) × \(Self.number(readback.frame.height)) pt"
         return check() + " \(Self.windowName(app: readback.window.app, title: readback.window.title)) is "
-            + "\(readback.actual) (\(pt) at \(Self.scale(readback.display.scale)))\n" + inexactNote(readback)
+            + "\(readback.actual) (window \(pt) at \(Self.scale(readback.display.scale)))\n" + inexactNote(readback)
     }
 
     /// `record` with a size: `✓ Safari — localhost:3000 is 1280 × 800 px`.

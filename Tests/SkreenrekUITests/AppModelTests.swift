@@ -66,7 +66,8 @@ final class RecordingEffects: UIEffects {
     var discardAsked = 0
     var folderAnswer: URL?
     var sizeAnswer: PixelSize?
-    var sizeAsked: [(PixelSize?, Double)] = []
+    var sizeAsked: [(PixelSize?, DisplayInfo?)] = []
+    var main: DisplayInfo? = MenuHarness.display
     var quitCalls = 0
 
     func revealInFinder(_ path: String) { revealed.append(path) }
@@ -78,11 +79,11 @@ final class RecordingEffects: UIEffects {
         return discardAnswer
     }
     func chooseFolder(current: URL) async -> URL? { folderAnswer }
-    func askCustomSize(current: PixelSize?, scale: Double) async -> PixelSize? {
-        sizeAsked.append((current, scale))
+    func askCustomSize(current: PixelSize?, display: DisplayInfo?) async -> PixelSize? {
+        sizeAsked.append((current, display))
         return sizeAnswer
     }
-    func scale(of display: DisplayID?) -> Double { 2 }
+    func mainDisplay() -> DisplayInfo? { main }
     func quit() { quitCalls += 1 }
 }
 
@@ -133,7 +134,7 @@ struct MenuHarness {
             defer { h.cleanUp() }
             await h.perform(.pickWindow)
             #expect(h.model.context.displayState == .armed)
-            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px")
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
             #expect(h.model.icon.sentence == "Skreenrek is ready to record Safari at 1280 × 800 pixels.")
         }
     }
@@ -144,10 +145,11 @@ struct MenuHarness {
             defer { h.cleanUp() }
             await h.perform(.pickWindow)
             await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 720))))
+            // 720p on the 2× laptop: a 1280 × 720 pt window, scaled down to the 1280 × 720 px clip.
             #expect(h.resizer.calls.count == 1)
-            #expect(h.resizer.calls.first?.requested.width == 640)
-            #expect(h.resizer.calls.first?.requested.height == 360)
-            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 720 px · exact size")
+            #expect(h.resizer.calls.first?.requested.width == 1280)
+            #expect(h.resizer.calls.first?.requested.height == 720)
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1280 × 720 px · 60 fps")
             #expect(h.model.settings.sizeChoice == .size(PixelSize(width: 1280, height: 720)))
         }
     }
@@ -156,12 +158,16 @@ struct MenuHarness {
         try await onMain("aSizeTheWindowCantTakeShowsNotExact") {
             let h = MenuHarness()
             defer { h.cleanUp() }
-            h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+            // 1280 × 800 asks for a 1280 × 800 pt window; this one won't go below 1286 pt wide.
+            h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 1286, height: 100))
             await h.perform(.pickWindow)
             await h.perform(.chooseSize(.size(PixelSize(width: 1280, height: 800))))
-            #expect(
-                h.firstLine
-                    == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact (min width 1286 px)")
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact")
+            guard case .status(let row)? = h.model.entries.first else {
+                Issue.record("The menu starts with its status row")
+                return
+            }
+            #expect(row.toolTip == "not exact (min width 1286 px)")
             #expect(h.model.context.error == nil)
         }
     }
@@ -176,16 +182,17 @@ struct MenuHarness {
         }
     }
 
-    @Test func customSizeAsksWithTheDisplayScale() async throws {
-        try await onMain("customSizeAsksWithTheDisplayScale") {
+    @Test func customSizeAsksWithTheWindowsDisplay() async throws {
+        try await onMain("customSizeAsksWithTheWindowsDisplay") {
             let h = MenuHarness()
             defer { h.cleanUp() }
             await h.perform(.pickWindow)
             h.effects.sizeAnswer = PixelSize(width: 1000, height: 600)
             await h.perform(.customSize)
-            #expect(h.effects.sizeAsked.first?.0 == PixelSize(width: 1280, height: 800))
-            #expect(h.effects.sizeAsked.first?.1 == 2)
-            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1000 × 600 px · exact size")
+            // Picking keeps the window's current size, so the panel starts empty.
+            #expect(h.effects.sizeAsked.first?.0 == nil)
+            #expect(h.effects.sizeAsked.first?.1 == MenuHarness.display)
+            #expect(h.firstLine == "[viewfinder] Safari — localhost:3000 | 1000 × 600 px · 60 fps")
         }
     }
 
@@ -211,9 +218,10 @@ struct MenuHarness {
             let h = MenuHarness()
             defer { h.cleanUp() }
             await h.perform(.pickWindow)
+            await h.perform(.chooseSize(.size(SizePreset.p720.size)))
             h.permissions.screenRecording = .missing
             await h.perform(.record)
-            // Record resized first to the chosen size, then stopped at the permission.
+            // Choosing 720p resized the window; record kept that read-back, then stopped at the permission.
             #expect(h.resizer.calls.count == 1)
             #expect(
                 h.model.entries.prefix(2).map(\.line) == [

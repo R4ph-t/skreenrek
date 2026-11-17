@@ -67,15 +67,23 @@ public struct StatusRow: Sendable, Hashable {
     /// The state rows (Ready, Recording…, errors) set their title in semibold; the Last Clip row doesn't.
     public var emphasized: Bool
     public var detail: String
-    /// The accessibility sentence for the row: title and detail.
-    public var accessibilityLabel: String { "\(title). \(detail)" }
+    /// More about the detail on hover, e.g. why the size isn't exact.
+    public var toolTip: String?
+    /// The accessibility sentence for the row: title, detail and the tooltip.
+    public var accessibilityLabel: String {
+        ["\(title). \(detail)", toolTip].compactMap { $0 }.joined(separator: ". ")
+    }
 
-    public init(symbol: String, tint: Tint = .none, title: String, emphasized: Bool = true, detail: String) {
+    public init(
+        symbol: String, tint: Tint = .none, title: String, emphasized: Bool = true, detail: String,
+        toolTip: String? = nil
+    ) {
         self.symbol = symbol
         self.tint = tint
         self.title = title
         self.emphasized = emphasized
         self.detail = detail
+        self.toolTip = toolTip
     }
 }
 
@@ -86,12 +94,16 @@ public struct MenuItemModel: Sendable, Hashable {
     public var enabled: Bool
     public var checked: Bool
     public var shortcut: MenuShortcut?
+    /// A quiet value at the row's end in 12 pt secondary, e.g. a preset's `1920 × 1080`.
+    public var trailing: String?
+    /// Why a disabled row is disabled.
+    public var toolTip: String?
     /// Stop Recording while recording.
     public var isDefault: Bool
 
     public init(
         _ title: String, action: MenuAction?, enabled: Bool = true, checked: Bool = false,
-        shortcut: MenuShortcut? = nil, isDefault: Bool = false
+        shortcut: MenuShortcut? = nil, isDefault: Bool = false, trailing: String? = nil, toolTip: String? = nil
     ) {
         self.title = title
         self.action = action
@@ -99,6 +111,8 @@ public struct MenuItemModel: Sendable, Hashable {
         self.checked = checked
         self.shortcut = shortcut
         self.isDefault = isDefault
+        self.trailing = trailing
+        self.toolTip = toolTip
     }
 }
 
@@ -142,7 +156,7 @@ public enum MenuModel {
                 MenuItemModel(
                     context.isArmed ? UIStrings.Menu.pickAnotherWindow : UIStrings.Menu.pickWindow,
                     action: .pickWindow)))
-        entries.append(.submenu(sizeSubmenu(context.sizeChoice)))
+        entries.append(.submenu(sizeSubmenu(context.sizeChoice, display: context.display, window: context.snapshot.window)))
         entries.append(.submenu(frameRateSubmenu(context.snapshot.fps)))
         entries.append(.separator)
         entries.append(.item(MenuItemModel(UIStrings.Menu.showCursor, action: .toggleCursor, checked: context.cursor)))
@@ -203,22 +217,22 @@ public enum MenuModel {
     static let idleRow = StatusRow(
         symbol: StatusIconModel.Symbol.idle, title: UIStrings.Menu.ready, detail: UIStrings.Menu.noWindowPicked)
 
-    /// `viewfinder` · window title · `1280 × 800 px · exact size`, or `… · not exact (min width 1286 px)`.
-    /// A window that was picked but not resized yet shows its size alone.
+    /// `viewfinder` · window title · `1920 × 1080 px · 60 fps`. A size that isn't exact stays one line,
+    /// `1286 × 800 px · not exact`, with the reason in the tooltip.
     static func armedRow(_ context: MenuContext) -> StatusRow {
         let snapshot = context.snapshot
         let size = snapshot.size?.description ?? ""
-        var detail = size
-        if let readback = snapshot.readback, snapshot.window != nil {
-            let note =
-                readback.exact
-                ? UIStrings.Menu.exactSize
-                : UIStrings.Menu.notExact(
-                    ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
-            detail = [size, note].filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
+        var note = UIStrings.Menu.fps(snapshot.fps)
+        var toolTip: String?
+        if let readback = snapshot.readback, snapshot.window != nil, !readback.exact {
+            note = UIStrings.Menu.notExactShort
+            toolTip = UIStrings.Menu.notExact(
+                ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
         }
+        let detail = [size, note].filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
         return StatusRow(
-            symbol: StatusIconModel.Symbol.armed, title: context.targetTitle ?? UIStrings.Menu.region, detail: detail)
+            symbol: StatusIconModel.Symbol.armed, title: context.targetTitle ?? UIStrings.Menu.region, detail: detail,
+            toolTip: toolTip)
     }
 
     /// `0:12 · 1280 × 800 px · 60 fps`.
@@ -298,28 +312,42 @@ public enum MenuModel {
 
     // MARK: - Submenus
 
-    public static func sizeSubmenu(_ choice: SizeChoice) -> SubmenuModel {
-        let isPreset = SizePresets.all.contains { .size($0.size) == choice }
-        var entries: [MenuEntry] = [
-            .item(
-                MenuItemModel(
-                    UIStrings.Menu.keepCurrentSize, action: .chooseSize(.keepCurrent),
-                    checked: choice == .keepCurrent)),
-            .separator,
-        ]
-        for preset in SizePresets.all {
-            entries.append(
-                .item(
+    /// Spec 13's Size submenu: 720p, 1080p, 1440p, 4K · Square, Portrait · Current Size, Custom…, each preset with
+    /// its clip px trailing. A preset that can't fit `display` without scaling up is disabled with a tooltip saying
+    /// why. Current Size shows the window's current clip px (window pt × display scale).
+    public static func sizeSubmenu(_ choice: SizeChoice, display: DisplayInfo? = nil, window: WindowInfo? = nil)
+        -> SubmenuModel
+    {
+        func rows(_ presets: [SizePreset]) -> [MenuEntry] {
+            presets.map { preset in
+                var toolTip: String?
+                if let display, case .failure(let failure) = WindowFit.plan(clip: preset.size, on: display) {
+                    toolTip = failure.tooltip
+                }
+                return .item(
                     MenuItemModel(
-                        SizePresets.title(preset), action: .chooseSize(.size(preset.size)),
-                        checked: choice == .size(preset.size))))
+                        preset.title, action: .chooseSize(.size(preset.size)), enabled: toolTip == nil,
+                        checked: choice == .size(preset.size), trailing: UIStrings.Menu.dimensions(preset.size),
+                        toolTip: toolTip))
+            }
         }
-        entries.append(.separator)
+        let current = window.flatMap { window in display.map { window.frame.pixelSize(scale: $0.scale) } }
+        let preset = choice.pixelSize.flatMap(SizePreset.init(size:))
+        var entries = rows(SizePresets.standard) + [.separator] + rows(SizePresets.shaped) + [.separator]
         entries.append(
             .item(
                 MenuItemModel(
-                    UIStrings.Menu.customSize, action: .customSize, checked: !isPreset && choice != .keepCurrent)))
-        let detail = choice.pixelSize?.description ?? UIStrings.Menu.keepCurrentSize
+                    UIStrings.Menu.currentSize, action: .chooseSize(.keepCurrent), checked: choice == .keepCurrent,
+                    trailing: current.map(UIStrings.Menu.dimensions))))
+        entries.append(
+            .item(
+                MenuItemModel(
+                    UIStrings.Menu.customSize, action: .customSize, checked: preset == nil && choice != .keepCurrent)))
+        let detail: String =
+            switch choice {
+            case .keepCurrent: UIStrings.Menu.currentSize
+            case .size(let size): preset?.title ?? UIStrings.Menu.dimensions(size)
+            }
         return SubmenuModel(title: UIStrings.Menu.size, detail: detail, entries: entries)
     }
 

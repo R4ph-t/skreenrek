@@ -20,24 +20,28 @@ import Testing
         #expect(safari.width == 1280 && safari.height == 800 && safari.unit == "px" && safari.displayId == 1)
 
         let start = try await client.call(
-            .recordStart, params: StartParams(windowId: 4127, width: 1440, height: 900, fps: 30), as: StartBody.self)
+            .recordStart, params: StartParams(windowId: 4127, width: 1280, height: 720, fps: 30), as: StartBody.self)
         let readback = try #require(start.readback)
+        // 720p on the 2× display: a 1280 × 720 pt window, recorded natively and scaled down to 1280 × 720 px.
         #expect(readback.exact)
-        #expect(readback.actual == PixelSize(width: 1440, height: 900))
-        #expect(readback.frame == PointRect(x: 120, y: 80, width: 720, height: 450))
+        #expect(readback.actual == PixelSize(width: 1280, height: 720))
+        #expect(readback.frame == PointRect(x: 120, y: 80, width: 1280, height: 720))
         #expect(start.fps == 30)
         #expect(start.recordingId.hasSuffix("_safari"))
-        #expect(h.source.startCalls.map(\.size) == [PixelSize(width: 1440, height: 900)])
+        #expect(h.source.startCalls.map(\.size) == [PixelSize(width: 1280, height: 720)])
 
         try await h.waitForSlots(15)
-        h.mouse.send(MouseEvent(type: .down, button: 0, clickCount: 1, location: CGPoint(x: 480, y: 305), hostTime: 0.5))
-        h.mouse.send(MouseEvent(type: .up, button: 0, clickCount: 1, location: CGPoint(x: 480, y: 305), hostTime: 0.6))
+        h.mouse.send(MouseEvent(type: .down, button: 0, clickCount: 1, location: CGPoint(x: 760, y: 440), hostTime: 0.5))
+        h.mouse.send(MouseEvent(type: .up, button: 0, clickCount: 1, location: CGPoint(x: 760, y: 440), hostTime: 0.6))
         try await h.waitForSlots(30)
 
         let reply = try await client.send(.recordStop)
         let stop = try reply.decode(StopBody.self)
         #expect(stop.recording.id == start.recordingId)
-        #expect(stop.recording.width == 1440 && stop.recording.height == 900)
+        #expect(stop.recording.width == 1280 && stop.recording.height == 720)
+        // Spec 13: the window in points next to the video, whose scale is native-to-clip.
+        #expect(stop.recording.window == WindowPoints(width: 1280, height: 720))
+        #expect(stop.recording.video.scale == 2)
         #expect(stop.recording.fps == 30)
         #expect(stop.recording.codec == .h264)
         #expect(stop.recording.startedBy == .mcp)
@@ -53,7 +57,11 @@ import Testing
         let recording = try #require(result["recording"] as? [String: Any])
         #expect(
             Set(recording.keys)
-                == ["id", "duration", "fps", "width", "height", "codec", "startedAt", "startedBy", "stats", "video"])
+                == [
+                    "id", "duration", "fps", "width", "height", "codec", "startedAt", "startedBy", "stats", "video",
+                    "window",
+                ])
+        #expect(try #require(recording["window"] as? [String: Int]) == ["width": 1280, "height": 720])
         #expect(Set(try #require(result["files"] as? [String: Any]).keys) == ["clip", "events", "snippet"])
 
         let fm = FileManager.default
@@ -65,14 +73,14 @@ import Testing
             #expect(fm.fileExists(atPath: path), "\(path)")
         }
         #expect(try String(contentsOfFile: stop.files.snippet, encoding: .utf8) == stop.snippet)
-        #expect(stop.snippet.hasPrefix("<!-- Skreenrek · Safari — localhost:3000 · 1440×900 px · 30 fps"))
+        #expect(stop.snippet.hasPrefix("<!-- Skreenrek · Safari — localhost:3000 · 1280×720 px · 30 fps"))
 
         let clip = stop.files.clip
         let size = try await within("the clip's video size") {
             try await AVURLAsset(url: URL(fileURLWithPath: clip)).loadTracks(withMediaType: .video).first?
                 .load(.naturalSize)
         }
-        #expect(size == CGSize(width: 1440, height: 900))
+        #expect(size == CGSize(width: 1280, height: 720))
 
         let events = try JSONDecoder().decode(
             EventsFile.self, from: Data(contentsOf: URL(fileURLWithPath: stop.files.events!)))
@@ -80,13 +88,13 @@ import Testing
         #expect(events.recording.id == start.recordingId)
         #expect(events.recording.client == "Claude Code")
         #expect(events.recording.startedBy == .mcp)
-        #expect(events.recording.video.width == 1440 && events.recording.video.scale == 2)
+        #expect(events.recording.video.width == 1280 && events.recording.video.scale == 2)
         // The frame is fixed at start: the one read back after the resize.
         #expect(events.recording.source == .window(
             app: "Safari", bundleId: "com.apple.Safari", title: "localhost:3000", windowId: WindowID(4127),
             frame: readback.frame))
-        // (480, 305) pt is (360, 225) pt inside the frame: (720, 450) px, the middle of the video.
-        #expect(events.clicks.map { [$0.x, $0.y] } == [[720, 450]])
+        // (760, 440) pt is (640, 360) pt inside the frame: (640, 360) px in the 1:1 pt-to-clip video, its middle.
+        #expect(events.clicks.map { [$0.x, $0.y] } == [[640, 360]])
         #expect(events.events.map(\.type) == [.down, .up])
         #expect(events.cursor.samples.count == stop.recording.stats.slotsWritten)
 
@@ -144,8 +152,8 @@ import Testing
     @Test func aSizeThatIsNotExactFailsWithExit4UnlessAllowInexact() async throws {
         let h = try Harness().start()
         defer { h.stop() }
-        // Safari won't go narrower than 643 pt (1286 px).
-        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+        // 1280 × 800 asks for a 1280 × 800 pt window; Safari won't go narrower than 1286 pt (a 1286 px clip).
+        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 1286, height: 100))
         let client = try await h.client()
 
         let error = try await client.expectError(

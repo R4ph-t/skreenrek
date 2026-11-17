@@ -70,7 +70,7 @@ import Testing
         for appearance in ["light", "dark"] {
             #expect(sizes["statusrow-idle-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
             #expect(sizes["statusrow-recording-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
-            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))
+            #expect(sizes["statusrow-armednotexact-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
             #expect(sizes["statusrow-lastclipmov-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
             #expect(sizes["statusrow-lastclipprores-\(appearance)@2x.png"] ?? (0, 0) == (600, 96))
             #expect(sizes["statusrow-errorwindowclosed-\(appearance)@2x.png"] ?? (0, 0) == (600, 128))

@@ -15,10 +15,10 @@ public protocol UIEffects: AnyObject {
     /// The "Discard this recording?" alert; true for Discard.
     func confirmDiscard() async -> Bool
     func chooseFolder(current: URL) async -> URL?
-    /// The custom size panel; nil when cancelled. `scale` is the display's, for the points caption.
-    func askCustomSize(current: PixelSize?, scale: Double) async -> PixelSize?
-    /// The backing scale of a display (the main one when nil).
-    func scale(of display: DisplayID?) -> Double
+    /// The Custom Size panel; nil when cancelled. `display` is where the window would go, for the live line.
+    func askCustomSize(current: PixelSize?, display: DisplayInfo?) async -> PixelSize?
+    /// The main display, for checking sizes when nothing is picked.
+    func mainDisplay() -> DisplayInfo?
     func quit()
 }
 
@@ -85,7 +85,8 @@ public final class AppModel {
     public var context: MenuContext {
         MenuContext(
             snapshot: snapshot, actionError: actionError, lastClipTitle: tracker.title,
-            sizeChoice: settings.sizeChoice, cursor: settings.cursor, events: settings.events)
+            sizeChoice: settings.sizeChoice, display: snapshot.display ?? effects.mainDisplay(),
+            cursor: settings.cursor, events: settings.events)
     }
 
     public var icon: StatusIcon { StatusIconModel.icon(for: context) }
@@ -155,7 +156,10 @@ public final class AppModel {
         switch action {
         case .pickWindow:
             await clearErrors()
-            await run { _ = try await self.controller.pick() }
+            await run {
+                // Spec 13: a picked window keeps its current size until a preset is chosen.
+                if case .window = try await self.controller.pick() { self.settings.sizeChoice = .keepCurrent }
+            }
         case .record:
             await clearErrors()
             await record()
@@ -183,8 +187,9 @@ public final class AppModel {
             await chooseSize(choice)
         case .customSize:
             await clearErrors()
-            let scale = effects.scale(of: snapshot.displayId)
-            guard let size = await effects.askCustomSize(current: settings.sizeChoice.pixelSize, scale: scale) else {
+            let display = snapshot.display ?? effects.mainDisplay()
+            guard let size = await effects.askCustomSize(current: settings.sizeChoice.pixelSize, display: display)
+            else {
                 return
             }
             await chooseSize(.size(size))

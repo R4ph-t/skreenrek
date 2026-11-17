@@ -45,8 +45,12 @@ public final class EventRecorder: Sendable {
     }
 
     /// The capture target (a window frame in pt or a region in px) on its display, at the display's scale.
-    public convenience init(source: any MouseEventSource, target: CaptureTarget, display: DisplayInfo, fps: FrameRate) {
-        self.init(source: source, mapping: VideoMapping(target: target, display: display), fps: fps)
+    /// `clip` is the video size when it isn't the target's native pixels.
+    public convenience init(
+        source: any MouseEventSource, target: CaptureTarget, display: DisplayInfo, fps: FrameRate,
+        clip: PixelSize? = nil
+    ) {
+        self.init(source: source, mapping: VideoMapping(target: target, display: display, clip: clip), fps: fps)
     }
 
     /// Starts the mouse event source. Call before the first frame so early clicks are not missed.

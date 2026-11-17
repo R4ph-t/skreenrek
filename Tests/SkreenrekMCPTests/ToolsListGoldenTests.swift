@@ -59,7 +59,7 @@ import Testing
               "name" : "skreenrek_list_windows"
             },
             {
-              "description" : "Resize a window to an exact size in pixels and read the size back to confirm it.",
+              "description" : "Size a window for an exact clip size (a preset like 1080p, or pixels) and read the size back to confirm it.",
               "inputSchema" : {
                 "additionalProperties" : false,
                 "properties" : {
@@ -68,16 +68,20 @@ import Testing
                     "type" : "string"
                   },
                   "height" : {
-                    "description" : "The height in pixels.",
+                    "description" : "The clip height in pixels (with width, instead of size).",
                     "minimum" : 1,
                     "type" : "integer"
+                  },
+                  "size" : {
+                    "description" : "The clip size: 720p, 1080p, 1440p, 4k, square, portrait, or WxH in pixels (WxHpx also works). Skreenrek sizes the window to fit its display and records the exact clip size.",
+                    "type" : "string"
                   },
                   "title" : {
                     "description" : "With app: a part of the window title.",
                     "type" : "string"
                   },
                   "width" : {
-                    "description" : "The width in pixels.",
+                    "description" : "The clip width in pixels (with height, instead of size).",
                     "minimum" : 1,
                     "type" : "integer"
                   },
@@ -87,16 +91,12 @@ import Testing
                     "type" : "integer"
                   }
                 },
-                "required" : [
-                  "width",
-                  "height"
-                ],
                 "type" : "object"
               },
               "name" : "skreenrek_resize_window"
             },
             {
-              "description" : "Start recording a window or screen region at a constant 30 or 60 fps, resizing the window to an exact pixel size first when width and height are given.",
+              "description" : "Start recording a window or screen region at a constant 30 or 60 fps, sizing the window for an exact clip size first when size, or width and height, is given.",
               "inputSchema" : {
                 "additionalProperties" : false,
                 "properties" : {
@@ -217,6 +217,10 @@ import Testing
                       "height"
                     ],
                     "type" : "object"
+                  },
+                  "size" : {
+                    "description" : "The clip size: 720p, 1080p, 1440p, 4k, square, portrait, or WxH in pixels (WxHpx also works). Skreenrek sizes the window to fit its display and records the exact clip size.",
+                    "type" : "string"
                   },
                   "title" : {
                     "description" : "With app: a part of the window title.",

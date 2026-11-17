@@ -132,11 +132,30 @@ import Testing
         #expect(try discard.structured() == ["discarded": true])
     }
 
+    /// Spec 13: MCP `size` takes the CLI's strings; the clip is exact and the window fits the display.
+    @Test func sizeTakesPresetsAndPixels() async throws {
+        let h = try MCPHarness().start()
+        defer { h.stop() }
+        try await h.initialize()
+        let preset = try await h.call("skreenrek_resize_window", ["app": "Safari", "size": "1080p"])
+        #expect(preset["isError"] != true)
+        let readback = try preset.structured()
+        #expect(readback["actual"]?["width"] == 1920 && readback["actual"]?["height"] == 1080)
+        #expect(readback["frame"]?["width"] == 1440 && readback["frame"]?["height"] == 810)
+        let pixels = try await h.call("skreenrek_resize_window", ["app": "Safari", "size": "1280x720px"])
+        #expect(try pixels.structured()["actual"]?["width"] == 1280)
+        let tooBig = try await h.call("skreenrek_resize_window", ["app": "Safari", "size": "4k"])
+        #expect(tooBig["isError"] == true)
+        let error = try #require(try tooBig.structured()["error"])
+        #expect(error["code"] == "usage")
+        #expect(error["message"]?.stringValue?.hasPrefix("4K needs a window at least 1920 × 1080 on screen") == true)
+    }
+
     @Test func aSizeThatIsNotExactIsAToolError() async throws {
         let h = try MCPHarness().start()
         defer { h.stop() }
         try await h.initialize()
-        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 643, height: 100))
+        h.resizer.rules = ResizeRules(minimumSize: CGSize(width: 1286, height: 100))
 
         let resize = try await h.call("skreenrek_resize_window", ["app": "Safari", "width": 1280, "height": 800])
         #expect(resize["isError"] == true)
@@ -208,6 +227,10 @@ import Testing
             ["name": "skreenrek_start_recording", "arguments": "Safari"],
             ["name": "skreenrek_status", "arguments": ["verbose": true]],
             ["name": "skreenrek_pick_window", "arguments": ["timeoutSeconds": "soon"]],
+            ["name": "skreenrek_resize_window", "arguments": ["app": "Safari", "size": "8k"]],
+            ["name": "skreenrek_resize_window", "arguments": ["app": "Safari", "size": 1080]],
+            ["name": "skreenrek_resize_window", "arguments": ["app": "Safari", "size": "1080p", "width": 1920]],
+            ["name": "skreenrek_start_recording", "arguments": ["app": "Safari", "size": "huge"]],
         ]
         for params in bad {
             let response = try await h.request("tools/call", params: params)

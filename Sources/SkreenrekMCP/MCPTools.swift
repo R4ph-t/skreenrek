@@ -19,10 +19,11 @@ public enum MCPTool: String, Sendable, CaseIterable {
         case .listWindows:
             "List the macOS windows Skreenrek can record, with their IDs, apps, titles and sizes in pixels."
         case .resizeWindow:
-            "Resize a window to an exact size in pixels and read the size back to confirm it."
+            "Size a window for an exact clip size (a preset like 1080p, or pixels) and read the size back to "
+                + "confirm it."
         case .startRecording:
-            "Start recording a window or screen region at a constant 30 or 60 fps, resizing the window to an exact "
-                + "pixel size first when width and height are given."
+            "Start recording a window or screen region at a constant 30 or 60 fps, sizing the window for an exact "
+                + "clip size first when size, or width and height, is given."
         case .stopRecording:
             "Stop the recording and return the paths of the clip, events.json and hyperframes.html, plus the "
                 + "HyperFrames snippet."
@@ -45,9 +46,10 @@ public enum MCPTool: String, Sendable, CaseIterable {
             return Self.object(
                 [
                     "windowId": Self.windowId, "app": Self.app("The app whose window to resize (name or bundle ID)."),
-                    "title": Self.title,
-                    "width": Self.pixels("The width in pixels."), "height": Self.pixels("The height in pixels."),
-                ], required: ["width", "height"])
+                    "title": Self.title, "size": Self.size,
+                    "width": Self.pixels("The clip width in pixels (with height, instead of size)."),
+                    "height": Self.pixels("The clip height in pixels (with width, instead of size)."),
+                ])
         case .startRecording:
             return Self.object([
                 "windowId": Self.windowId, "app": Self.app("The app whose window to record (name or bundle ID)."),
@@ -63,6 +65,7 @@ public enum MCPTool: String, Sendable, CaseIterable {
                     "type": "integer", "minimum": 0,
                     "description": "With region: the display (default: the main display).",
                 ],
+                "size": Self.size,
                 "width": Self.pixels("Resize the window to this width in pixels first (with height)."),
                 "height": Self.pixels("Resize the window to this height in pixels first (with width)."),
                 "allowInexact": [
@@ -131,6 +134,14 @@ public enum MCPTool: String, Sendable, CaseIterable {
         ["type": "string", "description": .string(description)]
     }
 
+    /// The clip size as `--size` spells it.
+    static let size: JSONValue = [
+        "type": "string",
+        "description": .string(
+            "The clip size: 720p, 1080p, 1440p, 4k, square, portrait, or WxH in pixels (WxHpx also works). "
+                + "Skreenrek sizes the window to fit its display and records the exact clip size."),
+    ]
+
     static func pixels(_ description: String) -> JSONValue {
         ["type": "integer", "minimum": 1, "description": .string(description)]
     }
@@ -151,10 +162,10 @@ struct PreparedCall: Sendable {
             let params = try Self.decode(WindowsParams.self, arguments)
             send = { try await $0.send(.windows, params: params) }
         case .resizeWindow:
-            let params = try Self.decode(ResizeParams.self, arguments)
+            let params = try Self.decode(ResizeParams.self, Self.expandingSize(arguments))
             send = { try await $0.send(.resize, params: params) }
         case .startRecording:
-            var params = try Self.decode(StartParams.self, arguments)
+            var params = try Self.decode(StartParams.self, Self.expandingSize(arguments))
             params.outDir = params.outDir.map(resolve)
             params.assetsDir = params.assetsDir.map(resolve)
             let resolved = params
@@ -184,6 +195,23 @@ struct PreparedCall: Sendable {
                 try checkKeys(member, schema: property, path: at)
             }
         }
+    }
+
+    /// `size` (a preset or `WxH`) becomes `width` and `height` in pixels, which the app takes.
+    static func expandingSize(_ arguments: JSONValue) throws(RPCError) -> JSONValue {
+        guard var members = arguments.objectValue, let value = members.removeValue(forKey: "size") else {
+            return arguments
+        }
+        guard case .string(let text) = value else { throw .params("size must be a string") }
+        guard members["width"] == nil, members["height"] == nil else {
+            throw .params("pass size, or width and height, not both")
+        }
+        guard let size = try? SizeSpec.parse(text) else {
+            throw .params("size \"\(text)\" isn't a size; use \(SizePreset.names), or WxH in pixels")
+        }
+        members["width"] = .int(size.width)
+        members["height"] = .int(size.height)
+        return .object(members)
     }
 
     private static func decode<T: Decodable>(_ type: T.Type, _ arguments: JSONValue) throws(RPCError) -> T {

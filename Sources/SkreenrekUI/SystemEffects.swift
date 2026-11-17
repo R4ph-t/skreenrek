@@ -48,14 +48,18 @@ public final class SystemEffects: UIEffects {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    public func askCustomSize(current: PixelSize?, scale: Double) async -> PixelSize? {
+    public func askCustomSize(current: PixelSize?, display: DisplayInfo?) async -> PixelSize? {
         sizePanel?.close()
         return await withCheckedContinuation { continuation in
-            let panel = NSPanel(
-                contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            // Borderless, so the SwiftUI content draws the panel's 10 pt radius itself.
+            let panel = KeyPanel(
+                contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
             panel.title = UIStrings.CustomSize.title
-            panel.titleVisibility = .hidden
             panel.isReleasedWhenClosed = false
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.isMovableByWindowBackground = true
             var finished = false
             let finish: (PixelSize?) -> Void = { [weak self, weak panel] size in
                 guard !finished else { return }
@@ -64,8 +68,11 @@ public final class SystemEffects: UIEffects {
                 self?.sizePanel = nil
                 continuation.resume(returning: size)
             }
-            panel.contentView = NSHostingView(
-                rootView: CustomSizeView(model: CustomSizeModel(current: current, scale: scale), finish: finish))
+            let hosting = NSHostingView(
+                rootView: CustomSizeView(model: CustomSizeModel(current: current, display: display), finish: finish))
+            hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+            panel.contentView = hosting
+            panel.setContentSize(hosting.fittingSize)
             let close = PanelCloseObserver(panel: panel) { finish(nil) }
             objc_setAssociatedObject(panel, &PanelCloseObserver.key, close, .OBJC_ASSOCIATION_RETAIN)
             panel.center()
@@ -75,21 +82,24 @@ public final class SystemEffects: UIEffects {
         }
     }
 
-    public func scale(of display: DisplayID?) -> Double {
-        let screens = NSScreen.screens
-        if let display,
-            let screen = screens.first(where: {
-                ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display
-            })
-        {
-            return Double(screen.backingScaleFactor)
-        }
-        return Double((NSScreen.main ?? screens.first)?.backingScaleFactor ?? 2)
+    /// The main display's scale and visible size. Only sizes matter for `WindowFit`, so the frames start at 0, 0.
+    public func mainDisplay() -> DisplayInfo? {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return nil }
+        let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+        return DisplayInfo(
+            id: number?.uint32Value ?? 0, name: screen.localizedName, scale: Double(screen.backingScaleFactor),
+            frame: PointRect(x: 0, y: 0, width: screen.frame.width, height: screen.frame.height),
+            visibleFrame: PointRect(x: 0, y: 0, width: screen.visibleFrame.width, height: screen.visibleFrame.height))
     }
 
     public func quit() {
         NSApp.terminate(nil)
     }
+}
+
+/// A borderless panel that still takes the keyboard (for the Custom Size fields).
+private final class KeyPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
 }
 
 /// Calls back once when the panel's close button closes it.
