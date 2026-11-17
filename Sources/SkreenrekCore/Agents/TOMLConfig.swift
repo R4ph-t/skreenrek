@@ -7,6 +7,9 @@ enum TOMLConfig {
     static let end = "# <<< skreenrek <<<"
 
     static func validate(_ text: String) throws {
+        guard !text.unicodeScalars.contains(where: { ($0.value < 32 && ![9, 10, 13].contains($0.value)) || $0.value == 127 }) else {
+            throw AgentSetupError("The TOML config contains a control character. Remove it before connecting.")
+        }
         var parser = Reader(text)
         try parser.document()
     }
@@ -38,12 +41,24 @@ enum TOMLConfig {
         return "\(begin)\n[mcp_servers.skreenrek]\ncommand = \(quoted)\nargs = [\"mcp\"]\n\(end)\n"
     }
 
+    /// A user can add keys to our table after the marker. Removing its header would silently move those keys
+    /// into a different table. Only comments, blank lines or a new table may follow a removable block.
+    static func canRemove(_ text: String, range: Range<String.Index>) -> Bool {
+        for line in text[range.upperBound...].split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            return trimmed.hasPrefix("[")
+        }
+        return true
+    }
+
     private struct Reader {
         let chars: [Character]
         var index = 0
         var table: [String] = []
         var paths: Set<[String]> = []
         var tables: Set<[String]> = []
+        var arrayTables: Set<[String]> = []
         var keys: Set<[String]> = []
         var arraySerial = 0
         var scope: [String] = []
@@ -77,8 +92,13 @@ enum TOMLConfig {
                     let path = try key()
                     try require("]")
                     if array { try require("]") }
-                    guard !keys.contains(path) else { throw fail() }
-                    if !array && !tables.insert(path).inserted { throw fail() }
+                    guard !keys.contains(where: { path.starts(with: $0) }) else { throw fail() }
+                    if array {
+                        guard !tables.contains(path) else { throw fail() }
+                        arrayTables.insert(path)
+                    } else {
+                        guard !arrayTables.contains(path), tables.insert(path).inserted else { throw fail() }
+                    }
                     table = path
                     scope = array ? ["#array\(arraySerial)"] : []
                     if array { arraySerial += 1 }
@@ -89,8 +109,10 @@ enum TOMLConfig {
                     spaces()
                     try value()
                     let full = table + path
-                    guard keys.insert(scope + full).inserted,
+                    let scoped = scope + full
+                    guard !keys.contains(where: { scoped.starts(with: $0) || $0.starts(with: scoped) }),
                           !tables.contains(full) else { throw fail() }
+                    keys.insert(scoped)
                     paths.insert(full)
                 }
                 spaces(); comment()
@@ -134,7 +156,8 @@ enum TOMLConfig {
                 if take("}") { return }
                 while true {
                     let path = try key()
-                    guard names.insert(path).inserted else { throw fail() }
+                    guard !names.contains(where: { path.starts(with: $0) || $0.starts(with: path) }) else { throw fail() }
+                    names.insert(path)
                     try require("="); spaces(); try value(); spaces()
                     if take("}") { return }
                     try require(","); spaces()
@@ -147,8 +170,6 @@ enum TOMLConfig {
                 #"^(true|false|[+-]?(inf|nan))$"#,
                 #"^[+-]?(0|[1-9](_?[0-9])*)(\.[0-9](_?[0-9])*)?([eE][+-]?[0-9](_?[0-9])*)?$"#,
                 #"^0x[0-9a-fA-F](_?[0-9a-fA-F])*$"#, #"^0o[0-7](_?[0-7])*$"#, #"^0b[01](_?[01])*$"#,
-                #"^\d{4}-\d{2}-\d{2}([Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})?)?$"#,
-                #"^\d{2}:\d{2}:\d{2}(\.\d+)?$"#,
             ]
             guard patterns.contains(where: { token.range(of: $0, options: .regularExpression) != nil }) else {
                 throw fail()

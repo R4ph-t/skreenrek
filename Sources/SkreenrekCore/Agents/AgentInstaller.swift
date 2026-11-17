@@ -176,6 +176,7 @@ public struct AgentInstaller: Sendable {
                 server = try TOMLConfig.server(command: command)
                 let text = original ?? ""
                 config = text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + server
+                try TOMLConfig.validate(config)
             } else {
                 guard try JSONConfig.server(in: original ?? "{}") == nil else {
                     throw AgentSetupError("A skreenrek MCP server already exists. Leave it unchanged and remove it before connecting.")
@@ -208,7 +209,9 @@ public struct AgentInstaller: Sendable {
                 if try !TOMLConfig.hasServer(text) { return text }
                 throw changedServer()
             }
-            guard String(text[range]) == entry.installedServer else { throw changedServer() }
+            guard String(text[range]) == entry.installedServer, TOMLConfig.canRemove(text, range: range) else {
+                throw changedServer()
+            }
             var result = text
             result.removeSubrange(range)
             return result

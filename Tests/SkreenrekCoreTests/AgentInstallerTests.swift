@@ -169,4 +169,63 @@ import Testing
         #expect(home.installer.run(agents: [.claude]).allSatisfy { !$0.success })
         #expect(try home.read("original.json") == "{}")
     }
+
+    @Test func codexUserKeysAfterMarkerAreNotReparented() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        #expect(home.installer.run(agents: [.codex]).allSatisfy { $0.success })
+        let changed = try home.read(AgentClient.codex.config) + "enabled = false\n"
+        try home.write(AgentClient.codex.config, changed)
+        #expect(home.installer.run(agents: [.codex], remove: true).allSatisfy { !$0.success })
+        #expect(try home.read(AgentClient.codex.config) == changed)
+    }
+
+    @Test func codexInlineServerTableIsNotExtendedIllegally() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "mcp_servers = {other = {command = \"other\"}}\n"
+        try home.write(AgentClient.codex.config, original)
+        #expect(home.installer.run(agents: [.codex]).allSatisfy { !$0.success })
+        #expect(try home.read(AgentClient.codex.config) == original)
+        #expect(!home.exists(AgentClient.codex.skill))
+    }
+
+    @Test func codexCommonTOMLSyntaxPreservesEveryByte() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = #"""
+        # An unrelated setup
+        model = 'model'
+        instructions = """
+        Do the task.
+        Keep going.
+        """
+        features = {one = true, two = false}
+        [mcp_servers."other.server"]
+        command = "other"
+        args = [
+          "a", # comment
+          "b",
+        ]
+        [projects."/workspace"]
+        trust_level = "trusted"
+        """#
+        try home.write(AgentClient.codex.config, original)
+        #expect(home.installer.run(agents: [.codex]).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.codex.config).hasPrefix(original))
+        #expect(home.installer.run(agents: [.codex], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.codex.config) == original)
+    }
+
+    @Test(arguments: ["{\"mcpServers\":{\"skreenrek\":{},\"other\":{}}}",
+                      "{\"mcpServers\":{\"other\":{},\"skreenrek\":{},\"last\":{}}}",
+                      "{\"mcpServers\":{\"other\":{},\"skreenrek\":{}}}",
+                      "{\"mcpServers\":{\"skreenrek\":{}}}"])
+    func losslessJSONRemovalHandlesEveryCommaPosition(_ text: String) throws {
+        let removed = try JSONConfig.edit(text, server: nil)
+        #expect(try JSONConfig.server(in: removed) == nil)
+        #expect(!removed.contains("skreenrek"))
+        #expect(removed.contains("other") == text.contains("other"))
+        #expect(removed.contains("last") == text.contains("last"))
+    }
 }
