@@ -123,6 +123,6 @@ import Testing
     }
 
     @Test func version() {
-        #expect(SkreenrekVersion.current == "1.0.2")
+        #expect(SkreenrekVersion.current == "1.0.3")
     }
 }
