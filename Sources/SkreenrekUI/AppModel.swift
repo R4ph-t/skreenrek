@@ -78,6 +78,10 @@ public final class AppModel {
     public private(set) var snapshot: ControllerSnapshot
     public private(set) var actionError: SkreenrekError?
     public private(set) var menuOpen = false
+    /// A newer release's version, from `UpdateChecker`, for the dropdown's footer line.
+    public var updateAvailable: String? {
+        didSet { if updateAvailable != oldValue { onChange?() } }
+    }
 
     public init(
         controller: SkreenrekController, settings: SettingsStore, effects: any UIEffects,
@@ -96,7 +100,8 @@ public final class AppModel {
             sizeChoice: settings.sizeChoice, display: snapshot.display ?? effects.mainDisplay(),
             cursor: settings.cursor, events: settings.events,
             permissionsMissing: permissions.map { !$0.canCapture || $0.accessibility != .allowed }
-                ?? false)
+                ?? false,
+            updateAvailable: updateAvailable)
     }
 
     public var icon: StatusIcon { StatusIconModel.icon(for: context) }
@@ -182,7 +187,7 @@ public final class AppModel {
         case .openOutputFolder:
             try? FileManager.default.createDirectory(at: settings.outputFolder, withIntermediateDirectories: true)
             effects.open(settings.outputFolder)
-        case .openSettings:
+        case .openSettings, .showUpdate:
             effects.openSettings()
         case .showPermissions:
             effects.showPermissions()

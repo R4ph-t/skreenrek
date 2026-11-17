@@ -80,7 +80,7 @@ public final class MenuController: NSObject, NSMenuDelegate {
         guard rows != renderedRows else { return }
         if DropdownModel.onlyHeaderDiffers(rows, renderedRows), let headerView {
             // Only the header changed (the elapsed time): update it in place so hover and focus stay.
-            for case .header(let header) in rows { headerView.rootView = DropdownHeaderView(header: header) }
+            for case .header(let header) in rows { headerView.rootView = headerRoot(header) }
             renderedRows = rows
             return
         }
@@ -94,7 +94,7 @@ public final class MenuController: NSObject, NSMenuDelegate {
     private func makeItem(_ row: DropdownRow, context: MenuContext) -> NSMenuItem {
         switch row {
         case .header(let header):
-            let view = Self.hosted(DropdownHeaderView(header: header))
+            let view = Self.hosted(headerRoot(header))
             headerView = view
             let item = NSMenuItem()
             item.view = view
@@ -129,6 +129,15 @@ public final class MenuController: NSObject, NSMenuDelegate {
             for entry in submenu.entries { child.addItem(makeItem(entry)) }
             item.submenu = child
             return item
+        }
+    }
+
+    /// The header with its Record or Stop pill wired: a click closes the menu, then runs the action.
+    private func headerRoot(_ header: DropdownHeader) -> DropdownHeaderView {
+        DropdownHeaderView(header: header) { [weak self] action in
+            guard let self else { return }
+            self.menu.cancelTracking()
+            Task { await self.model.perform(action) }
         }
     }
 

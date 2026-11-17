@@ -31,7 +31,7 @@ import Testing
                 "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
                 "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
-                "settings-default-\(appearance)@2x.png",
+                "settings-default-\(appearance)@2x.png", "settings-updateavailable-\(appearance)@2x.png",
             ]
             expected.append("picker-empty-\(appearance)@2x.png")
             for state in ["keyboard", "window-contrast", "region-contrast"] {
