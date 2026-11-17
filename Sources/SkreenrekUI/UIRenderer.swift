@@ -347,6 +347,10 @@ public enum RenderSamples {
             context: context(
                 ControllerSnapshot(state: .idle, fps: .fps60), actionError: .permissionDenied(.screenRecording))),
         Sample(
+            name: "errordirectcapture",
+            context: context(
+                ControllerSnapshot(state: .idle, fps: .fps60), actionError: .permissionDenied(.directCapture))),
+        Sample(
             name: "erroraccessibility",
             context: context(
                 ControllerSnapshot(state: .armed, window: safari, displayId: 1, size: size, fps: .fps60),

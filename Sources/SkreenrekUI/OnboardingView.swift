@@ -55,13 +55,11 @@ public struct OnboardingView: View {
                           status: model.status(of: permission)) { model.openSystemSettings() }
                 .frame(height: 56)
                 .padding(.horizontal, 12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-            Text(model.waitsForScreenRecording
-                 ? UIStrings.Onboarding.directCaptureWaiting : UIStrings.Onboarding.explanation(permission))
+            // One sentence: what macOS will ask, or, once it asked, the relaunch it needs.
+            Text(model.needsRelaunch ? UIStrings.Onboarding.relaunchNote
+                 : model.waitsForScreenRecording ? UIStrings.Onboarding.directCaptureWaiting
+                 : UIStrings.Onboarding.explanation(permission))
                 .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            if model.needsRelaunch {
-                Text(UIStrings.Onboarding.relaunchNote).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 

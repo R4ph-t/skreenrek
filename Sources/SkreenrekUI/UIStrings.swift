@@ -234,7 +234,7 @@ public enum UIStrings {
 
         /// The direct-capture step: macOS 15's "bypass the system private window picker" prompt.
         public static let directCapture = "Direct Capture"
-        public static let directCaptureDetail = "Required. Records without the system window picker."
+        public static let directCaptureDetail = "Required. Skips the system window picker."
 
         /// What each step's button asks macOS for, and the sentence under the row.
         public static func allow(_ permission: Permission) -> String {
