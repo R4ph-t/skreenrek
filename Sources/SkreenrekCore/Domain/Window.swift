@@ -32,10 +32,12 @@ public struct WindowInfo: Sendable, Hashable, Codable {
     public var frame: PointRect
     public var displayId: DisplayID
     public var onScreen: Bool
+    /// The window server layer. Normal app windows are on layer 0.
+    public var layer: Int
 
     public init(
         id: WindowID, app: String, bundleId: String?, title: String, pid: Int32, frame: PointRect,
-        displayId: DisplayID, onScreen: Bool
+        displayId: DisplayID, onScreen: Bool, layer: Int = 0
     ) {
         self.id = id
         self.app = app
@@ -45,6 +47,25 @@ public struct WindowInfo: Sendable, Hashable, Codable {
         self.frame = frame
         self.displayId = displayId
         self.onScreen = onScreen
+        self.layer = layer
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, app, bundleId, title, pid, frame, displayId, onScreen, layer
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(WindowID.self, forKey: .id)
+        app = try c.decode(String.self, forKey: .app)
+        bundleId = try c.decodeIfPresent(String.self, forKey: .bundleId)
+        title = try c.decode(String.self, forKey: .title)
+        pid = try c.decode(Int32.self, forKey: .pid)
+        frame = try c.decode(PointRect.self, forKey: .frame)
+        displayId = try c.decode(DisplayID.self, forKey: .displayId)
+        onScreen = try c.decode(Bool.self, forKey: .onScreen)
+        // Older payloads have no layer; they only ever held normal windows.
+        layer = try c.decodeIfPresent(Int.self, forKey: .layer) ?? 0
     }
 
     /// The window's size in output pixels on a display: `round(pt × scale)`.
