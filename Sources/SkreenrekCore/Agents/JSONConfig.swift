@@ -65,7 +65,12 @@ enum JSONConfig {
             throw AgentSetupError("Couldn't parse the JSON config. Leave it unchanged and fix its syntax before connecting.")
         }
         var index = range.lowerBound
+        // Foundation accepts a leading UTF-8 BOM; keep it in the document, but don't read it as a key.
+        if bytes[range].starts(with: [0xef, 0xbb, 0xbf]) { index += 3 }
         skip(bytes, &index)
+        guard index < range.upperBound, bytes[index] == 123 else {
+            throw AgentSetupError("Couldn't parse the JSON config. Leave it unchanged and fix its syntax before connecting.")
+        }
         return try members(bytes, &index)
     }
 

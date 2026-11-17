@@ -83,6 +83,20 @@ import Testing
         #expect(home.exists(agent.skill))
     }
 
+    @Test(arguments: ["{}", "{\"mcpServers\":{\"other\":{\"command\":\"other\"}}}"])
+    func jsonByteOrderMarkSurvivesSetupAndRemoval(_ object: String) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "\u{feff}" + object + "\n"
+        try home.write(AgentClient.claude.config, original)
+        #expect(home.installer.run(agents: [.claude]).allSatisfy { $0.success })
+        let installed = try home.read(AgentClient.claude.config)
+        #expect(installed.hasPrefix("\u{feff}"))
+        #expect(try JSONConfig.server(in: installed) != nil)
+        #expect(home.installer.run(agents: [.claude], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.claude.config) == original)
+    }
+
     @Test(arguments: ["{", "[]", "{\"a\":1,\"a\":2}", "{\"mcpServers\":null}", "{\"mcpServers\":[]}"])
     func badJSONIsUntouched(_ text: String) throws {
         let home = try Home()

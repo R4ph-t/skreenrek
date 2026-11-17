@@ -64,7 +64,8 @@ A Homebrew cask, a notarized DMG and Sparkle (after v1, when a Developer ID exis
 
 ## How to test (Raph)
 
-1. No hand test is needed to merge: CI `factory check` must be green. The tests cover the skill byte-equality, install
+1. No hand test is needed to merge: local `make check` must pass at the PR head, with its result posted as a PR comment.
+   The tests cover the skill byte-equality, install
    into a temp `HOME` for each agent (JSON merge keeps other servers, TOML marker block), idempotence, `--remove`
    restoring the originals, an unparsable config left untouched, the Cellar → `opt` path rule, the `~/.local/bin`
    symlink and PATH warning, and `ruby -c Formula/skreenrek.rb` passing when Ruby is present.
