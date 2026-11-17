@@ -117,7 +117,7 @@ public struct StartBody: Sendable, Hashable, Codable {
     public var video: OutputSettings
 
     public init(recordingId: String, startedAt: String, readback: Readback?, fps: Int,
-        video: OutputSettings = try! .resolve()) {
+        video: OutputSettings = .defaults) {
         self.recordingId = recordingId
         self.startedAt = startedAt
         self.readback = readback

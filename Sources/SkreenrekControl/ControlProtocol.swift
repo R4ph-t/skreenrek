@@ -189,7 +189,7 @@ public struct StartParams: Sendable, Hashable, Codable {
     public var outDir: String?
     public var assetsDir: String?
     public var name: String?
-    /// `h264` or `hevc`.
+    /// `h264`, `hevc` or `prores`.
     public var codec: String?
     public var format: String?
     public var quality: String?

@@ -5,7 +5,7 @@ import Foundation
 import VideoToolbox
 import os
 
-/// Writes `clip.mp4`: one H.264 (or HEVC) video track, presentation time exactly `slot / fps`, appending the source's
+/// Writes an MP4 or MOV video track, presentation time exactly `slot / fps`, appending the source's
 /// own IOSurface-backed buffers through a pixel buffer adaptor (no pixel copies). `shouldOptimizeForNetworkUse` is off,
 /// so finishing never rewrites the file.
 ///
@@ -16,30 +16,39 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
 
     public let settings: ClipWriterSettings
     public private(set) var encoder: EncoderKind
+    public private(set) var videoReadback: VideoReadback?
 
     private var writer: AVAssetWriter
     private var input: AVAssetWriterInput
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor
     private var appended = 0
+    private let makeBackend: BackendFactory
     private let timescale: CMTimeScale
     private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "recorder")
 
     /// Creates the file and starts the writer, so the first frame appends with no setup left.
     /// Throws `recording_failed` (`The output folder isn't writable.`) when the file can't be written.
-    public init(settings: ClipWriterSettings) throws {
+    public convenience init(settings: ClipWriterSettings) throws {
+        try self.init(settings: settings, makeBackend: Self.start)
+    }
+
+    /// A backend seam lets tests reproduce hardware failure after startWriting succeeded.
+    typealias BackendFactory = (ClipWriterSettings, Bool) throws -> Started
+    init(settings: ClipWriterSettings, makeBackend: @escaping BackendFactory) throws {
         self.settings = settings
+        self.makeBackend = makeBackend
         timescale = CMTimeScale(settings.fps.framesPerSecond)
         let started: Started
         switch settings.encoder {
         case .software:
-            started = try Self.start(settings, hardware: false)
+            started = try makeBackend(settings, false)
         case .requireHardware:
             do {
-                started = try Self.start(settings, hardware: true)
+                started = try makeBackend(settings, true)
             } catch {
                 Self.log.notice(
                     "Hardware \(settings.codec.rawValue, privacy: .public) encoder unavailable; using software.")
-                started = try Self.start(settings, hardware: false)
+                started = try makeBackend(settings, false)
             }
         }
         writer = started.writer
@@ -48,7 +57,7 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         encoder = started.hardware ? .hardware : .software
     }
 
-    private struct Started {
+    struct Started {
         var writer: AVAssetWriter
         var input: AVAssetWriterInput
         var adaptor: AVAssetWriterInputPixelBufferAdaptor
@@ -57,7 +66,8 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
 
     private struct StartFailure: Error {}
 
-    private static func start(_ settings: ClipWriterSettings, hardware: Bool) throws -> Started {
+    static func start(_ settings: ClipWriterSettings, hardware: Bool) throws -> Started {
+        if hardware { try prepareHardware(settings) }
         try? FileManager.default.removeItem(at: settings.url)
         let writer: AVAssetWriter
         do {
@@ -84,6 +94,30 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         }
         writer.startSession(atSourceTime: .zero)
         return Started(writer: writer, input: input, adaptor: adaptor, hardware: hardware)
+    }
+
+    /// Force VideoToolbox's lazy encoder allocation before accepting capture frames. A VM can successfully create
+    /// a hardware session but fail to prepare it; that must take the same software fallback as startWriting.
+    private static func prepareHardware(_ settings: ClipWriterSettings) throws {
+        let output = outputSettings(settings, hardware: true)
+        let codec = output[AVVideoCodecKey] as! AVVideoCodecType
+        let type: CMVideoCodecType = switch codec {
+        case .h264: kCMVideoCodecType_H264
+        case .hevc: kCMVideoCodecType_HEVC
+        case .proRes422Proxy: kCMVideoCodecType_AppleProRes422Proxy
+        case .proRes422LT: kCMVideoCodecType_AppleProRes422LT
+        case .proRes422HQ: kCMVideoCodecType_AppleProRes422HQ
+        default: kCMVideoCodecType_AppleProRes422
+        }
+        var session: VTCompressionSession?
+        let status = VTCompressionSessionCreate(allocator: nil, width: Int32(settings.size.width),
+            height: Int32(settings.size.height), codecType: type,
+            encoderSpecification: [kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder: true] as CFDictionary,
+            imageBufferAttributes: nil, compressedDataAllocator: nil, outputCallback: nil, refcon: nil,
+            compressionSessionOut: &session)
+        guard status == noErr, let session else { throw StartFailure() }
+        defer { VTCompressionSessionInvalidate(session) }
+        guard VTCompressionSessionPrepareToEncodeFrames(session) == noErr else { throw StartFailure() }
     }
 
     /// The writer input's output settings: codec, size, profile, average bit rate, keyframe interval, Rec. 709
@@ -132,8 +166,9 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
 
     public var isReady: Bool {
         if writer.status == .failed { _ = fallbackBeforeFirstSample() }
+        guard writer.status == .writing else { return false }
         if input.isReadyForMoreMediaData { return true }
-        guard !settings.realTime, writer.status == .writing else { return false }
+        guard !settings.realTime else { return false }
         return waitBlocking(timeout: 10)
     }
 
@@ -153,7 +188,7 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         guard encoder == .hardware, appended == 0 else { return false }
         writer.cancelWriting()
         do {
-            let started = try Self.start(settings, hardware: false)
+            let started = try makeBackend(settings, false)
             writer = started.writer
             input = started.input
             adaptor = started.adaptor
@@ -165,8 +200,9 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
 
     public func waitUntilReady(timeout: TimeInterval) async -> Bool {
         if writer.status == .failed { _ = fallbackBeforeFirstSample() }
+        guard writer.status == .writing else { return false }
         if input.isReadyForMoreMediaData { return true }
-        guard writer.status == .writing, timeout > 0 else { return false }
+        guard timeout.isFinite, timeout > 0 else { return false }
         let waiter = ReadyWaiter(input: input, writer: writer)
         return await withTaskCancellationHandler {
             await withCheckedContinuation { waiter.start($0, timeout: timeout) }
@@ -181,6 +217,7 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
         guard writer.status == .completed else {
             throw writer.error ?? SkreenrekError.recordingFailed(.notWritable)
         }
+        videoReadback = try await VideoReadback.inspect(url: settings.url, settings: settings.output)
     }
 
     public func cancel() async {

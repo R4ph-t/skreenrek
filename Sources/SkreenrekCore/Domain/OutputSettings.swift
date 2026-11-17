@@ -11,6 +11,8 @@ public enum QualityPreset: String, Sendable, Hashable, Codable, CaseIterable {
 
 /// Validated before any side effect. Preset bitrates are resolved for the actual output size by the writer.
 public struct OutputSettings: Sendable, Hashable, Codable {
+    public static let defaults = OutputSettings(container: .mp4, codec: .h264, profile: "high", quality: .high,
+        requestedBitrateMbps: nil)
     public let container: VideoContainer
     public let codec: VideoCodec
     public let profile: String
