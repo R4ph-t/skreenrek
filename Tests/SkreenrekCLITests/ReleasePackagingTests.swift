@@ -93,7 +93,7 @@ import Testing
         #expect(cask.firstMatch(of: try Regex(#"(?m)^\s*sha256 "[0-9a-f]{64}"$"#)) != nil)
         #expect(cask.contains(#"app "Skreenrek.app""#))
         #expect(cask.contains(##"binary "#{appdir}/Skreenrek.app/Contents/MacOS/skreenrek""##))
-        #expect(cask.contains("depends_on macos: \">= :sequoia\""))
+        #expect(cask.contains("depends_on macos: :sequoia"))
         #expect(cask.contains("zap trash:"))
         #expect(cask.contains("~/Library/Application Support/skreenrek"))
     }
