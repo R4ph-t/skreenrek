@@ -85,7 +85,9 @@ public struct SettingsActions {
     public static let none = SettingsActions(chooseOutputFolder: {}, openPrivacyPane: { _ in }, settingsChanged: {})
 }
 
-/// The one Settings pane: a 480 pt grouped form, no tabs.
+/// The one Settings pane: a 480 pt grouped form, no tabs. An 88 pt hero (the V1 app icon, the name, the version and
+/// the project link), then rows with monochrome icon tiles and trailing switches. The only colour in the window is
+/// the accent on the switches, the selected frame rate and the link.
 public struct SettingsView: View {
     public static let width: CGFloat = 480
 
@@ -93,7 +95,6 @@ public struct SettingsView: View {
     @Bindable var panel: SettingsPanelState
     let actions: SettingsActions
     let version: String
-
     public init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions, version: String) {
         self.store = store
         self.panel = panel
@@ -103,68 +104,135 @@ public struct SettingsView: View {
 
     public var body: some View {
         Form {
+            Section { hero }
             Section {
-                LabeledContent(UIStrings.Settings.outputFolder) {
-                    HStack(spacing: 8) {
-                        Text(store.outputFolderDisplayPath)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help(store.outputFolder.path)
-                        Button(UIStrings.Settings.choose) { actions.chooseOutputFolder() }
+                SettingsRow(symbol: "folder.fill") {
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Text(store.outputFolderDisplayPath)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(store.outputFolder.path)
+                            Button(UIStrings.Settings.choose) { actions.chooseOutputFolder() }
+                        }
+                    } label: {
+                        Text(UIStrings.Settings.outputFolder)
                     }
                 }
-                Picker(UIStrings.Settings.defaultFrameRate, selection: $store.fps) {
-                    ForEach(FrameRate.allCases, id: \.self) { rate in
-                        Text(UIStrings.Menu.fps(rate)).tag(rate)
+                SettingsRow(symbol: "speedometer") {
+                    LabeledContent {
+                        FrameRateSegments(selection: $store.fps)
+                    } label: {
+                        Text(UIStrings.Settings.defaultFrameRate)
                     }
                 }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                Toggle(UIStrings.Settings.showCursor, isOn: $store.cursor).toggleStyle(.checkbox)
-                Toggle(UIStrings.Settings.writeClickEvents, isOn: $store.events).toggleStyle(.checkbox)
-                Toggle(UIStrings.Settings.showRecordingIndicator, isOn: $store.hud).toggleStyle(.checkbox)
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle(
-                        UIStrings.Settings.openAtLogin,
-                        isOn: Binding(get: { panel.openAtLogin }, set: { panel.setOpenAtLogin($0) })
-                    )
-                    .toggleStyle(.checkbox)
-                    if let error = panel.loginError {
-                        Text(error)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                switchRow(UIStrings.Settings.showCursor, symbol: "cursorarrow", isOn: $store.cursor)
+                switchRow(UIStrings.Settings.writeClickEvents, symbol: "cursorarrow.click", isOn: $store.events)
+                switchRow(UIStrings.Settings.showRecordingIndicator, symbol: "record.circle", isOn: $store.hud)
+                SettingsRow(symbol: "power") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(
+                            UIStrings.Settings.openAtLogin,
+                            isOn: Binding(get: { panel.openAtLogin }, set: { panel.setOpenAtLogin($0) })
+                        )
+                        .modifier(SettingsSwitch())
+                        if let error = panel.loginError {
+                            Text(error)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-                LabeledContent(UIStrings.Settings.stopShortcut) {
-                    Text(UIStrings.Settings.stopShortcutKeys).foregroundStyle(.secondary)
+                SettingsRow(symbol: "keyboard") {
+                    LabeledContent {
+                        Text(UIStrings.Settings.stopShortcutKeys).foregroundStyle(.secondary)
+                    } label: {
+                        Text(UIStrings.Settings.stopShortcut)
+                    }
                 }
             }
             if let agents = panel.agents { AgentsSection(panel: agents) }
             Section {
-                PermissionRow(
-                    title: UIStrings.Settings.screenRecording, detail: UIStrings.Settings.screenRecordingDetail,
-                    status: panel.screenRecording
-                ) { actions.openPrivacyPane(.screenRecording) }
-                PermissionRow(
-                    title: UIStrings.Settings.accessibility, detail: UIStrings.Settings.accessibilityDetail,
-                    status: panel.accessibility
-                ) { actions.openPrivacyPane(.accessibility) }
+                SettingsRow(symbol: "rectangle.dashed.badge.record") {
+                    PermissionRow(
+                        title: UIStrings.Settings.screenRecording, detail: UIStrings.Settings.screenRecordingDetail,
+                        status: panel.screenRecording
+                    ) { actions.openPrivacyPane(.screenRecording) }
+                }
+                SettingsRow(symbol: "accessibility") {
+                    PermissionRow(
+                        title: UIStrings.Settings.accessibility, detail: UIStrings.Settings.accessibilityDetail,
+                        status: panel.accessibility
+                    ) { actions.openPrivacyPane(.accessibility) }
+                }
             } header: {
-                Text(UIStrings.Settings.permissions)
-            } footer: {
-                Text(UIStrings.Settings.version(version))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 4)
+                SettingsSectionHeader(title: UIStrings.Settings.permissions)
             }
         }
         .formStyle(.grouped)
         .frame(width: Self.width)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: store.controllerSettings) { actions.settingsChanged() }
+    }
+
+    private func switchRow(_ title: String, symbol: String, isOn: Binding<Bool>) -> some View {
+        SettingsRow(symbol: symbol) {
+            Toggle(title, isOn: isOn).modifier(SettingsSwitch())
+        }
+    }
+
+    /// The V1 app icon (icon-dark) at 56, the name at 20 semibold (SF Pro, the system stand-in for the wordmark's
+    /// Inter SemiBold) over the version, and the project link on the right, 88 pt tall.
+    private var hero: some View {
+        HStack(alignment: .center, spacing: 14) {
+            KitAppIcon(size: 56)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(UIStrings.productName).font(.system(size: 20, weight: .semibold))
+                Text(version).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(UIStrings.Settings.version(version))
+            Spacer(minLength: 8)
+            if let url = URL(string: UIStrings.Brand.repoURL) {
+                Link(UIStrings.Brand.repoLink, destination: url)
+                    .font(.system(size: 12))
+                    .help(UIStrings.Brand.repoHelp)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 6)
+            }
+        }
+        .frame(height: 88)
+    }
+}
+
+/// A Settings row: the 22 pt icon tile, 10 pt, then the row's content; at least 44 pt tall.
+struct SettingsRow<Tile: View, Content: View>: View {
+    let tile: Tile
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 10) {
+            tile
+            content
+        }
+        .frame(minHeight: 44)
+    }
+}
+
+extension SettingsRow where Tile == SettingsIconTile {
+    init(symbol: String, @ViewBuilder content: () -> Content) {
+        self.init(tile: SettingsIconTile(symbol: symbol), content: content)
+    }
+}
+
+/// A section header at 13 semibold.
+struct SettingsSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title).font(.system(size: 13, weight: .semibold))
     }
 }
 
@@ -173,21 +241,16 @@ struct PermissionRow: View {
     let title: String
     let detail: String
     let status: PermissionStatus
-    /// The v2 direction mockups (A and C): "Open Settings…" and a one-line detail. The shipping window leaves it off.
-    var compact = false
     let open: () -> Void
 
     var body: some View {
         // One 12 pt minimum gap between the text and the status. The text column takes the room up to the trailing
-        // status first, and the status keeps its own size, so the detail stays on one line.
+        // status first, and the status keeps its own size.
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13))
-                if compact {
-                    Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-                } else {
-                    Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
-                }
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .layoutPriority(1)
             Spacer(minLength: 12)
@@ -203,9 +266,7 @@ struct PermissionRow: View {
                 HStack(spacing: 8) {
                     Image(systemName: "circle.dashed").font(.system(size: 16)).frame(width: 16)
                         .foregroundStyle(.secondary).accessibilityHidden(true)
-                    Button(
-                        compact ? UIStrings.Directions.openSettings : UIStrings.Settings.openSystemSettings,
-                        action: open)
+                    Button(UIStrings.Settings.openSystemSettings, action: open)
                 }
                 .fixedSize()
             }

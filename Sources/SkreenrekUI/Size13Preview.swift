@@ -34,10 +34,14 @@ enum Size13Samples {
 
     /// The main menu armed with 1080p on the laptop: the window is 1440 × 810 pt and records a 1920 × 1080 px clip.
     static func armedEntries() -> [MenuEntry] {
+        MenuModel.entries(for: armedContext())
+    }
+
+    static func armedContext() -> MenuContext {
         let clip = SizePreset.p1080.size
         var window = RenderSamples.safari
         window.frame = PointRect(x: 120, y: 80, width: 1440, height: 810)
-        let context = RenderSamples.context(
+        return RenderSamples.context(
             ControllerSnapshot(
                 state: .armed, window: window, displayId: laptop.id, size: clip,
                 readback: Readback(
@@ -45,7 +49,6 @@ enum Size13Samples {
                     actual: clip, frame: window.frame, exact: true, attempts: 1),
                 fps: .fps60, lastClip: RenderSamples.clip(), display: laptop),
             title: RenderSamples.clipTitle, sizeChoice: choice)
-        return MenuModel.entries(for: context)
     }
 
     static func customSheet(width: Int, height: Int) -> CustomSizeModel {
@@ -82,7 +85,11 @@ enum Size13Renderer {
                 "size-submenu-large")
             try save(customSheet(Size13Samples.customSheet(width: 1920, height: 1080)), "custom-valid")
             try save(customSheet(Size13Samples.customSheet(width: 3840, height: 2160)), "custom-toolarge")
-            try save(DropdownPreview(Size13Samples.armedEntries()), "dropdown-armed-1080p")
+            written.append(
+                try UIRenderer.write(
+                    UIRenderer.dropdown(Size13Samples.armedContext(), thumbnail: SampleFrame.image()),
+                    appearance: appearance, active: true,
+                    to: folder.appendingPathComponent("dropdown-armed-1080p-\(appearance.rawValue)@2x.png")))
         }
         return written
     }

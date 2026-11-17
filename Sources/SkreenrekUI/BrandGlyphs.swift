@@ -4,7 +4,7 @@ import SkreenrekCore
 import SwiftUI
 
 /// Draws the V1 logo kit from its own SVG geometry (`BrandKit`), so the menu-bar glyphs can be split into a template
-/// layer and an accent layer, and the mark can sit on C's graphite tile. Used only by the direction C mockups.
+/// layer and an accent layer, and the mark can sit on the dropdown's graphite tile.
 ///
 /// The kit's SVGs use a small subset: `<g>` groups carrying fill and stroke, `<path>` with absolute M/L/Z,
 /// `<circle>`, butt caps and miter joins. Paint is classified rather than copied: the kit's ink (`#000` in the
@@ -233,6 +233,26 @@ enum BrandStatusGlyph {
         return image
     }
 
+    /// The status item's image. Mono is one template image that follows the menu bar. With `accent` (recording),
+    /// the bichrome glyph in one image: the ink drawn in `labelColor` each time it's drawn, so it still follows the
+    /// bar's appearance, and the record dot in systemRed.
+    @MainActor
+    static func statusItemImage(_ state: BrandKit.MenuBarState, accent: Bool) -> NSImage {
+        guard accent else { return templateLayer(state, style: .mono) }
+        let drawing = KitSVG.parse(BrandKit.bichromeSVG(state))
+        let color = state == .recording ? NSColor.systemRed : NSColor.systemOrange
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            KitSVG.draw(drawing, paints: [.ink, .accent], in: rect, context: context) { paint in
+                paint == .accent ? color.cgColor : NSColor.labelColor.cgColor
+            }
+            return true
+        }
+        image.cacheMode = .never
+        image.isTemplate = false
+        return image
+    }
+
     /// Bichrome's accent layer (not a template), or nil when the state has no accent part.
     @MainActor
     static func accentLayer(_ state: BrandKit.MenuBarState) -> NSImage? {
@@ -249,7 +269,7 @@ enum BrandStatusGlyph {
     }
 }
 
-/// What a status item's button would hold for C: the template layer, the accent layer above it (bichrome), and the
+/// What the status item's button holds, for the renders: the template layer, the accent layer above it (bichrome), and the
 /// elapsed time beside the glyph while recording. In a real `NSStatusBarButton` the system tints the template layer
 /// for the bar; this preview tints it with `labelColor` for the forced appearance, which is what the bar does when
 /// active (an offscreen `NSImageView` would draw it dimmed).
@@ -327,10 +347,20 @@ enum BrandIcon {
         return image
     }
 
-    /// `icon-dark`'s mark (white k's and the red record dot) without its body, for C's graphite tile. The icon's
+    /// `icon-dark`'s mark (white k's and the red record dot) without its body, for the header's graphite tile. The icon's
     /// body spans 100…924 of its 1024 grid, so that square maps onto the tile. Small tiles use `icon-dark-small`'s
     /// heavier stroke, as the kit does for 64 px and below.
     static func tileMark(size: CGFloat) -> NSImage {
+        if let cached = marks[size] { return cached }
+        let image = drawTileMark(size: size)
+        marks[size] = image
+        return image
+    }
+
+    /// Parsed once per size: the icon SVG is large, and the header redraws while the menu is open.
+    private static var marks: [CGFloat: NSImage] = [:]
+
+    private static func drawTileMark(size: CGFloat) -> NSImage {
         let svg = size * 2 <= 64 ? BrandKit.iconDarkSmallSVG : BrandKit.iconDarkSVG
         let drawing = KitSVG.parse(svg)
         let ink = NSColor(srgbRed: 0xF5 / 255, green: 0xF5 / 255, blue: 0xF7 / 255, alpha: 1).cgColor
@@ -350,20 +380,20 @@ enum BrandIcon {
     }
 }
 
-/// C's header tile: the kit mark on graphite (0.16 light, 0.22 dark), radius 10.
+/// The dropdown header's tile: the kit mark on graphite (0.16 light, 0.22 dark), radius 10.
 struct KitMarkTile: View {
     var size: CGFloat = 40
 
     var body: some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(DirectionTheme.graphite)
+            .fill(BrandTheme.graphite)
             .overlay(Image(nsImage: BrandIcon.tileMark(size: size)).resizable().interpolation(.high))
             .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
 
-/// C's Settings hero icon: `icon-dark`.
+/// The Settings hero icon: `icon-dark`.
 struct KitAppIcon: View {
     var size: CGFloat
 

@@ -5,7 +5,7 @@ import Testing
 
 @testable import SkreenrekUI
 
-/// The V1 logo kit embedded for direction C: the literals match the kit files in docs/brand/final-V1 byte for
+/// The V1 logo kit embedded for the shipping UI: the literals match the kit files in docs/brand/final-V1 byte for
 /// byte, and the glyphs parse into the layers the kit's README describes.
 @MainActor
 @Suite struct BrandKitTests {
