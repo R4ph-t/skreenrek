@@ -16,10 +16,11 @@ public enum SnippetBuilder {
         public var duration: Double
         /// Whether `events.json` was written (adds `· clicks: events.json`).
         public var hasEvents: Bool
+        public var container: VideoContainer
 
         public init(
             clipId: String, source: EventsFile.Source, width: Int, height: Int, fps: Int, duration: Double,
-            hasEvents: Bool
+            hasEvents: Bool, container: VideoContainer = .mp4
         ) {
             self.clipId = clipId
             self.source = source
@@ -28,13 +29,14 @@ public enum SnippetBuilder {
             self.fps = fps
             self.duration = duration
             self.hasEvents = hasEvents
+            self.container = container
         }
 
         public init(recording: EventsFile.Recording, hasEvents: Bool) {
             self.init(
                 clipId: recording.id, source: recording.source, width: recording.video.width,
                 height: recording.video.height, fps: recording.fps, duration: recording.duration,
-                hasEvents: hasEvents)
+                hasEvents: hasEvents, container: recording.video.container)
         }
     }
 
@@ -54,9 +56,9 @@ public enum SnippetBuilder {
         ]
         if input.hasEvents { parts.append("clicks: events.json") }
         var lines = ["<!-- \(parts.joined(separator: " · ")) -->"]
-        let asset = "assets/\(input.clipId).mp4"
+        let asset = "assets/\(input.clipId).\(input.container.rawValue)"
         if case .copyCommand(let folder, let home) = copy {
-            let clip = displayPath(folder.appendingPathComponent("clip.mp4"), home: home)
+            let clip = displayPath(folder.appendingPathComponent(input.container.fileName), home: home)
             lines.append("<!-- Copy the clip first: cp \(clip) \(asset) -->")
         }
         lines.append("<video class=\"clip\" src=\"\(asset)\"")
@@ -74,7 +76,7 @@ public enum SnippetBuilder {
     ) throws -> String {
         let copy: CopyHint
         if let assetsDir {
-            try copyClip(from: clipFolder, clipId: input.clipId, to: assetsDir)
+            try copyClip(from: clipFolder, clipId: input.clipId, to: assetsDir, container: input.container)
             copy = .none
         } else {
             copy = .copyCommand(clipFolder: clipFolder, homeDirectory: homeDirectory)
@@ -86,12 +88,13 @@ public enum SnippetBuilder {
 
     /// Copies `clip.mp4` to `<assetsDir>/<clip-id>.mp4` and returns the destination.
     @discardableResult
-    public static func copyClip(from clipFolder: URL, clipId: String, to assetsDir: URL) throws -> URL {
+    public static func copyClip(from clipFolder: URL, clipId: String, to assetsDir: URL,
+        container: VideoContainer = .mp4) throws -> URL {
         let fm = FileManager.default
         try fm.createDirectory(at: assetsDir, withIntermediateDirectories: true)
-        let destination = assetsDir.appendingPathComponent("\(clipId).mp4")
+        let destination = assetsDir.appendingPathComponent("\(clipId).\(container.rawValue)")
         if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-        try fm.copyItem(at: clipFolder.appendingPathComponent("clip.mp4"), to: destination)
+        try fm.copyItem(at: clipFolder.appendingPathComponent(container.fileName), to: destination)
         return destination
     }
 

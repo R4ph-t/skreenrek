@@ -211,7 +211,9 @@ public enum RenderSamples {
             recording: StopBody.Recording(
                 id: "2026-11-17_104207_safari", duration: 42.0, fps: 60, width: 1280, height: 800, codec: codec,
                 startedAt: "2026-11-17T10:24:07.120+01:00", startedBy: .mcp,
-                stats: RecordingStats(slotsWritten: 2520, framesFresh: 2400, encoder: .hardware)),
+                stats: RecordingStats(slotsWritten: 2520, framesFresh: 2400, encoder: .hardware),
+                video: VideoReadback(file: file, width: 1280, height: 800, scale: 2, codec: codec,
+                    container: file.hasSuffix(".mov") ? .mov : .mp4)),
             files: StopBody.Files(
                 clip: "\(folder)/\(file)", events: "\(folder)/events.json", snippet: "\(folder)/hyperframes.html"),
             snippet: "<video class=\"clip\"></video>", readback: readback(actual: size))
@@ -245,6 +247,10 @@ public enum RenderSamples {
             name: "lastclipmov",
             context: context(
                 ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(file: "clip.mov")), title: clipTitle)),
+        Sample(
+            name: "lastclipprores",
+            context: context(
+                ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(codec: .prores, file: "clip.mov")), title: clipTitle)),
         armed,
         Sample(
             name: "armednotexact",

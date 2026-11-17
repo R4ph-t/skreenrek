@@ -11,6 +11,7 @@ public enum FrameRate: Int, Sendable, Hashable, Codable, CaseIterable {
 public enum VideoCodec: String, Sendable, Hashable, Codable, CaseIterable {
     case h264
     case hevc
+    case prores
 }
 
 /// Options for one recording. Defaults: 60 fps, cursor, click events and HUD on, H.264, no duration, exact size.
@@ -26,6 +27,9 @@ public struct RecordingOptions: Sendable, Hashable, Codable {
     /// A HyperFrames project's assets folder to copy the clip into.
     public var assetsDir: URL?
     public var codec: VideoCodec
+    public var container: VideoContainer
+    public var quality: QualityPreset?
+    public var bitrateMbps: Double?
     /// Auto-stop after this many seconds; nil records until stopped.
     public var duration: TimeInterval?
     public var allowInexact: Bool
@@ -33,7 +37,8 @@ public struct RecordingOptions: Sendable, Hashable, Codable {
     public init(
         fps: FrameRate = .fps60, cursor: Bool = true, events: Bool = true, hud: Bool = true, outDir: URL? = nil,
         name: String? = nil, assetsDir: URL? = nil, codec: VideoCodec = .h264, duration: TimeInterval? = nil,
-        allowInexact: Bool = false
+        allowInexact: Bool = false, container: VideoContainer = .mp4, quality: QualityPreset? = nil,
+        bitrateMbps: Double? = nil
     ) {
         self.fps = fps
         self.cursor = cursor
@@ -43,6 +48,9 @@ public struct RecordingOptions: Sendable, Hashable, Codable {
         self.name = name
         self.assetsDir = assetsDir
         self.codec = codec
+        self.container = container
+        self.quality = quality
+        self.bitrateMbps = bitrateMbps
         self.duration = duration
         self.allowInexact = allowInexact
     }

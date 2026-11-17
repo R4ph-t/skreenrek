@@ -39,6 +39,7 @@ public final class ObservedSink: PixelBufferSink {
     }
 
     public var encoder: EncoderKind { inner.encoder }
+    public var videoReadback: VideoReadback? { inner.videoReadback }
     public var isReady: Bool { inner.isReady }
 
     public func append(_ pixelBuffer: CVPixelBuffer, slot: Int) -> Bool {

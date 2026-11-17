@@ -194,7 +194,7 @@ enum EventFixtures {
         "startedAt":"2026-11-17T10:42:07.120+01:00","startedBy":"mcp",\
         "stats":{"encoder":"hardware","framesDropped":2,"framesFresh":2400,"framesRepeatedIdle":118,\
         "pixelFormat":"420v","slotsWritten":2520,"sourceFramesSkipped":1,"startToFirstFrameMs":84.5,"stopToFinalizedMs":41.25},\
-        "video":{"codec":"h264","file":"clip.mp4","height":800,"scale":2,"width":1280}},\
+        "video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"clip.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":2,"width":1280}},\
         "schema":"skreenrek.events/1"}
 
         """
@@ -214,7 +214,7 @@ enum EventFixtures {
         #expect(json.contains(#""client":null"#))
         #expect(json.contains(#""complete":false"#))
         #expect(json.contains(#""clicks":[]"#) && json.contains(#""events":[]"#))
-        #expect(json.contains(#""video":{"codec":"h264","file":"clip.mp4","height":800,"scale":1,"width":1280}"#))
+        #expect(json.contains(#""video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"clip.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":1,"width":1280}"#))
     }
 
     @Test func roundTrips() throws {

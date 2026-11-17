@@ -27,11 +27,13 @@ extension RecorderSuites {
                 try await session.start(
                     target: .window(Fixtures.safari), size: PixelSize(width: 1920, height: 1080),
                     options: RecordingOptions(fps: .fps60), folder: try temp.clipFolder())
-                for await _ in firstSlot.stream { break }
+                try await withTestDeadline {
+                    for await _ in firstSlot.stream { break }
+                }
                 let stats = await session.stats
                 let ms = try #require(stats.startToFirstFrameMs)
                 if run > 0 { samples.append(ms) } else { print("PerfStartTests: warm-up run \(Int(ms.rounded())) ms") }
-                _ = try await session.stop()
+                _ = try await withTestDeadline { try await session.stop() }
             }
             let median = samples.sorted()[samples.count / 2]
             print("PerfStartTests: startToFirstFrameMs runs \(samples.map { Int($0.rounded()) }) median \(median)")
@@ -51,7 +53,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 1920, height: 1080),
                 options: RecordingOptions(fps: fps, duration: 3), folder: Fixtures.unusedFolder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             let s = result.stats
             print(
                 "PerfSustainTests \(fps.framesPerSecond) fps: slots \(s.slotsWritten) fresh \(s.framesFresh) "
@@ -77,7 +79,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800,
                 options: RecordingOptions(fps: .fps30, duration: 10), folder: try temp.clipFolder())
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             let ms = try #require(result.stats.stopToFinalizedMs)
             print("PerfFinalizeTests: stopToFinalizedMs \(ms) for \(result.stats.slotsWritten) frames")
             #expect(result.stopReason == .duration)

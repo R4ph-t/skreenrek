@@ -268,8 +268,7 @@ public enum MenuModel {
         ]
     }
 
-    /// `0:42 · 1280 × 800 px · 60 fps · 10:24`, with the format before the time when it isn't H.264 MP4:
-    /// `0:42 · 1280 × 800 px · 60 fps · ProRes MOV · 10:24`.
+    /// Non-default formats replace the clock time, keeping the detail on one line.
     public static func lastClipDetail(_ clip: StopBody, timeZone: TimeZone = .current, locale: Locale = .current)
         -> String
     {
@@ -280,8 +279,7 @@ public enum MenuModel {
         ]
         if let format = ClipFormatLabel.suffix(codec: r.codec.rawValue, clipPath: clip.files.clip) {
             parts.append(format)
-        }
-        if let time = startTime(r.startedAt, timeZone: timeZone, locale: locale) { parts.append(time) }
+        } else if let time = startTime(r.startedAt, timeZone: timeZone, locale: locale) { parts.append(time) }
         return parts.joined(separator: UIStrings.Menu.separator)
     }
 

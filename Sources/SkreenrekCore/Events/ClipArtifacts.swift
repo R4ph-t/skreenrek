@@ -37,6 +37,6 @@ public enum ClipArtifacts {
             input, clipFolder: clipFolder, assetsDir: assetsDir, homeDirectory: homeDirectory)
         return Written(
             eventsFile: eventsFile, snippetFile: clipFolder.appendingPathComponent(SnippetBuilder.fileName),
-            snippet: snippet, assetCopy: assetsDir?.appendingPathComponent("\(recording.id).mp4"))
+            snippet: snippet, assetCopy: assetsDir?.appendingPathComponent("\(recording.id).\(recording.video.container.rawValue)"))
     }
 }

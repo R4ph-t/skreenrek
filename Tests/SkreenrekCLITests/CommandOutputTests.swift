@@ -87,7 +87,7 @@ import Testing
         let json = try await h.run(["record", "--app", "Safari", "--json"])
         #expect(json.code == 0, "\(json)")
         let object = try json.json()
-        #expect(Set(object.keys) == ["recordingId", "startedAt", "readback", "fps"])
+        #expect(Set(object.keys) == ["recordingId", "startedAt", "readback", "fps", "video"])
         #expect(object["fps"] as? Int == 60)
         #expect(object["readback"] is NSNull)
         #expect(json.out.hasSuffix("}\n") && json.out.split(separator: "\n").count == 1)

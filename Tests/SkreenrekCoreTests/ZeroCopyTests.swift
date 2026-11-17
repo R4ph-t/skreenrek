@@ -19,7 +19,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 320, height: 200),
                 options: RecordingOptions(fps: .fps60, duration: 0.5), folder: Fixtures.unusedFolder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
 
             let delivered = source.delivered.map { ObjectIdentifier($0.pixelBuffer) }
             let appended = sink.appended
@@ -45,14 +45,17 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 64, height: 64), options: RecordingOptions(),
                 folder: Fixtures.unusedFolder)
-            var maxHeld = 0
-            while await session.framesReceived < 200 {
-                maxHeld = max(maxHeld, await session.heldBufferCount)
-                await Task.yield()
+            let maxHeld = try await withTestDeadline {
+                var maxHeld = 0
+                while await session.framesReceived < 200 {
+                    maxHeld = max(maxHeld, await session.heldBufferCount)
+                    await Task.yield()
+                }
+                return maxHeld
             }
             #expect(await session.heldBufferCount <= 2)
             #expect(maxHeld <= 2)
-            _ = try await session.stop()
+            _ = try await withTestDeadline { try await session.stop() }
         }
     }
 }

@@ -53,7 +53,7 @@ import Testing
         let recording = try #require(result["recording"] as? [String: Any])
         #expect(
             Set(recording.keys)
-                == ["id", "duration", "fps", "width", "height", "codec", "startedAt", "startedBy", "stats"])
+                == ["id", "duration", "fps", "width", "height", "codec", "startedAt", "startedBy", "stats", "video"])
         #expect(Set(try #require(result["files"] as? [String: Any]).keys) == ["clip", "events", "snippet"])
 
         let fm = FileManager.default

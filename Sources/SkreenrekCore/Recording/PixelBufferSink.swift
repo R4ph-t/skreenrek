@@ -8,6 +8,7 @@ import Foundation
 public protocol PixelBufferSink: AnyObject, Sendable {
     /// The encoder actually in use.
     var encoder: EncoderKind { get }
+    var videoReadback: VideoReadback? { get }
     /// Whether `append` can take a buffer now. Never blocks in real-time mode.
     var isReady: Bool { get }
     /// Appends the source's own buffer (no copy) as slot `slot`: presentation time `slot / fps`.
@@ -21,25 +22,30 @@ public protocol PixelBufferSink: AnyObject, Sendable {
     func cancel() async
 }
 
+extension PixelBufferSink {
+    public var videoReadback: VideoReadback? { nil }
+}
+
 /// Settings for one clip file.
 public struct ClipWriterSettings: Sendable, Hashable {
     public var url: URL
     public var size: PixelSize
     public var fps: FrameRate
-    public var codec: VideoCodec
+    public var output: OutputSettings
+    public var codec: VideoCodec { output.codec }
     public var encoder: EncoderPolicy
     /// True for live capture: `isReady` never blocks, and a slot that finds the input busy repeats instead.
     /// False for offline writing (tests): `isReady` waits for the encoder, so every slot gets its own frame.
     public var realTime: Bool
 
     public init(
-        url: URL, size: PixelSize, fps: FrameRate, codec: VideoCodec = .h264, encoder: EncoderPolicy = .requireHardware,
-        realTime: Bool = true
+        url: URL, size: PixelSize, fps: FrameRate, encoder: EncoderPolicy = .requireHardware,
+        realTime: Bool = true, output: OutputSettings = .defaults
     ) {
         self.url = url
         self.size = size
         self.fps = fps
-        self.codec = codec
+        self.output = output
         self.encoder = encoder
         self.realTime = realTime
     }
@@ -57,5 +63,5 @@ public struct ClipWriterSettings: Sendable, Hashable {
         return min(max(Int(raw.rounded()), minimumBitRate), maximumBitRate)
     }
 
-    public var averageBitRate: Int { Self.averageBitRate(size: size, fps: fps) }
+    public var averageBitRate: Int { output.targetBitrate(size: size, fps: fps) ?? 0 }
 }

@@ -37,10 +37,10 @@ extension RecorderSuites {
             #expect(software[kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String] == false)
         }
 
-        @Test func hevcSettingsUseTheHEVCCodec() {
-            var settings = ClipWriterSettings(
-                url: URL(fileURLWithPath: "/tmp/clip.mp4"), size: PixelSize(width: 1280, height: 800), fps: .fps30)
-            settings.codec = .hevc
+        @Test func hevcSettingsUseTheHEVCCodec() throws {
+            let settings = ClipWriterSettings(
+                url: URL(fileURLWithPath: "/tmp/clip.mp4"), size: PixelSize(width: 1280, height: 800), fps: .fps30,
+                output: try .resolve(codec: "hevc"))
             let output = ClipWriter.outputSettings(settings, hardware: true)
             #expect(output[AVVideoCodecKey] as? AVVideoCodecType == .hevc)
         }

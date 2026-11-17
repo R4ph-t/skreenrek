@@ -43,6 +43,7 @@ public final class SyntheticFrameSource: FrameSource {
     private let endError: (any Error)?
     private let startError: (any Error)?
     private let frameSizes: [Int: PixelSize]
+    private let motion: Bool
     private let state = Mutex(State())
 
     /// - Parameters:
@@ -51,12 +52,13 @@ public final class SyntheticFrameSource: FrameSource {
     ///   - frameSizes: frames (by index) made at another size than the one `start` asked for.
     public init(
         timing: Timing, endError: (any Error)? = nil, startError: (any Error)? = nil,
-        frameSizes: [Int: PixelSize] = [:]
+        frameSizes: [Int: PixelSize] = [:], motion: Bool = false
     ) {
         self.timing = timing
         self.endError = endError
         self.startError = startError
         self.frameSizes = frameSizes
+        self.motion = motion
     }
 
     /// `count` frames at `fps`, host times `start + n / fps`, delivered at once.
@@ -77,6 +79,7 @@ public final class SyntheticFrameSource: FrameSource {
         let timing = timing
         let endError = endError
         let frameSizes = frameSizes
+        let motion = motion
         let startTime: TimeInterval? = if case .realTime(let clock, _, _) = timing { clock.now() } else { nil }
 
         let task = Task { [weak self] in
@@ -100,7 +103,7 @@ public final class SyntheticFrameSource: FrameSource {
                     }
                     try Task.checkCancellation()
                     let buffer = try factory.make(
-                        size: frameSizes[index] ?? size, luma: Self.luma(forFrameIndex: index))
+                        size: frameSizes[index] ?? size, luma: Self.luma(forFrameIndex: index), motionIndex: motion ? index : nil)
                     continuation.yield(CapturedFrame(pixelBuffer: buffer, hostTime: hostTime))
                     self?.state.withLock { $0.delivered += 1 }
                     index += 1
@@ -199,7 +202,7 @@ private final class PixelBufferFactory {
         var description: String { "Couldn't make a synthetic pixel buffer (CVReturn \(status))." }
     }
 
-    func make(size: PixelSize, luma: UInt8) throws -> CVPixelBuffer {
+    func make(size: PixelSize, luma: UInt8, motionIndex: Int? = nil) throws -> CVPixelBuffer {
         if poolSize != size {
             let attributes: [String: Any] = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
@@ -217,7 +220,28 @@ private final class PixelBufferFactory {
         let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool!, &buffer)
         guard status == kCVReturnSuccess, let buffer else { throw Failure(status: status) }
         fill(buffer, luma: luma)
+        if let motionIndex { fillMotion(buffer, index: motionIndex) }
         return buffer
+    }
+
+    /// Moving textured tiles, deterministic and different on every frame. Enough detail for bitrate tests.
+    private func fillMotion(_ buffer: CVPixelBuffer, index: Int) {
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(buffer, 0) else { return }
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+        let width = CVPixelBufferGetWidth(buffer)
+        let height = CVPixelBufferGetHeight(buffer)
+        let bytes = base.assumingMemoryBound(to: UInt8.self)
+        for y in 0..<height {
+            for x in 0..<width {
+                let tx = (x + index * 7) / 24
+                let ty = (y + index * 3) / 24
+                var hash = UInt32(truncatingIfNeeded: tx &* 374761393 &+ ty &* 668265263 &+ index &* 1442695041)
+                hash = (hash ^ (hash >> 13)) &* 1274126177
+                bytes[y * stride + x] = UInt8(16 + (hash ^ (hash >> 16)) % 220)
+            }
+        }
     }
 
     private func fill(_ buffer: CVPixelBuffer, luma: UInt8) {
