@@ -87,7 +87,7 @@ import Testing
             #expect(tenMinutes == 358)
             #expect(sizes["hud-recording-contrast-\(appearance)@2x.png"]?.0 == recording)
             for state in CaptureRenderSamples.onboardingStates {
-                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 992))
+                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 800))
             }
         }
         for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("statusrow-") {

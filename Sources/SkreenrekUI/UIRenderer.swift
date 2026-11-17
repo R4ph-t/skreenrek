@@ -84,7 +84,7 @@ public enum UIRenderer {
                 let model = OnboardingModel(permissions: StaticPermissions(screenRecording: sample.screen, accessibility: sample.accessibility),
                     requester: PreviewPermissionRequester(), defaults: defaults,
                     agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) }, install: { _ in [] })
-                try save(host(OnboardingView(model: model), size: NSSize(width: 520, height: 496)), "onboarding", sample.name)
+                try save(host(OnboardingView(model: model), size: OnboardingView.size), "onboarding", sample.name)
             }
         }
         return written
