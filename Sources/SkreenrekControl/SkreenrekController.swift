@@ -91,6 +91,8 @@ public actor SkreenrekController {
     private var lastClip: StopBody?
     private var subscribers: [UUID: AsyncStream<ControllerSnapshot>.Continuation] = [:]
     private var lastPublished: ControllerSnapshot?
+    private var endWaiters = 0
+    private var endWaiterWatchers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     /// - Parameter socketPath: reported by `doctor`.
     public init(seams: ControllerSeams, settings: ControllerSettings = ControllerSettings(), socketPath: String? = nil) {
@@ -403,7 +405,13 @@ public actor SkreenrekController {
     public func waitForEnd() async throws -> EndBody {
         switch phase {
         case .recording(let active), .writing(let active):
-            switch await active.outcome {
+            endWaiters += 1
+            let ready = endWaiterWatchers.filter { $0.count <= endWaiters }
+            endWaiterWatchers.removeAll { $0.count <= endWaiters }
+            for watcher in ready { watcher.continuation.resume() }
+            let outcome = await active.outcome
+            endWaiters -= 1
+            switch outcome {
             case .saved(let body): return .saved(body)
             case .failed(let error): throw error
             case .discarded: return .discarded
@@ -411,6 +419,15 @@ public actor SkreenrekController {
         default:
             throw SkreenrekError.wrongState(.notRecording)
         }
+    }
+
+    /// Callers waiting in `waitForEnd()` right now.
+    public var endWaiterCount: Int { endWaiters }
+
+    /// Returns once at least `count` callers wait in `waitForEnd()` (tests use it instead of polling).
+    public func waitForEndWaiters(_ count: Int = 1) async {
+        if endWaiters >= count { return }
+        await withCheckedContinuation { endWaiterWatchers.append((count, $0)) }
     }
 
     private static func body(_ outcome: Outcome) throws -> StopBody {

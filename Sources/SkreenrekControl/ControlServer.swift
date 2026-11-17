@@ -37,7 +37,7 @@ public final class ControlServer: @unchecked Sendable {
     public let path: URL
     private let handler: Handler
     private let allowedUID: uid_t
-    private let queue = DispatchQueue(label: "it.fraime.skreenrek.control.server")
+    private let queue = DispatchQueue(label: "it.fraime.skreenrek.control.server", qos: .userInitiated)
 
     private var listenSource: (any DispatchSourceRead)?
     private var connections: [ObjectIdentifier: Connection] = [:]
@@ -178,7 +178,8 @@ public final class ControlServer: @unchecked Sendable {
 
         let handler = handler
         let queue = queue
-        Task { [weak self] in
+        // Requests run at user-initiated priority, so recording and its control never wait behind background work.
+        Task(priority: .userInitiated) { [weak self] in
             for await line in lines {
                 let reply = await handler(line)
                 guard await connection.write(reply) else { break }
@@ -228,7 +229,7 @@ public final class ControlServer: @unchecked Sendable {
         var readDone = false
         var consumerDone = false
         var closed = false
-        private let writeQueue = DispatchQueue(label: "it.fraime.skreenrek.control.write")
+        private let writeQueue = DispatchQueue(label: "it.fraime.skreenrek.control.write", qos: .userInitiated)
 
         init(fd: Int32) {
             self.fd = fd
