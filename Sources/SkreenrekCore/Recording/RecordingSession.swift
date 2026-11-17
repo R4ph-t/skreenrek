@@ -71,6 +71,8 @@ public actor RecordingSession {
     private var pixelFormat = "420v"
     private var nextDiskCheckSlot = 0
     private var received = 0
+    /// The source's drop count, frozen once the source has stopped.
+    private var sourceDrops: Int?
 
     /// - Parameters:
     ///   - encoder: `.requireHardware` in the app; `.software` in tests on the CI virtual machine.
@@ -184,6 +186,7 @@ public actor RecordingSession {
             tickTask?.cancel()
             consumeTask?.cancel()
             await source.stop()
+            sourceDrops = source.droppedFrameCount
             await sink?.cancel()
             finishResult(.discarded, stopRequest: stopRequest)
         case .finalizing:
@@ -324,6 +327,7 @@ public actor RecordingSession {
             reason = .windowClosed(at: Double(scheduler.decidedSlots) / Double(scheduler.fps))
         }
         await source.stop()
+        sourceDrops = source.droppedFrameCount
 
         // Slots decided while the writer was busy get their repeats now.
         while !scheduler.flushOwed(append: append), !scheduler.failed {
@@ -380,10 +384,12 @@ public actor RecordingSession {
 
     private func currentStats(stopToFinalizedMs: Double?) -> RecordingStats {
         let counts = scheduler?.counts ?? CFRCounts()
+        // Frames the source's stream dropped while the recorder lagged were never written either.
+        let drops = sourceDrops ?? (phase == .idle ? 0 : source.droppedFrameCount)
         return RecordingStats(
             slotsWritten: scheduler?.appendedSlots ?? 0, framesFresh: counts.framesFresh,
             framesRepeatedIdle: counts.framesRepeatedIdle, framesDropped: counts.framesDropped,
-            sourceFramesSkipped: counts.sourceFramesSkipped,
+            sourceFramesSkipped: counts.sourceFramesSkipped + drops,
             startToFirstFrameMs: firstAppendTime.map { ($0 - startCallTime) * 1000 },
             stopToFinalizedMs: stopToFinalizedMs, encoder: sink?.encoder ?? .software, pixelFormat: pixelFormat)
     }
