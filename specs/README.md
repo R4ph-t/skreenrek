@@ -18,7 +18,7 @@ factory skips it; 09 waits until it is `Done`. Every spec merges when `make chec
 | 04 | [events.json and the HyperFrames snippet](04-events-json-and-hyperframes-snippet.md) | Done | 01 | 3–4 h | 0 h |
 | 05 | [Controller state machine and the local control socket](05-controller-and-local-socket.md) | Done | 02, 03, 04 | 4–6 h | 0 h |
 | 06 | [CLI commands, output and exit codes](06-cli-commands.md) | Done | 05 | 5–7 h | 0 h |
-| 07 | [stdio MCP server](07-stdio-mcp-server.md) | Queued (herdr) | 06 | 3–4 h | 0 h |
+| 07 | [stdio MCP server](07-stdio-mcp-server.md) | Done | 06 | 3–4 h | 0 h |
 | 08 | [Menu-bar icon, dropdown, Settings and the stop shortcut](08-menu-bar-dropdown-and-settings.md) | Done | 05 | 5–7 h | 0 h |
 | 11 | [App bundle packaging, Info.plist and ad-hoc signing (hand spec)](11-app-bundle-packaging.md) | Done | 01, by hand (Fraime Lead) | – | 0 h |
 | 09 | [record-window skill, agent setup and the Homebrew formula](09-skill-agent-setup-and-homebrew.md) | Queued (herdr) | 06, 07, 11 | 3–5 h | 0 h |

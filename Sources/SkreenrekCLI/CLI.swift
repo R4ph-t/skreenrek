@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import SkreenrekControl
 import SkreenrekCore
+import SkreenrekMCP
 import Synchronization
 
 /// The `skreenrek` command line: a `gh`-style client of the running app. Human output by default, `--json` for
@@ -18,6 +19,7 @@ public enum CLI {
         } catch {
             return parseFailure(error, arguments: arguments, environment: environment)
         }
+        if parsed is MCPCommand { return await runMCP(environment: environment) }
         guard let carrier = parsed as? any GlobalOptionsCarrier else {
             // `help`, `--help` on a group, or a group alone (`skreenrek`, `skreenrek debug`): ArgumentParser's own
             // `run()` throws the help request, which prints like `--help`.
@@ -38,6 +40,19 @@ public enum CLI {
         } catch {
             return runner.report(CLIError.body(for: error))
         }
+    }
+
+    /// `skreenrek mcp`: serves MCP on stdin/stdout until stdin closes. stdout carries only protocol messages; logs go
+    /// to stderr.
+    static func runMCP(environment: CLIEnvironment) async -> Int32 {
+        let stderr = environment.stderr
+        let stdout = environment.stdout
+        let server = MCPServer(
+            environment: MCPEnvironment(
+                connector: environment.connector, home: environment.home,
+                currentDirectory: environment.currentDirectory, log: { stderr.write($0 + "\n") }))
+        await server.serve(input: environment.input()) { stdout.write(String(decoding: $0, as: UTF8.self)) }
+        return 0
     }
 
     /// `--json`, `--quiet` and `--no-color` before the command name move after it, so `skreenrek --json windows`

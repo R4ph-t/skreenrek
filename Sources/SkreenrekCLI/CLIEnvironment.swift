@@ -1,6 +1,8 @@
+import Darwin
 import Foundation
 import SkreenrekControl
 import SkreenrekCore
+import SkreenrekMCP
 
 /// Where the CLI writes text: stdout or stderr. Real: `FileHandleOutput`. Tests: a buffer.
 public protocol TextOutput: Sendable {
@@ -42,12 +44,15 @@ public struct CLIEnvironment: Sendable {
     public var launchTimeout: TimeInterval
     /// Runs `debug perf`'s recordings and reads their clips; nil uses the app and `AVAssetReader`.
     public var perf: PerfSeams?
+    /// `skreenrek mcp`'s input lines; called once, only by `mcp`. Real: stdin.
+    public var input: @Sendable () -> AsyncStream<Data>
 
     public init(
         stdout: any TextOutput, stderr: any TextOutput, stdoutIsTTY: Bool, stderrIsTTY: Bool,
         variables: [String: String], home: URL, currentDirectory: URL, socketPath: URL, executablePath: String,
         launcher: any AppLauncher, interrupts: any InterruptSource, clock: any HostClock,
-        launchTimeout: TimeInterval = AppConnector.launchTimeout, perf: PerfSeams? = nil
+        launchTimeout: TimeInterval = AppConnector.launchTimeout, perf: PerfSeams? = nil,
+        input: @escaping @Sendable () -> AsyncStream<Data> = { StdioLines.stream(fileDescriptor: STDIN_FILENO) }
     ) {
         self.stdout = stdout
         self.stderr = stderr
@@ -63,6 +68,7 @@ public struct CLIEnvironment: Sendable {
         self.clock = clock
         self.launchTimeout = launchTimeout
         self.perf = perf
+        self.input = input
     }
 }
 

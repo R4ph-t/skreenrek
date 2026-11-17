@@ -18,7 +18,8 @@ struct SkreenrekCommand: ParsableCommand {
         version: "skreenrek \(SkreenrekVersion.current)",
         subcommands: [
             WindowsCommand.self, PickCommand.self, ResizeCommand.self, RecordCommand.self, StopCommand.self,
-            DiscardCommand.self, StatusCommand.self, LastCommand.self, DoctorCommand.self, DebugCommand.self,
+            DiscardCommand.self, StatusCommand.self, LastCommand.self, DoctorCommand.self, MCPCommand.self,
+            DebugCommand.self,
         ])
 }
 
@@ -104,6 +105,10 @@ struct DoctorCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "doctor", abstract: "Permissions, app, version, output folder")
     @OptionGroup var global: GlobalOptions
+}
+
+struct MCPCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "mcp", abstract: "Run the stdio MCP server")
 }
 
 struct DebugCommand: ParsableCommand {
