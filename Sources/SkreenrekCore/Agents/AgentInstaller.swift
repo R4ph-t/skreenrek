@@ -142,7 +142,7 @@ public struct AgentInstaller: Sendable {
         if agent == .codex { try TOMLConfig.validate(original ?? "") }
         else { _ = try JSONConfig.server(in: original ?? "{}") }
 
-        let config: String
+        let config: String?
         let newSkill: Data?
         var updated = ledger
         if remove {
@@ -150,7 +150,9 @@ public struct AgentInstaller: Sendable {
             guard skill == Data(RecordWindowSkill.text.utf8) || skill == entry.originalSkill else {
                 throw AgentSetupError("The record-window skill changed after setup. Leave it unchanged and remove its changes manually.")
             }
-            if original == entry.installedConfig {
+            if original == nil {
+                config = nil // Don't recreate a config the user deleted after setup.
+            } else if original == entry.installedConfig {
                 config = entry.originalConfig ?? (agent == .codex ? "" : "{}\n")
             } else {
                 config = try removingServer(agent, text: original ?? "", entry: entry)
@@ -192,7 +194,7 @@ public struct AgentInstaller: Sendable {
         try backup(configURL)
         try backup(skillURL)
         do {
-            if original != config { try write(Data(config.utf8), to: configURL) }
+            if original != config, let config { try write(Data(config.utf8), to: configURL) }
             if newSkill != skill { try replace(newSkill, at: skillURL) }
             try save(updated)
             ledger = updated

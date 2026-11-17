@@ -134,6 +134,19 @@ import Testing
         #expect(try home.read(agent.skill) == "user skill")
     }
 
+    @Test(arguments: [AgentClient.claude, .codex, .cursor])
+    func removingAConnectionWithADeletedConfigAllowsReconnection(_ agent: AgentClient) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        #expect(home.installer.run(agents: [agent]).allSatisfy { $0.success })
+        try FileManager.default.removeItem(at: home.file(agent.config))
+        #expect(home.installer.run(agents: [agent], remove: true).allSatisfy { $0.success })
+        #expect(!home.exists(agent.config))
+        #expect(!home.exists(agent.skill))
+        #expect(home.installer.run(agents: [agent]).allSatisfy { $0.success })
+        #expect(home.installer.connections().first { $0.agent == agent }?.connected == true)
+    }
+
     @Test func detectedAgentsAndExplicitSelection() throws {
         let home = try Home()
         defer { home.temp.cleanUp() }
