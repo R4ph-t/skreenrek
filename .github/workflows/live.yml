@@ -1,0 +1,25 @@
+# Manual only, informational, not a required check: runs the opt-in `Live…` suites on a hosted macos-15 runner to learn
+# whether it can record or resize without a hand-granted Screen Recording or Accessibility permission. Nothing waits
+# on it, and the live suites skip themselves (never prompt) when the permission isn't there.
+# Run it with: gh workflow run live --ref <branch>
+name: live
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: live tests (informational)
+    runs-on: macos-15
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: swift test --filter Live
+        env:
+          SKREENREK_LIVE: "1"
+        run: swift test --filter Live
