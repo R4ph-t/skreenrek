@@ -172,4 +172,22 @@ import Testing
         #expect(try json.jsonError()["code"] as? String == "internal")
         #expect(try json.jsonError()["exit"] as? Int == 1)
     }
+
+    @Test func doctorWithoutTheAppPrintsWhatItCanAndExits1() async throws {
+        let h = CLIHarness()
+        defer { h.temp.cleanUp() }
+        let result = try await h.run(["doctor"], variables: ["PATH": "/nowhere"])
+        #expect(result.code == 1)
+        #expect(result.out == """
+            ✗ Skreenrek app      Skreenrek isn't running. Open Skreenrek.app, or run: skreenrek app
+            ✗ Command-line tool  /usr/local/bin/skreenrek isn't on your PATH as skreenrek. Link it: \
+            ln -s "/usr/local/bin/skreenrek" ~/.local/bin/skreenrek
+            ✗ Socket             Nothing answers at ~/s/c.sock.
+
+            """)
+        let json = try await h.run(["doctor", "--json"])
+        #expect(json.code == 1)
+        #expect(json.out.isEmpty)
+        #expect(try json.jsonError()["code"] as? String == "internal")
+    }
 }
