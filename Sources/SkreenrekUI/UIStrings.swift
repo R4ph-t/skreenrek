@@ -240,6 +240,14 @@ public enum UIStrings {
         public static let settingsHelp = "Open Skreenrek Settings."
         public static let moreHelp = "Open the output folder or quit Skreenrek."
         public static let thumbnailLabel = "The first frame of the last clip."
+        /// A and C Settings: the permission rows' shorter button, so the detail stays on one line.
+        public static let openSettings = "Open Settings…"
+
+        /// `Recording Safari — localhost:3000, 12 seconds`: the header's VoiceOver label while recording.
+        public static func recordingLabel(target: String, seconds: Int) -> String {
+            "Recording \(target), \(Icon.spokenDuration(seconds))"
+        }
+
         public static let stopHelp = "Stop recording and save the clip. The shortcut is Control-Command-Escape."
 
         /// `Size: 1280 × 800 px. Click to choose another size.`
@@ -284,6 +292,7 @@ public enum UIStrings {
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
         Directions.finder, Directions.copyPath, Directions.snippet, Directions.tagline, Directions.repoLink,
         Directions.settingsHelp, Directions.moreHelp, Directions.thumbnailLabel, Directions.stopHelp,
+        Directions.openSettings,
         Directions.startedOverMCP, Directions.startedFromMenu, Directions.startedFromCommandLine,
     ]
 }

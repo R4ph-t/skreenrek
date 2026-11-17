@@ -27,6 +27,8 @@ public struct DirectionHeader: Sendable, Hashable {
 
     public var kind: Kind
     public var symbol: String
+    /// The window title while recording (A and C show the state through the red tile and the time; B prefixes
+    /// "Recording").
     public var title: String
     /// The detail line. While recording it's the size and frame rate only; the time is `elapsed`.
     public var detail: String
@@ -34,16 +36,24 @@ public struct DirectionHeader: Sendable, Hashable {
     public var elapsed: String?
     /// The error's fix items (the same ones the shipping dropdown shows).
     public var fixes: [MenuItemModel]
+    /// What VoiceOver reads when it differs from the visible text (recording).
+    public var spokenLabel: String? = nil
 
     public var accessibilityLabel: String {
-        [title, elapsed, detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
+        if let spokenLabel { return spokenLabel }
+        return [title, elapsed, detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
     }
 }
 
 /// What the Last Clip row, or B's Last Clip card, shows.
 public struct DirectionClip: Sendable, Hashable {
     public var title: String
+    /// One line, as the shipping menu shows it (B).
     public var detail: String
+    /// A's and C's second line: `0:42 · 1280 × 800 px · 60 fps`.
+    public var summary: String
+    /// A's and C's third line: the start time (`10:24`) for H.264 MP4, otherwise the format (`ProRes MOV`).
+    public var note: String?
     public var path: String
     public var snippet: String
 }
@@ -86,11 +96,12 @@ public enum DirectionModel {
     public static func header(for context: MenuContext) -> DirectionHeader {
         switch context.displayState {
         case .recording:
+            let target = context.targetTitle ?? UIStrings.Menu.region
             return DirectionHeader(
-                kind: .recording, symbol: StatusIconModel.Symbol.recording,
-                title: UIStrings.Menu.recording(context.targetTitle ?? UIStrings.Menu.region),
+                kind: .recording, symbol: StatusIconModel.Symbol.recording, title: target,
                 detail: sizeAndRate(context), elapsed: TimeFormat.minutesSeconds(Double(context.elapsedSeconds)),
-                fixes: [])
+                fixes: [],
+                spokenLabel: UIStrings.Directions.recordingLabel(target: target, seconds: context.elapsedSeconds))
         case .writing:
             return DirectionHeader(
                 kind: .saving, symbol: StatusIconModel.Symbol.writing, title: UIStrings.Menu.savingClip,
@@ -158,6 +169,7 @@ public enum DirectionModel {
         case .showInFinder: "folder"
         case .copyFilePath: "doc.on.doc"
         case .copySnippet: "chevron.left.forwardslash.chevron.right"
+        case .copyErrorDetails: "doc.on.clipboard"
         default: nil
         }
     }
@@ -176,10 +188,18 @@ public enum DirectionModel {
     public static func lastClip(for context: MenuContext) -> DirectionClip? {
         guard let clip = context.snapshot.lastClip else { return nil }
         let fallback = clip.readback.map { UIStrings.Menu.windowTitle(app: $0.window.app, title: $0.window.title) }
+        let r = clip.recording
+        let summary = [
+            TimeFormat.minutesSeconds(r.duration), PixelSize(width: r.width, height: r.height).description,
+            "\(r.fps) fps",
+        ].joined(separator: UIStrings.Menu.separator)
+        let note =
+            ClipFormatLabel.suffix(codec: r.codec.rawValue, clipPath: clip.files.clip)
+            ?? MenuModel.startTime(r.startedAt, timeZone: context.timeZone, locale: context.locale)
         return DirectionClip(
             title: context.lastClipTitle ?? fallback ?? clip.recording.id,
             detail: MenuModel.lastClipDetail(clip, timeZone: context.timeZone, locale: context.locale),
-            path: clip.files.clip, snippet: clip.snippet)
+            summary: summary, note: note, path: clip.files.clip, snippet: clip.snippet)
     }
 
     // MARK: - Panel (B)

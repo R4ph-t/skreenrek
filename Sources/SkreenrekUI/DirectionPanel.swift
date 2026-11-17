@@ -313,7 +313,8 @@ struct DirectionPanelView: View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "record.circle.fill").font(.system(size: 12)).foregroundStyle(.red)
-                Text(header.title).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                Text(UIStrings.Menu.recording(header.title)).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(1)
                     .truncationMode(.middle)
             }
             Text(header.elapsed ?? "").font(.system(size: 34, weight: .light)).monospacedDigit()

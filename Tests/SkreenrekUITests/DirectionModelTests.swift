@@ -31,7 +31,8 @@ import Testing
 
         let recording = DirectionModel.header(for: try Self.sample("recording"))
         #expect(recording.kind == .recording)
-        #expect(recording.title == "Recording Safari — localhost:3000")
+        #expect(recording.title == "Safari — localhost:3000")
+        #expect(recording.accessibilityLabel == "Recording Safari — localhost:3000, 12 seconds")
         #expect(recording.elapsed == "0:12")
         #expect(recording.detail == "1280 × 800 px · 60 fps")
 
@@ -71,6 +72,8 @@ import Testing
         #expect(clips.count == 1)
         #expect(clips.first?.title == "Safari — localhost:3000")
         #expect(clips.first?.detail == "0:42 · 1280 × 800 px · 60 fps · ProRes MOV")
+        #expect(clips.first?.summary == "0:42 · 1280 × 800 px · 60 fps")
+        #expect(clips.first?.note == "ProRes MOV")
         #expect(rows.contains(.sectionHeader("Last Clip")))
         // Only one header, and the Last Clip actions stay as menu items.
         #expect(rows.filter { if case .header = $0 { true } else { false } }.count == 1)
@@ -79,6 +82,14 @@ import Testing
             return nil
         }
         #expect(titles.contains("Copy HyperFrames Snippet"))
+    }
+
+    @Test func defaultClipNoteIsTheStartTime() throws {
+        let clip = try #require(DirectionModel.lastClip(for: try Self.sample("lastclip")))
+        #expect(clip.summary == "0:42 · 1280 × 800 px · 60 fps")
+        #expect(clip.note == "10:24")
+        // B's single line stays as the shipping menu shows it.
+        #expect(clip.detail == "0:42 · 1280 × 800 px · 60 fps · 10:24")
     }
 
     @Test func recordingDropdownShowsTheOriginAsAnInfoRow() throws {
@@ -99,6 +110,7 @@ import Testing
         #expect(DirectionModel.symbol(for: .showInFinder(path: "/x")) == "folder")
         #expect(DirectionModel.symbol(for: .copyFilePath(path: "/x")) == "doc.on.doc")
         #expect(DirectionModel.symbol(for: .copySnippet("")) == "chevron.left.forwardslash.chevron.right")
+        #expect(DirectionModel.symbol(for: .copyErrorDetails("")) == "doc.on.clipboard")
         #expect(DirectionModel.symbol(forSubmenu: "Size") == "aspectratio")
         #expect(DirectionModel.symbol(forSubmenu: "Frame Rate") == "speedometer")
     }
