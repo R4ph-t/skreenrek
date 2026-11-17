@@ -6,11 +6,29 @@ import Testing
     struct Home {
         let temp: TempFolder
         var url: URL { temp.url.resolvingSymlinksInPath() }
-        var installer: AgentInstaller {
-            AgentInstaller(home: url, executablePath: url.appendingPathComponent("Skreenrek.app/Contents/MacOS/skreenrek").path,
-                           path: url.appendingPathComponent(".local/bin").path)
+        var installer: AgentInstaller { installer(executable: "Skreenrek.app/Contents/MacOS/skreenrek") }
+        /// Real files, but only inside this home: /Applications and Homebrew on the test Mac never count.
+        var files: CommandFiles {
+            let root = url.path + "/"
+            let system = CommandFiles.system
+            return CommandFiles(
+                exists: { $0.hasPrefix(root) && system.exists($0) },
+                isExecutable: { $0.hasPrefix(root) && system.isExecutable($0) }, resolve: system.resolve)
         }
-        init() throws { temp = try TempFolder("agents") }
+        /// The app executable setup records. It exists, so connections read as working.
+        var executable: URL { file("Skreenrek.app/Contents/MacOS/skreenrek") }
+        init() throws {
+            temp = try TempFolder("agents")
+            try makeExecutable("Skreenrek.app/Contents/MacOS/skreenrek")
+        }
+        func makeExecutable(_ path: String) throws {
+            try write(path, "binary")
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file(path).path)
+        }
+        func installer(executable path: String) -> AgentInstaller {
+            AgentInstaller(home: url, executablePath: file(path).path, path: url.appendingPathComponent(".local/bin").path,
+                           files: files)
+        }
         func file(_ path: String) -> URL { url.appendingPathComponent(path) }
         func write(_ path: String, _ text: String) throws {
             try FileManager.default.createDirectory(at: file(path).deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -181,11 +199,11 @@ import Testing
     @Test func cliLinkAndPathWarning() throws {
         let home = try Home()
         defer { home.temp.cleanUp() }
-        let installer = AgentInstaller(home: home.url, executablePath: home.file("Skreenrek.app/Contents/MacOS/skreenrek").path, path: "/usr/bin")
+        let installer = AgentInstaller(home: home.url, executablePath: home.executable.path, path: "/usr/bin", files: home.files)
         let result = installer.run(agents: [.cli])
         #expect(result.count == 1 && result[0].success)
         #expect(result[0].warnings == ["~/.local/bin isn't on PATH. Add it to PATH to run skreenrek."])
-        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: home.file(AgentClient.cli.config).path) == AgentInstaller.stableExecutable(installer.executablePath))
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: home.file(AgentClient.cli.config).path) == home.executable.path)
         #expect(home.installer.run(agents: [.cli])[0].warnings.isEmpty)
         #expect(home.installer.run(agents: [.cli], remove: true).allSatisfy { $0.success })
         try home.write(AgentClient.cli.config, "user executable")
@@ -193,16 +211,243 @@ import Testing
         #expect(try home.read(AgentClient.cli.config) == "user executable")
     }
 
-    @Test func stableBrewPathAndSymlinkResolution() throws {
+    @Test func cliLinkIsRepointedWhenItsTargetMoved() throws {
         let home = try Home()
         defer { home.temp.cleanUp() }
-        let executable = home.file("brew/Cellar/skreenrek/0.1.0/Skreenrek.app/Contents/MacOS/skreenrek")
-        try home.write("brew/Cellar/skreenrek/0.1.0/Skreenrek.app/Contents/MacOS/skreenrek", "binary")
-        let stable = home.file("brew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek").path
-        #expect(AgentInstaller.stableExecutable(executable.path) == stable)
-        try FileManager.default.createSymbolicLink(atPath: home.file("command").path, withDestinationPath: executable.path)
-        #expect(AgentInstaller.stableExecutable(home.file("command").path) == stable)
-        #expect(AgentInstaller.stableExecutable(home.file("app/skreenrek").path) == home.file("app/skreenrek").path)
+        try home.makeExecutable("old/Skreenrek.app/Contents/MacOS/skreenrek")
+        #expect(home.installer(executable: "old/Skreenrek.app/Contents/MacOS/skreenrek").run(agents: [.cli]).allSatisfy { $0.success })
+        try FileManager.default.removeItem(at: home.file("old"))
+        #expect(home.installer.connections().first { $0.agent == .cli }?.broken == true)
+        #expect(home.installer.run(agents: [.cli]).allSatisfy { $0.success })
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: home.file(AgentClient.cli.config).path) == home.executable.path)
+        #expect(home.installer.connections().first { $0.agent == .cli }?.connected == true)
+    }
+
+    /// A fake file system: each listed path exists, is executable, and resolves to its value.
+    static func files(_ links: [String: String]) -> CommandFiles {
+        CommandFiles(exists: { links[$0] != nil }, isExecutable: { links[$0] != nil }, resolve: { links[$0] ?? $0 })
+    }
+
+    @Test func stableCommandPrefersTheLinkOnPathThatRunsThisExecutable() {
+        let cellar = "/opt/homebrew/Cellar/skreenrek/1.0.0/Skreenrek.app/Contents/MacOS/skreenrek"
+        let opt = "/opt/homebrew/opt/skreenrek/Skreenrek.app/Contents/MacOS"
+        let files = Self.files([
+            cellar: cellar, "/opt/homebrew/bin/skreenrek": cellar, opt + "/skreenrek": cellar,
+            "/elsewhere/skreenrek": "/other/skreenrek",
+        ])
+        // The opt link comes first on PATH and runs this executable, but it vanishes with the formula.
+        #expect(AgentInstaller.stableCommand(
+            executablePath: cellar, searchPath: [opt, "/elsewhere", "/opt/homebrew/bin"], files: files)
+            == "/opt/homebrew/bin/skreenrek")
+        // Without a lasting link, a versioned executable has no path to record.
+        #expect(AgentInstaller.stableCommand(executablePath: cellar, searchPath: ["/elsewhere"], files: files) == nil)
+        #expect(AgentInstaller.stableCommand(executablePath: opt + "/skreenrek", searchPath: [opt], files: files) == nil)
+    }
+
+    @Test func stableCommandFallsBackToTheAppInApplications() {
+        let app = AgentInstaller.applicationsExecutable
+        let cask = Self.files([app: app, "/opt/homebrew/bin/skreenrek": app])
+        // The app under Finder's minimal PATH, and the CLI through the cask's binary link.
+        #expect(AgentInstaller.stableCommand(executablePath: app, searchPath: ["/usr/bin"], files: cask) == app)
+        #expect(AgentInstaller.stableCommand(executablePath: app, searchPath: ["/opt/homebrew/bin"], files: cask)
+            == "/opt/homebrew/bin/skreenrek")
+        // A formula's Cellar app, with the cask's app installed too.
+        let cellar = "/usr/local/Cellar/skreenrek/1.0.0/Skreenrek.app/Contents/MacOS/skreenrek"
+        #expect(AgentInstaller.stableCommand(executablePath: cellar, searchPath: [], files: Self.files([app: app, cellar: cellar]))
+            == app)
+        // A dev build runs from where it is; the CLI link never points at itself.
+        let dev = "/dev/build/skreenrek"
+        let link = "/home/.local/bin/skreenrek"
+        #expect(AgentInstaller.stableCommand(
+            executablePath: dev, searchPath: ["/home/.local/bin"], files: Self.files([link: dev, dev: dev]), excluding: link)
+            == dev)
+        #expect(AgentInstaller.stableCommand(
+            executablePath: dev, searchPath: ["/home/.local/bin"], files: Self.files([link: dev, dev: dev])) == link)
+    }
+
+    @Test(arguments: ["/opt/homebrew/Cellar/skreenrek/1/Skreenrek.app/Contents/MacOS/skreenrek",
+                      "/opt/homebrew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek",
+                      "/usr/local/Cellar/skreenrek/1/bin/skreenrek", "/usr/local/opt/skreenrek/bin/skreenrek",
+                      "/Users/me/brew/opt/skreenrek/bin/skreenrek"])
+    func versionedHomebrewPaths(_ path: String) {
+        #expect(AgentInstaller.isVersioned(path))
+    }
+
+    @Test(arguments: ["/opt/homebrew/bin/skreenrek", "/usr/local/bin/skreenrek", AgentInstaller.applicationsExecutable,
+                      "/Users/me/.local/bin/skreenrek"])
+    func lastingPaths(_ path: String) {
+        #expect(!AgentInstaller.isVersioned(path))
+    }
+
+    /// The command in the agent's config.
+    static func command(_ agent: AgentClient, in text: String) throws -> String? {
+        if agent == .codex {
+            let line = text.split(separator: "\n").first { $0.hasPrefix("command = ") }
+            return try line.map { try JSONDecoder().decode(String.self, from: Data($0.dropFirst(10).utf8)) }
+        }
+        guard let server = try JSONConfig.server(in: text) else { return nil }
+        let object = try JSONSerialization.jsonObject(with: Data(server.utf8)) as? [String: Any]
+        return object?["command"] as? String
+    }
+
+    static func legacyLedger(_ home: Home, _ entries: [String: [String: String]]) throws {
+        try home.write("Library/Application Support/skreenrek/agent-setup.json",
+                       String(decoding: try JSONEncoder().encode(entries), as: UTF8.self))
+    }
+
+    @Test(arguments: [AgentClient.claude, .codex, .cursor])
+    func missingCommandIsRepairedInPlace(_ agent: AgentClient) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let old = "gone/Skreenrek.app/Contents/MacOS/skreenrek"
+        try home.makeExecutable(old)
+        let (before, after) = agent == .codex ? ("\"m\"", "\"n\"") : ("dark", "light")
+        try home.write(agent.config, agent == .codex ? "model = \"m\"\n" : "{\"theme\":\"dark\",\"mcpServers\":{\"other\":{}}}\n")
+        #expect(home.installer(executable: old).run(agents: [agent]).allSatisfy { $0.success })
+        #expect(try Self.command(agent, in: home.read(agent.config)) == home.file(old).path)
+        // Switching installs deletes the recorded command; the user also edits an unrelated setting.
+        try FileManager.default.removeItem(at: home.file("gone"))
+        try home.write(agent.config, try home.read(agent.config).replacingOccurrences(of: before, with: after))
+        let status = home.installer.connections().first { $0.agent == agent }
+        #expect(status?.connected == false && status?.broken == true)
+        #expect(status?.status == "Skreenrek moved. Connect to repair.")
+        let results = home.installer.run(agents: [agent])
+        #expect(results.allSatisfy { $0.success }, "\(results)")
+        let repaired = try home.read(agent.config)
+        #expect(try Self.command(agent, in: repaired) == home.executable.path)
+        #expect(repaired.contains(after))
+        #expect(home.installer.connections().first { $0.agent == agent }?.connected == true)
+        // Idempotent afterwards; removal keeps the user's edit and drops ours.
+        #expect(home.installer.run(agents: [agent]).allSatisfy { $0.success })
+        #expect(try home.read(agent.config) == repaired)
+        #expect(home.installer.run(agents: [agent], remove: true).allSatisfy { $0.success })
+        let removed = try home.read(agent.config)
+        #expect(!removed.contains("skreenrek") && removed.contains(after))
+    }
+
+    @Test(arguments: [AgentClient.claude, .codex, .cursor])
+    func repairWithoutOtherChangesStillRemovesByteForByte(_ agent: AgentClient) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try home.makeExecutable("gone/skreenrek")
+        let original = agent == .codex ? "# keep\nmodel = \"m\"" : "{\"mcpServers\" : {\"other\":{}}}"
+        try home.write(agent.config, original)
+        #expect(home.installer(executable: "gone/skreenrek").run(agents: [agent]).allSatisfy { $0.success })
+        try FileManager.default.removeItem(at: home.file("gone"))
+        #expect(home.installer.run(agents: [agent]).allSatisfy { $0.success })
+        #expect(home.installer.run(agents: [agent], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(agent.config) == original)
+    }
+
+    @Test(arguments: [AgentClient.claude, .codex, .cursor])
+    func userEditsToOurEntryStillRefuseRepair(_ agent: AgentClient) throws {
+        for edit in ["args", "command"] {
+            let home = try Home()
+            defer { home.temp.cleanUp() }
+            try home.makeExecutable("gone/skreenrek")
+            try home.makeExecutable("mine/skreenrek")
+            #expect(home.installer(executable: "gone/skreenrek").run(agents: [agent]).allSatisfy { $0.success })
+            try FileManager.default.removeItem(at: home.file("gone"))
+            let installed = try home.read(agent.config)
+            let changed = edit == "args"
+                ? installed.replacingOccurrences(of: "\"mcp\"", with: "\"custom\"")
+                : installed.replacingOccurrences(of: home.file("gone/skreenrek").path, with: home.file("mine/skreenrek").path)
+            #expect(changed != installed)
+            try home.write(agent.config, changed)
+            let results = home.installer.run(agents: [agent])
+            #expect(results.map(\.message) == ["The Skreenrek connection changed after setup. Review it before reconnecting."])
+            #expect(try home.read(agent.config) == changed)
+        }
+    }
+
+    @Test(arguments: [AgentClient.claude, .cursor])
+    func workingVersionedCommandMovesToALastingPath(_ agent: AgentClient) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        // An older setup recorded Homebrew's opt path, and it still runs.
+        let opt = "brew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek"
+        try home.makeExecutable(opt)
+        let server = "{\"args\":[\"mcp\"],\"command\":\"\(home.file(opt).path)\"}"
+        let installed = try JSONConfig.edit("{}\n", server: server)
+        try home.write(agent.config, installed)
+        try home.write(agent.skill, RecordWindowSkill.text)
+        try Self.legacyLedger(home, [agent.rawValue: ["installedConfig": installed, "installedServer": server]])
+        #expect(home.installer.connections().first { $0.agent == agent }?.connected == true)
+        try FileManager.default.createDirectory(at: home.file(".local/bin"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: home.file(".local/bin/skreenrek"), withDestinationURL: home.file(opt))
+        #expect(home.installer(executable: opt).run(agents: [agent]).allSatisfy { $0.success })
+        #expect(try Self.command(agent, in: home.read(agent.config)) == home.file(".local/bin/skreenrek").path)
+        #expect(home.installer(executable: opt).run(agents: [agent], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(agent.config) == "{}\n")
+    }
+
+    @Test func ledgerKeepsOnlyOurEntry() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "{\"history\":\"\(String(repeating: "x", count: 100_000))\",\"mcpServers\":{}}\n"
+        try home.write(AgentClient.claude.config, original)
+        #expect(home.installer.run(agents: [.claude, .cli]).allSatisfy { $0.success })
+        let ledger = try home.read("Library/Application Support/skreenrek/agent-setup.json")
+        #expect(ledger.count < 2_000, "\(ledger.count) bytes")
+        #expect(!ledger.contains("history") && !ledger.contains("originalConfig") && !ledger.contains("installedConfig"))
+        #expect(home.installer.run(agents: [.claude], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.claude.config) == original)
+    }
+
+    @Test func formatOneLedgerIsMigratedAndRepaired() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "{\"theme\":\"dark\",\"mcpServers\":{\"other\":{}}}"
+        let gone = "/opt/homebrew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek-gone"
+        let server = "{\"args\":[\"mcp\"],\"command\":\"\(gone)\"}"
+        let installed = try JSONConfig.edit(original, server: server)
+        try home.write(AgentClient.claude.config, installed)
+        try home.write(AgentClient.claude.skill, RecordWindowSkill.text)
+        try FileManager.default.createDirectory(at: home.file(".local/bin"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: home.file(".local/bin/skreenrek").path, withDestinationPath: gone)
+        try Self.legacyLedger(home, [
+            "claude": ["originalConfig": original, "installedConfig": installed, "installedServer": server],
+            "cli": ["installedConfig": "", "installedServer": gone],
+        ])
+        #expect(home.installer.connections().first { $0.agent == .claude }?.broken == true)
+        let results = home.installer.run(agents: [.claude, .cli])
+        #expect(results.allSatisfy { $0.success }, "\(results)")
+        let ledger = try home.read("Library/Application Support/skreenrek/agent-setup.json")
+        #expect(!ledger.contains("originalConfig") && !ledger.contains("installedConfig") && !ledger.contains("theme"))
+        #expect(try Self.command(.claude, in: home.read(AgentClient.claude.config)) == home.executable.path)
+        #expect(home.installer.connections().filter(\.connected).map(\.agent) == [.claude, .cli])
+        #expect(home.installer.run(agents: [.claude], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.claude.config) == original)
+    }
+
+    @Test func formatOneLedgerRemovesByteForByte() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        let original = "{\"mcpServers\" : {\"other\":{}}}"
+        let server = "{\"args\":[\"mcp\"],\"command\":\"\(home.executable.path)\"}"
+        let installed = try JSONConfig.edit(original, server: server)
+        try home.write(AgentClient.cursor.config, installed)
+        try home.write(AgentClient.cursor.skill, RecordWindowSkill.text)
+        try Self.legacyLedger(home, ["cursor": ["originalConfig": original, "installedConfig": installed, "installedServer": server]])
+        #expect(home.installer.run(agents: [.cursor], remove: true).allSatisfy { $0.success })
+        #expect(try home.read(AgentClient.cursor.config) == original)
+        #expect(!home.exists(AgentClient.cursor.skill))
+    }
+
+    @Test func commandChecksReportMissingCommands() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try home.makeExecutable("other/skreenrek")
+        #expect(home.installer.run(agents: [.claude, .cli]).allSatisfy { $0.success })
+        #expect(home.installer(executable: "other/skreenrek").run(agents: [.codex]).allSatisfy { $0.success })
+        #expect(home.installer.commandChecks().map(\.ok) == [true, true])
+        try FileManager.default.removeItem(at: home.file("other"))
+        let checks = home.installer.commandChecks()
+        #expect(checks.map(\.agent) == [.claude, .codex])
+        #expect(checks[1] == AgentCommandCheck(
+            agent: .codex, command: home.file("other/skreenrek").path, exists: false, executable: false))
+        #expect(checks[1].hint == "Run: skreenrek setup agents")
+        #expect(checks[0].hint == nil)
     }
 
     @Test func symlinkConfigDoesNotTouchItsTarget() throws {

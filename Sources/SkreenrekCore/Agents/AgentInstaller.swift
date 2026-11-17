@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -34,12 +35,65 @@ public struct AgentConnection: Sendable, Identifiable {
     public let agent: AgentClient
     public let detected: Bool
     public let connected: Bool
+    /// Our entry is unchanged, but the command it runs is missing or no longer executable. Connect repairs it.
+    public let broken: Bool
     public var id: AgentClient { agent }
     public var status: String {
         if connected { return "Connected" }
+        if broken { return "Skreenrek moved. Connect to repair." }
         if agent == .cli { return "Links skreenrek into ~/.local/bin" }
         return detected ? "Found ~/.\(agent.rawValue)" : "Not installed"
     }
+}
+
+/// One connected agent's recorded command, as `skreenrek doctor` checks it.
+public struct AgentCommandCheck: Codable, Sendable, Equatable {
+    public let agent: AgentClient
+    public let command: String
+    public let exists: Bool
+    public let executable: Bool
+    /// The fix, only when the command can't run.
+    public let hint: String?
+    public var ok: Bool { exists && executable }
+
+    public init(agent: AgentClient, command: String, exists: Bool, executable: Bool) {
+        self.agent = agent
+        self.command = command
+        self.exists = exists
+        self.executable = executable
+        hint = exists && executable ? nil : "Run: skreenrek setup agents"
+    }
+}
+
+/// The file checks behind the command written into agent configs. Injected so the choice is unit-testable.
+public struct CommandFiles: Sendable {
+    /// The path (after symlinks) is a regular file.
+    public var exists: @Sendable (String) -> Bool
+    /// The path (after symlinks) is a regular file this user can execute.
+    public var isExecutable: @Sendable (String) -> Bool
+    /// The path with every symlink resolved.
+    public var resolve: @Sendable (String) -> String
+
+    public init(
+        exists: @escaping @Sendable (String) -> Bool, isExecutable: @escaping @Sendable (String) -> Bool,
+        resolve: @escaping @Sendable (String) -> String
+    ) {
+        self.exists = exists
+        self.isExecutable = isExecutable
+        self.resolve = resolve
+    }
+
+    public static let system = CommandFiles(
+        exists: { path in
+            var directory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && !directory.boolValue
+        },
+        isExecutable: { path in
+            var directory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && !directory.boolValue
+                && FileManager.default.isExecutableFile(atPath: path)
+        },
+        resolve: { URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardized.path })
 }
 
 struct AgentSetupError: Error, LocalizedError {
@@ -54,45 +108,167 @@ public struct AgentInstaller: Sendable {
     public let home: URL
     public let executablePath: String
     public let path: String
+    public let files: CommandFiles
     private var fm: FileManager { .default }
     private var directory: URL { home.appendingPathComponent("Library/Application Support/skreenrek") }
     private var ledgerURL: URL { directory.appendingPathComponent("agent-setup.json") }
 
+    /// The ledger keeps only what setup owns: our entry as written, the skill that was there before, and the exact
+    /// bytes setup inserted (enough to undo them while the config is otherwise unchanged).
     private struct Entry: Codable {
-        var originalConfig: String?
-        var installedConfig: String
-        var originalSkill: Data?
+        /// Our MCP entry (JSON object text or the TOML marker block), or the CLI link's target, exactly as written.
         var installedServer: String
+        var originalSkill: Data?
+        var insertion: Insertion?
+        // Format 1 kept both whole configs. Read to migrate, never written.
+        var originalConfig: String?
+        var installedConfig: String?
+
+        init(installedServer: String, originalSkill: Data? = nil, insertion: Insertion? = nil) {
+            self.installedServer = installedServer
+            self.originalSkill = originalSkill
+            self.insertion = insertion
+        }
+    }
+
+    /// Setup's edit is a single insertion. Undo it only when the whole config still has the digest it had right
+    /// after setup, so a byte-exact restore never drops later user edits.
+    private struct Insertion: Codable, Equatable {
+        var offset: Int
+        var bytes: Data
+        var digest: String
+
+        init?(original: String, installed: String) {
+            let old = Array(original.utf8), new = Array(installed.utf8)
+            guard new.count > old.count else { return nil }
+            var prefix = 0
+            while prefix < old.count && old[prefix] == new[prefix] { prefix += 1 }
+            var suffix = 0
+            while suffix < old.count - prefix && old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+            guard prefix + suffix == old.count else { return nil }
+            offset = prefix
+            bytes = Data(new[prefix..<(new.count - suffix)])
+            digest = Self.digest(installed)
+        }
+
+        func undo(_ text: String) -> String? {
+            guard Self.digest(text) == digest else { return nil }
+            var current = Array(text.utf8)
+            let range = offset..<(offset + bytes.count)
+            guard range.upperBound <= current.count, Data(current[range]) == bytes else { return nil }
+            current.removeSubrange(range)
+            return String(decoding: current, as: UTF8.self)
+        }
+
+        static func digest(_ text: String) -> String {
+            SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
     }
     private typealias Ledger = [String: Entry]
 
-    public init(home: URL, executablePath: String, path: String) {
+    public init(home: URL, executablePath: String, path: String, files: CommandFiles = .system) {
         self.home = home.standardizedFileURL
         self.executablePath = executablePath
         self.path = path
+        self.files = files
     }
 
-    /// Homebrew's opt link survives Cellar version changes. Resolve any CLI symlinks first.
-    public static func stableExecutable(_ executablePath: String) -> String {
-        let resolved = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath().standardized.path
-        let parts = (resolved as NSString).pathComponents
-        if let cellar = parts.firstIndex(of: "Cellar"), parts.count > cellar + 3,
-           parts[cellar + 1] == "skreenrek" {
-            return NSString.path(withComponents: Array(parts[..<cellar]) + ["opt", "skreenrek"] + parts[(cellar + 3)...])
-        }
-        return resolved
+    // MARK: - The command agents run
+
+    /// Where the cask installs the app.
+    public static let applicationsExecutable = "/Applications/Skreenrek.app/Contents/MacOS/skreenrek"
+
+    /// Homebrew's Cellar and opt paths change or vanish when the install changes (an upgrade, formula to cask).
+    public static func isVersioned(_ path: String) -> Bool {
+        if path.hasPrefix("/opt/homebrew/opt/") || path.hasPrefix("/usr/local/opt/") { return true }
+        let parts = (path as NSString).pathComponents
+        if parts.contains("Cellar") { return true }
+        return parts.indices.contains { $0 > 1 && parts[$0] == "opt" && $0 + 1 < parts.count && parts[$0 + 1] == "skreenrek" }
     }
+
+    /// The path agents should run: a `skreenrek` in `searchPath` that resolves to this executable, else the app in
+    /// /Applications when it is this executable, else this executable, else the app in /Applications. Never a
+    /// versioned Homebrew path (`isVersioned`) and never `excluding`. Nil when nothing stable is left.
+    public static func stableCommand(
+        executablePath: String, searchPath: [String], files: CommandFiles, excluding: String? = nil
+    ) -> String? {
+        let me = files.resolve(executablePath)
+        func stable(_ path: String) -> Bool { !isVersioned(path) && path != excluding }
+        for directory in searchPath where directory.hasPrefix("/") {
+            let candidate = (directory as NSString).appendingPathComponent("skreenrek")
+            if stable(candidate), files.isExecutable(candidate), files.resolve(candidate) == me { return candidate }
+        }
+        let app = applicationsExecutable
+        if stable(app), files.isExecutable(app), files.resolve(app) == me { return app }
+        if stable(me) { return me }
+        if stable(app), files.isExecutable(app) { return app }
+        return nil
+    }
+
+    /// `PATH`, then where Homebrew and `setup agents --cli` link the command. The app's own PATH is often minimal.
+    private var searchPath: [String] {
+        path.split(separator: ":").map(String.init)
+            + ["/opt/homebrew/bin", "/usr/local/bin", home.appendingPathComponent(".local/bin").path]
+    }
+
+    private func command(excluding: String? = nil) throws -> String {
+        guard let command = Self.stableCommand(
+            executablePath: executablePath, searchPath: searchPath, files: files, excluding: excluding)
+        else {
+            throw AgentSetupError(
+                "Couldn't find a lasting path to skreenrek. Move Skreenrek.app to /Applications, or put skreenrek on PATH, then retry.")
+        }
+        return command
+    }
+
+    /// The command recorded in our entry.
+    private static func recordedCommand(_ agent: AgentClient, _ entry: Entry) -> String? {
+        switch agent {
+        case .cli:
+            return entry.installedServer
+        case .codex:
+            guard let line = entry.installedServer.split(separator: "\n").first(where: { $0.hasPrefix("command = ") })
+            else { return nil }
+            return try? JSONDecoder().decode(String.self, from: Data(line.dropFirst("command = ".count).utf8))
+        case .claude, .cursor:
+            let object = try? JSONSerialization.jsonObject(with: Data(entry.installedServer.utf8)) as? [String: Any]
+            return object?["command"] as? String
+        }
+    }
+
+    private func serverText(_ agent: AgentClient, command: String) throws -> String {
+        if agent == .codex { return try TOMLConfig.server(command: command) }
+        let data = try JSONSerialization.data(
+            withJSONObject: ["command": command, "args": ["mcp"]], options: [.sortedKeys, .withoutEscapingSlashes])
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    // MARK: - Status
 
     public func connections() -> [AgentConnection] {
         let ledger = try? load()
         return AgentClient.allCases.map { agent in
             let detected = agent == .cli || fm.fileExists(atPath: home.appendingPathComponent(".\(agent.rawValue)").path)
-            let connected = ledger?[agent.rawValue].map { entry in
+            let intact = ledger?[agent.rawValue].map { entry in
                 (try? isInstalled(agent, entry: entry)) == true
             } ?? false
-            return AgentConnection(agent: agent, detected: detected, connected: connected)
+            let broken = intact && ledger?[agent.rawValue].flatMap { Self.recordedCommand(agent, $0) }
+                .map { !files.isExecutable($0) } ?? false
+            return AgentConnection(agent: agent, detected: detected, connected: intact && !broken, broken: broken)
         }
     }
+
+    /// Each connected agent's recorded command, and whether it still runs. The CLI link isn't an agent.
+    public func commandChecks() -> [AgentCommandCheck] {
+        guard let ledger = try? load() else { return [] }
+        return AgentClient.allCases.filter { $0 != .cli }.compactMap { agent in
+            guard let entry = ledger[agent.rawValue], let command = Self.recordedCommand(agent, entry) else { return nil }
+            return AgentCommandCheck(
+                agent: agent, command: command, exists: files.exists(command), executable: files.isExecutable(command))
+        }
+    }
+
+    // MARK: - Setup and removal
 
     /// Empty selection means detected agents; --cli alone only links the CLI. Removal includes owned, vanished agents.
     public func run(agents: [AgentClient] = [], remove: Bool = false) -> [AgentSetupResult] {
@@ -113,7 +289,9 @@ public struct AgentInstaller: Sendable {
                 throw AgentSetupError("Agent setup is already running. Wait for it to finish and retry.")
             }
             defer { flock(descriptor, LOCK_UN) }
-            var ledger = try load()
+            let (loaded, legacy) = try loadLedger()
+            var ledger = loaded
+            if legacy { try save(ledger) } // Drop format 1's whole-config copies now.
             return selected.map { agent in
                 do {
                     try change(agent, remove: remove, ledger: &ledger)
@@ -151,47 +329,65 @@ public struct AgentInstaller: Sendable {
             guard skill == Data(RecordWindowSkill.text.utf8) || skill == entry.originalSkill else {
                 throw AgentSetupError("The record-window skill changed after setup. Leave it unchanged and remove its changes manually.")
             }
-            if original == nil {
-                config = nil // Don't recreate a config the user deleted after setup.
-            } else if original == entry.installedConfig {
-                config = entry.originalConfig ?? (agent == .codex ? "" : "{}\n")
+            if let original {
+                config = try entry.insertion?.undo(original) ?? removingServer(agent, text: original, entry: entry)
             } else {
-                config = try removingServer(agent, text: original ?? "", entry: entry)
+                config = nil // Don't recreate a config the user deleted after setup.
             }
             newSkill = entry.originalSkill
             updated.removeValue(forKey: agent.rawValue)
-        } else {
-            if let entry {
-                guard try isInstalled(agent, entry: entry) else {
-                    throw AgentSetupError("The Skreenrek connection changed after setup. Review it before reconnecting.")
-                }
-                return // byte-for-byte idempotent, including backups and ownership records
+        } else if let entry {
+            guard try isInstalled(agent, entry: entry), let original else {
+                throw AgentSetupError("The Skreenrek connection changed after setup. Review it before reconnecting.")
             }
+            // Our entry is unchanged. Keep a working, lasting command byte-for-byte (backups and ledger included);
+            // repoint a missing or versioned one in place.
+            let recorded = Self.recordedCommand(agent, entry)
+            let works = recorded.map(files.isExecutable) ?? false
+            if works, let recorded, !Self.isVersioned(recorded) { return }
+            let command: String
+            do { command = try self.command() } catch { if works { return } else { throw error } }
+            guard command != recorded else { return }
+            let server = try serverText(agent, command: command)
+            let repaired: String
+            if agent == .codex, let range = try TOMLConfig.block(in: original) {
+                repaired = original.replacingCharacters(in: range, with: server)
+                try TOMLConfig.validate(repaired)
+            } else {
+                repaired = try JSONConfig.edit(original, server: server)
+            }
+            config = repaired
+            newSkill = skill
+            var entry = entry
+            entry.installedServer = server
+            entry.insertion = entry.insertion?.undo(original).flatMap { Insertion(original: $0, installed: repaired) }
+            updated[agent.rawValue] = entry
+        } else {
             guard skill == nil else {
                 throw AgentSetupError("A record-window skill already exists. Leave it unchanged and move it before connecting.")
             }
-            let command = Self.stableExecutable(executablePath)
-            let server: String
+            let server = try serverText(agent, command: try command())
+            let base: String
             let installedConfig: String
             if agent == .codex {
                 guard try !TOMLConfig.hasServer(original ?? ""), try TOMLConfig.block(in: original ?? "") == nil else {
                     throw AgentSetupError("A skreenrek MCP server already exists. Leave it unchanged and remove it before connecting.")
                 }
-                server = try TOMLConfig.server(command: command)
-                let text = original ?? ""
-                installedConfig = text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + server
+                base = original ?? ""
+                installedConfig = base + (base.isEmpty || base.hasSuffix("\n") ? "" : "\n") + server
                 try TOMLConfig.validate(installedConfig)
             } else {
                 guard try JSONConfig.server(in: original ?? "{}") == nil else {
                     throw AgentSetupError("A skreenrek MCP server already exists. Leave it unchanged and remove it before connecting.")
                 }
-                let data = try JSONSerialization.data(withJSONObject: ["command": command, "args": ["mcp"]], options: [.sortedKeys, .withoutEscapingSlashes])
-                server = String(decoding: data, as: UTF8.self)
-                installedConfig = try JSONConfig.edit(original ?? "{}\n", server: server)
+                base = original ?? "{}\n"
+                installedConfig = try JSONConfig.edit(base, server: server)
             }
             config = installedConfig
             newSkill = Data(RecordWindowSkill.text.utf8)
-            updated[agent.rawValue] = Entry(originalConfig: original, installedConfig: installedConfig, originalSkill: skill, installedServer: server)
+            updated[agent.rawValue] = Entry(
+                installedServer: server, originalSkill: skill,
+                insertion: Insertion(original: base, installed: installedConfig))
         }
         // Prepare both backups before editing either artifact. Keep originals on any failed transaction.
         try backup(configURL)
@@ -230,6 +426,7 @@ public struct AgentInstaller: Sendable {
         AgentSetupError("The skreenrek MCP server changed after setup. Leave it unchanged and remove it manually.")
     }
 
+    /// Our entry (and skill) are still exactly what setup wrote.
     private func isInstalled(_ agent: AgentClient, entry: Entry) throws -> Bool {
         let url = home.appendingPathComponent(agent.config)
         try safe(url)
@@ -248,25 +445,38 @@ public struct AgentInstaller: Sendable {
         let entry = ledger[AgentClient.cli.rawValue]
         let target = try? fm.destinationOfSymbolicLink(atPath: url.path)
         var updated = ledger
+        var repairing = false
         if remove {
             guard let entry else { return }
             guard target == entry.installedServer else { throw changedServer() }
             try fm.removeItem(at: url)
             updated.removeValue(forKey: AgentClient.cli.rawValue)
+        } else if let entry, let target, target == entry.installedServer {
+            // Our link. Keep it while it works from a lasting path; repoint it when its target moved.
+            let works = files.isExecutable(url.path)
+            if works && !Self.isVersioned(target) { return }
+            let real: String
+            do { real = try command(excluding: url.path) } catch { if works { return } else { throw error } }
+            guard real != target else { return }
+            try fm.removeItem(at: url)
+            try fm.createSymbolicLink(atPath: url.path, withDestinationPath: real)
+            updated[AgentClient.cli.rawValue] = Entry(installedServer: real)
+            repairing = true
         } else {
-            if let entry, target == entry.installedServer { return }
             guard !exists(url) else {
                 throw AgentSetupError("~/.local/bin/skreenrek already exists. Leave it unchanged and move it before linking.")
             }
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let real = Self.stableExecutable(executablePath)
+            let real = try command(excluding: url.path)
             try fm.createSymbolicLink(atPath: url.path, withDestinationPath: real)
-            updated[AgentClient.cli.rawValue] = Entry(originalConfig: nil, installedConfig: "", originalSkill: nil, installedServer: real)
+            updated[AgentClient.cli.rawValue] = Entry(installedServer: real)
         }
         do { try save(updated); ledger = updated }
         catch {
-            if remove, let target { try fm.createSymbolicLink(atPath: url.path, withDestinationPath: target) }
-            else { try fm.removeItem(at: url) }
+            if remove || repairing, let target {
+                if repairing { try fm.removeItem(at: url) }
+                try fm.createSymbolicLink(atPath: url.path, withDestinationPath: target)
+            } else { try fm.removeItem(at: url) }
             throw error
         }
     }
@@ -296,11 +506,29 @@ public struct AgentInstaller: Sendable {
         // String(data:encoding:) strips a leading BOM. Decode the validated bytes without changing them.
         return String(decoding: data, as: UTF8.self)
     }
-    private func load() throws -> Ledger {
+    private func load() throws -> Ledger { try loadLedger().ledger }
+    /// Reads either format. Format 1 entries become insertions; `legacy` says the file still needs rewriting.
+    private func loadLedger() throws -> (ledger: Ledger, legacy: Bool) {
         try safe(ledgerURL)
-        return try readData(ledgerURL).map { try JSONDecoder().decode(Ledger.self, from: $0) } ?? [:]
+        guard let data = try readData(ledgerURL) else { return ([:], false) }
+        var ledger = try JSONDecoder().decode(Ledger.self, from: data)
+        var legacy = false
+        for (key, entry) in ledger where entry.installedConfig != nil || entry.originalConfig != nil {
+            legacy = true
+            var migrated = Entry(installedServer: entry.installedServer, originalSkill: entry.originalSkill)
+            if key != AgentClient.cli.rawValue, let installed = entry.installedConfig {
+                let base = entry.originalConfig ?? (key == AgentClient.codex.rawValue ? "" : "{}\n")
+                migrated.insertion = Insertion(original: base, installed: installed)
+            }
+            ledger[key] = migrated
+        }
+        return (ledger, legacy)
     }
-    private func save(_ ledger: Ledger) throws { try write(JSONEncoder().encode(ledger), to: ledgerURL) }
+    private func save(_ ledger: Ledger) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try write(encoder.encode(ledger), to: ledgerURL)
+    }
     private func backup(_ url: URL) throws {
         guard exists(url) else { return }
         let backup = URL(fileURLWithPath: url.path + ".skreenrek-backup")
