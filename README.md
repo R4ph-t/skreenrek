@@ -13,11 +13,15 @@ Requires macOS 15 Sequoia or later and Xcode 16 or later. v1 builds from source 
 
 ```sh
 brew tap r4ph-t/skreenrek https://github.com/R4ph-t/skreenrek
+brew trust r4ph-t/skreenrek
 brew install --HEAD skreenrek
 mkdir -p ~/Applications
 ln -sfn "$(brew --prefix skreenrek)/Skreenrek.app" ~/Applications/Skreenrek.app
 open ~/Applications/Skreenrek.app
 ```
+
+Newer Homebrew refuses to load a formula from a third-party tap until you trust it, hence `brew trust`. To update
+to the latest commit, run `brew upgrade --fetch-HEAD skreenrek`.
 
 Open the app once to grant Screen Recording and Accessibility. Then connect detected agents:
 
