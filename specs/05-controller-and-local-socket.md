@@ -1,6 +1,6 @@
 # 05: Controller state machine and the local control socket
 
-Status: Queued (herdr) · Branch: – · Depends on: 02 (resize), 03 (recorder), 04 (events) · Estimate: 4–6 h agent run + 0 h Raph review (no hand test)
+Status: Done · Branch: lane/05-controller-and-local-socket · Depends on: 02 (resize), 03 (recorder), 04 (events) · Estimate: 4–6 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -93,4 +93,67 @@ The CLI parser and output formats (06), MCP (07), UI (08, 10), launching the app
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Target.** `SkreenrekControl` (Core only) holds `SkreenrekController` (actor), the wire types and bodies
+  (`ControlProtocol`, `ControlBodies`), `ControlRouter` (line in, line out), `ControlServer`, `ControlClient`,
+  `HeadlessHost` and `ControlPaths`. The `WindowPicker` seam (`PickResult`) lives in `SkreenrekCore/Seams` with
+  `FakeWindowPicker` in `SkreenrekTesting`; until 10 the controller's default picker is `UnavailableWindowPicker`,
+  which fails with 06's copy `The window picker isn't available yet.` (`internal`). `SystemPermissionProbe`
+  (read-only, never prompts) was added to `SkreenrekSystem`, and `skreenrek app` (hidden) runs the headless host with
+  the real seams under an accessory `NSApplication`.
+- **Wire.** Newline-delimited JSON as the spec's default. Malformed JSON answers with `id: null`; a missing `v` counts
+  as a mismatch (`internal`, the reopen hint). Unknown params keys are ignored, so 12's `format`/`quality`/
+  `bitrateMbps` can be added without a protocol bump; wrong types and missing required fields are `usage`
+  (`The params for record.start aren't valid: fps has the wrong type.`). Requests without a `client` count as `cli`.
+  The `client.name` is kept only for `mcp` (events.json's `client` is null for the CLI and the menu).
+- **Bodies.** Optional keys are always present (null), like 02/04. `stop`/`wait`/`last` are exactly the design spec's
+  `stop --json` keys plus `recording.stats`; `files.events` is null with events off; `readback` is null when the
+  recording didn't resize. `record.wait` returns `{discarded: true}` when the recording was discarded. `pick` returns
+  the window entry, `{region, displayId}` for a dragged region, or `{cancelled: true}`. `status` is
+  `{state, window, readback, recording{id, elapsed, fps, width, height, startedAt, startedBy, client}, lastClip, error}`;
+  `doctor` is `{version, permissions{screenRecording, accessibility}, outputFolder{path, writable}, socket}`.
+- **States.** `error` is entered only when a recording ends in a failure (window closed, disk low, write failed); a
+  failed `start` or `resize` throws to its caller and leaves the state as it was. The error clears on pick, resize,
+  start, stop, discard or `dismissError()` (for 08's "open the menu once"). After a recording the controller is
+  `idle`, not armed. A recording failure throws `recording_failed` (exit 7) from `stop`/`wait`; its partial clip is
+  `last`. `last` before any clip is a new `wrong_state` reason, `noClip` (`No clip has been saved yet.`). The last clip
+  is kept in memory only (not across app restarts). Stopping while the clip is being written waits for the same result;
+  discarding then is `wrong_state` (`stillWriting`).
+- **Copy.** `WrongStateReason.alreadyRecording` now carries the app: `Skreenrek is already recording Safari.` /
+  `Run: skreenrek stop` (also for resize and pick while recording); not recording is `Nothing is recording.`.
+- **Busy rule.** A resize marks the controller busy across its awaits (the actor is reentrant): a start, pick or
+  second resize meanwhile is `wrong_state` (exit 6) with the new reason `resizing` (`Skreenrek is resizing a
+  window.` / `Wait a moment, then run: skreenrek status`). A start that fails once its clip folder exists removes the
+  folder.
+- **Start order** is the spec's: resolve → resize (Accessibility checked first, exit 3) → Screen Recording (exit 3,
+  after the resize) → output folder → events → recorder. With no window and no region, `start` and `resize` use the
+  armed target; nothing armed is `usage`. A region can't take a size, and must lie inside its display (default: the
+  first display listed, the main one).
+- **Spec 04 follow-ups.** Click times stay `clock.now()` on the main thread (not `NSEvent.timestamp`); the controller
+  is an actor off the main thread, and the UI (08) must keep the main actor free while recording. The window frame is
+  fixed when recording starts: the event mapping uses the frame read back after the resize, so a window moved
+  mid-recording drifts (fine for v1: resize and hold). `CursorGeometry` is gone; `ScreenGeometry.topLeft(fromAppKit:)`
+  now flips points too, and `NSEventMouseSource` uses it.
+- **Client timeouts.** Connect 2 s; every request other than `pick` and `record.wait` waits up to 30 s for its answer
+  (a resize with retries, or finalizing a long clip, can exceed 2 s). Blocking socket I/O runs on dispatch queues, not
+  the Swift concurrency pool.
+- **Server.** The folder is created 0700 (and tightened to 0700 when this user owns it, never for a shared folder
+  like `/tmp`), the socket chmod 0600 right after bind. A request line over 1 MiB is answered with `usage`
+  (`The request is longer than 1 MiB.`) and the connection is closed; the client reads an answer the app sent before
+  closing even when its own write was cut off. A path that exists but isn't a socket is refused, not deleted.
+  Requests run at user-initiated priority: at default priority, test tasks polling with `Task.yield()` starved the
+  server's tasks and hung the suite, so the tests wait on events (`ObservedSink.waitForAppends`,
+  `waitForEndWaiters`, the snapshot stream, `FakeWindowPicker.waitForPick`) instead of polling.
+- **No test can hang.** On a loaded machine the suite used to stall in `record.stop`: 03's offline `ClipWriter`
+  waits for the encoder by blocking its thread on a semaphore, and a dozen control tests recording in parallel took
+  every Swift concurrency thread (seen in a stack sample: all in `ClipWriter.isReady` → `waitBlocking`). The control
+  tests now record into `NullSink` (never blocks; `SkreenrekTesting`), and only the end-to-end test encodes a real MP4.
+  Every test wait goes through `within(_:seconds:)` (a 30 s real-time watchdog that fails the test instead of
+  hanging; it never drives timing), client calls carry a timeout (`record.wait` and `pick` included), and every
+  control suite has a `.timeLimit` backstop. Five full `swift test` runs with every core saturated passed with no
+  hang; the socket perf numbers stayed under 25 ms / 60 ms / 6 ms. One of those runs failed 03's
+  `PerfFinalizeTests` budget (2.5 s vs 1.5 s) under that artificial load; that budget is 03's and is unchanged here.
+- **Perf (measured locally, Apple silicon, software encoder).** Request → first frame median 5 ms (budget 250); the
+  response arrives before or with the first frame, checked on the median of the 5 runs (≤ 50 ms after it): under the
+  full `make check` load one run's answer once reached the test 412 ms late while its frame was already written 6 ms
+  after the request, which is scheduling, not encoding. `record.stop` for 10 s 1280 × 800 at 30 fps: 63 ms round trip
+  (budget 2 s). Status poll during recording: median 0.4 ms (budget 50).

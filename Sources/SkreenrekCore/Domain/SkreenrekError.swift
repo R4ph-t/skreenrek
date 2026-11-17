@@ -37,9 +37,14 @@ public struct WindowCandidate: Sendable, Hashable, Codable {
 
 /// Which state rule a command broke.
 public enum WrongStateReason: Sendable, Hashable {
-    case alreadyRecording
+    /// A recording is running (of `app`, when it is a window). Also the answer to resize or pick while recording.
+    case alreadyRecording(app: String?)
     case notRecording
     case stillWriting
+    /// A resize is in progress.
+    case resizing
+    /// `last` before any clip was saved.
+    case noClip
 }
 
 /// Why a recording stopped early. A partial clip may exist.
@@ -128,12 +133,18 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .windowAmbiguous(let query, let candidates):
             return (["\(candidates.count) windows match \(query). Pass a window ID:"]
                 + Self.candidateLines(candidates)).joined(separator: "\n")
-        case .wrongState(.alreadyRecording):
-            return "A recording is already running."
+        case .wrongState(.alreadyRecording(let app?)):
+            return "Skreenrek is already recording \(app)."
+        case .wrongState(.alreadyRecording(nil)):
+            return "Skreenrek is already recording."
         case .wrongState(.notRecording):
-            return "No recording is running."
+            return "Nothing is recording."
         case .wrongState(.stillWriting):
             return "Skreenrek is still saving the last clip."
+        case .wrongState(.resizing):
+            return "Skreenrek is resizing a window."
+        case .wrongState(.noClip):
+            return "No clip has been saved yet."
         case .recordingFailed(.windowClosed(let at)):
             return "The window closed at \(TimeFormat.minutesSeconds(at)). The clip up to that point was saved."
         case .recordingFailed(.diskLow(let at)):
@@ -173,11 +184,15 @@ public enum SkreenrekError: Error, Sendable, Hashable {
             let id = candidates.first.map { String($0.id.rawValue) } ?? "<id>"
             return "Pass one of the IDs above, e.g. skreenrek record \(id)"
         case .wrongState(.alreadyRecording):
-            return "Stop it with: skreenrek stop"
+            return "Run: skreenrek stop"
         case .wrongState(.notRecording):
             return "Start one with: skreenrek record <window>"
         case .wrongState(.stillWriting):
             return "Wait a moment, then run: skreenrek status"
+        case .wrongState(.resizing):
+            return "Wait a moment, then run: skreenrek status"
+        case .wrongState(.noClip):
+            return "Record one with: skreenrek record <window>"
         case .recordingFailed(.notWritable):
             return "Choose another folder with --out DIR, or in Settings."
         case .recordingFailed(.diskLow):

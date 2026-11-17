@@ -113,7 +113,7 @@ enum EventFixtures {
     }
 
     @Test func appKitPointsFlipToTopLeft() {
-        let p = CursorGeometry.topLeft(fromAppKit: CGPoint(x: -300, y: 900), primaryDisplayHeight: 982)
+        let p = ScreenGeometry(primaryHeight: 982).topLeft(fromAppKit: CGPoint(x: -300, y: 900))
         #expect(p == CGPoint(x: -300, y: 82))
     }
 

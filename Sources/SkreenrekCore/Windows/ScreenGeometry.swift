@@ -16,6 +16,11 @@ public struct ScreenGeometry: Sendable, Hashable {
         PointRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
     }
 
+    /// An AppKit point (bottom-left origin), e.g. the cursor, as a top-left global point.
+    public func topLeft(fromAppKit point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x, y: primaryHeight - point.y)
+    }
+
     /// A top-left global rect as an AppKit frame (bottom-left origin).
     public func appKit(fromTopLeft rect: PointRect) -> CGRect {
         CGRect(x: rect.x, y: primaryHeight - (rect.y + rect.height), width: rect.width, height: rect.height)

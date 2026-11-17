@@ -69,7 +69,7 @@ public final class NSEventMouseSource: MouseEventSource {
     }
 
     public func cursorLocation() -> CGPoint {
-        CursorGeometry.topLeft(fromAppKit: NSEvent.mouseLocation, primaryDisplayHeight: Self.primaryDisplayHeight)
+        Self.geometry.topLeft(fromAppKit: NSEvent.mouseLocation)
     }
 
     @MainActor
@@ -83,13 +83,13 @@ public final class NSEventMouseSource: MouseEventSource {
         let appKit = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) } ?? event.locationInWindow
         let mouseEvent = MouseEvent(
             type: type, button: event.buttonNumber, clickCount: event.clickCount,
-            location: CursorGeometry.topLeft(fromAppKit: appKit, primaryDisplayHeight: Self.primaryDisplayHeight),
+            location: Self.geometry.topLeft(fromAppKit: appKit),
             hostTime: clock.now())
         state.withLock { $0.continuation }?.yield(mouseEvent)
     }
 
-    /// The primary display's height in points: AppKit's y axis starts at its bottom edge.
-    private static var primaryDisplayHeight: Double {
-        Double(CGDisplayBounds(CGMainDisplayID()).height)
+    /// AppKit's y axis starts at the primary display's bottom edge; `ScreenGeometry` flips it with that height.
+    private static var geometry: ScreenGeometry {
+        ScreenGeometry(primaryHeight: Double(CGDisplayBounds(CGMainDisplayID()).height))
     }
 }

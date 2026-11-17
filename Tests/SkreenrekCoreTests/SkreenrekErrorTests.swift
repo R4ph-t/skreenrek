@@ -18,9 +18,12 @@ import Testing
                    actual: PixelSize(width: 1286, height: 800), reason: .minWidth(1286)), 4, "not_exact"),
         (.windowNotFound(query: "--app Safari"), 5, "window_not_found"),
         (.windowAmbiguous(query: "--app Safari", candidates: candidates), 5, "window_ambiguous"),
-        (.wrongState(.alreadyRecording), 6, "wrong_state"),
+        (.wrongState(.alreadyRecording(app: nil)), 6, "wrong_state"),
+        (.wrongState(.alreadyRecording(app: "Safari")), 6, "wrong_state"),
         (.wrongState(.notRecording), 6, "wrong_state"),
         (.wrongState(.stillWriting), 6, "wrong_state"),
+        (.wrongState(.noClip), 6, "wrong_state"),
+        (.wrongState(.resizing), 6, "wrong_state"),
         (.recordingFailed(.windowClosed(at: 31)), 7, "recording_failed"),
         (.recordingFailed(.diskLow(at: 252)), 7, "recording_failed"),
         (.recordingFailed(.notWritable), 7, "recording_failed"),
@@ -82,6 +85,13 @@ import Testing
         #expect(SkreenrekError.recordingFailed(.diskLow(at: 252)).message
             == "Less than 2 GB free. The clip up to 4:12 was saved.")
         #expect(SkreenrekError.recordingFailed(.notWritable).message == "The output folder isn't writable.")
+    }
+
+    @Test func wrongStateCopyIsWordForWord() {
+        #expect(SkreenrekError.wrongState(.alreadyRecording(app: "Safari")).message
+            == "Skreenrek is already recording Safari.")
+        #expect(SkreenrekError.wrongState(.alreadyRecording(app: "Safari")).hint == "Run: skreenrek stop")
+        #expect(SkreenrekError.wrongState(.notRecording).message == "Nothing is recording.")
     }
 
     @Test func encodesAsTheErrorEnvelope() throws {

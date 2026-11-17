@@ -359,7 +359,7 @@ extension RecorderSuites {
             let folder = Fixtures.unusedFolder
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800, options: RecordingOptions(), folder: folder)
-            await #expect(throws: SkreenrekError.wrongState(.alreadyRecording)) {
+            await #expect(throws: SkreenrekError.wrongState(.alreadyRecording(app: nil))) {
                 try await session.start(
                     target: .window(Fixtures.safari), size: Fixtures.size1280x800, options: RecordingOptions(),
                     folder: folder)
