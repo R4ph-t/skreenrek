@@ -41,6 +41,8 @@ public enum WrongStateReason: Sendable, Hashable {
     case alreadyRecording(app: String?)
     case notRecording
     case stillWriting
+    /// A resize is in progress.
+    case resizing
     /// `last` before any clip was saved.
     case noClip
 }
@@ -139,6 +141,8 @@ public enum SkreenrekError: Error, Sendable, Hashable {
             return "Nothing is recording."
         case .wrongState(.stillWriting):
             return "Skreenrek is still saving the last clip."
+        case .wrongState(.resizing):
+            return "Skreenrek is resizing a window."
         case .wrongState(.noClip):
             return "No clip has been saved yet."
         case .recordingFailed(.windowClosed(let at)):
@@ -184,6 +188,8 @@ public enum SkreenrekError: Error, Sendable, Hashable {
         case .wrongState(.notRecording):
             return "Start one with: skreenrek record <window>"
         case .wrongState(.stillWriting):
+            return "Wait a moment, then run: skreenrek status"
+        case .wrongState(.resizing):
             return "Wait a moment, then run: skreenrek status"
         case .wrongState(.noClip):
             return "Record one with: skreenrek record <window>"

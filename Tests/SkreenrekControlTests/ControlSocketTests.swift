@@ -222,6 +222,49 @@ import Testing
         #expect(status.window?.width == 1920)
     }
 
+    @Test func startPickOrResizeDuringAResizeIsWrongState() async throws {
+        let h = try Harness(picker: FakeWindowPicker(result: .window(WindowID(4127)))).start()
+        defer { h.stop() }
+        let resizer = try await h.client()
+        let other = try await h.client()
+        h.resizeGate.close()
+        async let resized = resizer.call(
+            .resize, params: ResizeParams(app: "Safari", width: 1440, height: 900), as: Readback.self)
+        await h.resizeGate.waitForHeldCall()
+
+        let start = try await other.expectError(.recordStart, params: StartParams(app: "Terminal"))
+        #expect(start.exit == 6)
+        #expect(start.code == "wrong_state")
+        #expect(start.message == "Skreenrek is resizing a window.")
+        let second = try await other.expectError(
+            .resize, params: ResizeParams(app: "Terminal", width: 1280, height: 800))
+        #expect(second.exit == 6)
+        let pick = try await other.expectError(.pick, params: PickParams())
+        #expect(pick.exit == 6)
+        #expect(h.source.startCalls.isEmpty)
+        #expect(h.picker.timeouts.isEmpty)
+
+        h.resizeGate.open()
+        #expect(try await resized.exact)
+        #expect(h.resizer.calls.count == 1)
+        // Once the resize is done, a start goes through.
+        _ = try await other.call(.recordStart, params: StartParams(app: "Terminal"), as: StartBody.self)
+        _ = try await other.call(.recordDiscard, as: DiscardBody.self)
+    }
+
+    @Test func aStartThatFailsInTheRecorderLeavesNoClipFolder() async throws {
+        let source = SyntheticFrameSource(
+            timing: .scripted([]), startError: SkreenrekError.permissionDenied(.screenRecording))
+        let h = try Harness(source: source).start()
+        defer { h.stop() }
+        let client = try await h.client()
+        let error = try await client.expectError(.recordStart, params: StartParams(app: "Safari"))
+        #expect(error.exit == 3)
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: h.temp.output.path)) ?? []
+        #expect(left.isEmpty)
+        #expect(try await client.call(.status, as: StatusBody.self).state == .idle)
+    }
+
     @Test func resizeWhileRecordingIsWrongState() async throws {
         let h = try Harness().start()
         defer { h.stop() }
@@ -534,6 +577,21 @@ import Testing
             Data(#"{"v":1,"id":4,"method":"resize","params":{"width":1280}}"#.utf8 + [0x0A]))
         let missingError = try #require(try jsonObject(missing.line)["error"] as? [String: Any])
         #expect(missingError["message"] as? String == "The params for resize aren't valid: height is missing.")
+    }
+
+    @Test func aLineOverOneMebibyteIsUsageAndClosesTheConnection() async throws {
+        let h = try Harness().start()
+        defer { h.stop() }
+        let client = try await h.client()
+        // No newline: the server stops reading once the buffer passes 1 MiB.
+        let huge = Data(repeating: UInt8(ascii: "a"), count: ControlServer.maxLineBytes + 70_000)
+        let reply = try await client.sendRaw(huge, timeout: 10)
+        let error = try #require(try jsonObject(reply.line)["error"] as? [String: Any])
+        #expect(error["code"] as? String == "usage")
+        #expect(error["message"] as? String == "The request is longer than 1 MiB.")
+        await #expect(throws: ControlClientError.self) { _ = try await client.send(.hello) }
+        // Other connections still work.
+        #expect(try await (try await h.client()).call(.hello, as: HelloBody.self).protocol == 1)
     }
 
     @Test func requestsOnOneConnectionAreAnsweredInOrder() async throws {

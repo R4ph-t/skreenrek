@@ -3,6 +3,7 @@ import Foundation
 import SkreenrekControl
 import SkreenrekCore
 import SkreenrekTesting
+import Synchronization
 import Testing
 
 enum ControlFixtures {
@@ -40,11 +41,71 @@ struct ShortTemp {
     }
 }
 
+/// Wraps the fake resizer so a test can hold `setFrame` until it calls `open()`. Open by default.
+final class GatedWindowResizer: WindowResizer {
+    private struct State {
+        var closed = false
+        var held: [CheckedContinuation<Void, Never>] = []
+        var watchers: [CheckedContinuation<Void, Never>] = []
+    }
+
+    let inner: FakeWindowResizer
+    private let state = Mutex(State())
+
+    init(_ inner: FakeWindowResizer) {
+        self.inner = inner
+    }
+
+    /// From now on `setFrame` waits until `open()`.
+    func close() { state.withLock { $0.closed = true } }
+
+    /// Lets every held and later `setFrame` through.
+    func open() {
+        let held = state.withLock { s in
+            s.closed = false
+            defer { s.held = [] }
+            return s.held
+        }
+        for continuation in held { continuation.resume() }
+    }
+
+    /// Returns once a `setFrame` call is held.
+    func waitForHeldCall() async {
+        await withCheckedContinuation { continuation in
+            let ready = state.withLock { s -> Bool in
+                if !s.held.isEmpty { return true }
+                s.watchers.append(continuation)
+                return false
+            }
+            if ready { continuation.resume() }
+        }
+    }
+
+    func setFrame(_ frame: PointRect, of window: WindowInfo) async throws {
+        await withCheckedContinuation { continuation in
+            let (hold, watchers) = state.withLock { s -> (Bool, [CheckedContinuation<Void, Never>]) in
+                guard s.closed else { return (false, []) }
+                s.held.append(continuation)
+                defer { s.watchers = [] }
+                return (true, s.watchers)
+            }
+            for watcher in watchers { watcher.resume() }
+            if !hold { continuation.resume() }
+        }
+        try await inner.setFrame(frame, of: window)
+    }
+
+    func readFrame(of window: WindowInfo) async throws -> PointRect {
+        try await inner.readFrame(of: window)
+    }
+}
+
 /// A `HeadlessHost` with fakes, serving a real socket, writing real clips with the software encoder.
 final class Harness: Sendable {
     let temp = ShortTemp()
     let catalog: FakeWindowCatalog
     let resizer = FakeWindowResizer()
+    let resizeGate: GatedWindowResizer
     let source: SyntheticFrameSource
     let mouse = FakeMouseEventSource()
     let clock: any HostClock
@@ -66,8 +127,9 @@ final class Harness: Sendable {
         self.clock = clock
         self.picker = picker
         self.catalog = FakeWindowCatalog(windows: windows, displays: [ControlFixtures.retina])
+        self.resizeGate = GatedWindowResizer(resizer)
         let seams = ControllerSeams(
-            catalog: catalog, resizer: resizer, frameSource: source, mouse: mouse, clock: clock,
+            catalog: catalog, resizer: resizeGate, frameSource: source, mouse: mouse, clock: clock,
             permissions: permissions, disk: disk, picker: picker, ownPid: 99, encoder: .software,
             realTimeWriter: realTime, makeSink: sinks.factory(clock: clock))
         host = HeadlessHost(

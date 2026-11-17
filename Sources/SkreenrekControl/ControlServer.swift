@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import SkreenrekCore
 import os
 
 /// Serves `skreenrek.control/1` on a stream Unix socket (never TCP).
@@ -31,6 +32,8 @@ public final class ControlServer: @unchecked Sendable {
     }
 
     public static let backlog: Int32 = 16
+    /// The longest request line accepted. A longer one is answered with `usage` and the connection is closed.
+    public static let maxLineBytes = 1 << 20
 
     private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "control")
 
@@ -181,6 +184,11 @@ public final class ControlServer: @unchecked Sendable {
         // Requests run at user-initiated priority, so recording and its control never wait behind background work.
         Task(priority: .userInitiated) { [weak self] in
             for await line in lines {
+                // An empty line is the reader's mark for a request over the limit.
+                guard !line.isEmpty else {
+                    _ = await connection.write(ControlServer.tooLongReply)
+                    break
+                }
                 let reply = await handler(line)
                 guard await connection.write(reply) else { break }
             }
@@ -206,6 +214,11 @@ public final class ControlServer: @unchecked Sendable {
                     if line.last == 0x0D { line = line.dropLast() }
                     if !line.allSatisfy({ $0 == 0x20 || $0 == 0x09 }) { continuation.yield(Data(line)) }
                 }
+                if connection.buffer.count > Self.maxLineBytes {
+                    connection.buffer = Data()
+                    continuation.yield(Data())
+                    return false
+                }
             } else if n < 0, errno == EAGAIN || errno == EINTR {
                 return true
             } else {
@@ -213,6 +226,13 @@ public final class ControlServer: @unchecked Sendable {
             }
         }
     }
+
+    static let tooLongReply = ControlRouter.line(
+        ErrorResponse(
+            id: nil,
+            error: SkreenrekError.usage(
+                message: "The request is longer than 1 MiB.", hint: "Send one JSON object per line, under 1 MiB."
+            ).body))
 
     private func closeIfDone(_ connection: Connection, key: ObjectIdentifier) {
         guard connection.readDone, connection.consumerDone, !connection.closed else { return }

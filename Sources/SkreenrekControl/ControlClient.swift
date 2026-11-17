@@ -173,9 +173,10 @@ public final class ControlClient: Sendable {
     private func exchangeBlocking(_ line: Data, method: String, timeout: TimeInterval?) throws -> ControlReply {
         let deadline = UnixSocket.deadline(after: timeout)
         guard !state.withLock({ $0.closed }) else { throw ControlClientError.connectionClosed }
-        guard UnixSocket.writeAll(fd, line, deadline: deadline) else {
+        if !UnixSocket.writeAll(fd, line, deadline: deadline) {
             if let deadline, deadline.timeIntervalSinceNow <= 0 { throw ControlClientError.timedOut(method: method) }
-            throw ControlClientError.connectionClosed
+            // The app may have answered and closed mid-write (a request over its line limit): read that answer, and
+            // report `connectionClosed` only when there is none.
         }
         var chunk = [UInt8](repeating: 0, count: 65536)
         while true {

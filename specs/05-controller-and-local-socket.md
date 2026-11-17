@@ -120,6 +120,10 @@ The CLI parser and output formats (06), MCP (07), UI (08, 10), launching the app
   discarding then is `wrong_state` (`stillWriting`).
 - **Copy.** `WrongStateReason.alreadyRecording` now carries the app: `Skreenrek is already recording Safari.` /
   `Run: skreenrek stop` (also for resize and pick while recording); not recording is `Nothing is recording.`.
+- **Busy rule.** A resize marks the controller busy across its awaits (the actor is reentrant): a start, pick or
+  second resize meanwhile is `wrong_state` (exit 6) with the new reason `resizing` (`Skreenrek is resizing a
+  window.` / `Wait a moment, then run: skreenrek status`). A start that fails once its clip folder exists removes the
+  folder.
 - **Start order** is the spec's: resolve → resize (Accessibility checked first, exit 3) → Screen Recording (exit 3,
   after the resize) → output folder → events → recorder. With no window and no region, `start` and `resize` use the
   armed target; nothing armed is `usage`. A region can't take a size, and must lie inside its display (default: the
@@ -133,10 +137,14 @@ The CLI parser and output formats (06), MCP (07), UI (08, 10), launching the app
   (a resize with retries, or finalizing a long clip, can exceed 2 s). Blocking socket I/O runs on dispatch queues, not
   the Swift concurrency pool.
 - **Server.** The folder is created 0700 (and tightened to 0700 when this user owns it, never for a shared folder
-  like `/tmp`), the socket chmod 0600 right after bind. A path that exists but isn't a socket is refused, not deleted.
+  like `/tmp`), the socket chmod 0600 right after bind. A request line over 1 MiB is answered with `usage`
+  (`The request is longer than 1 MiB.`) and the connection is closed; the client reads an answer the app sent before
+  closing even when its own write was cut off. A path that exists but isn't a socket is refused, not deleted.
   Requests run at user-initiated priority: at default priority, test tasks polling with `Task.yield()` starved the
   server's tasks and hung the suite, so the tests wait on events (`ObservedSink.waitForAppends`,
   `waitForEndWaiters`, the snapshot stream, `FakeWindowPicker.waitForPick`) instead of polling.
 - **Perf (measured locally, Apple silicon, software encoder).** Request → first frame median 5 ms (budget 250); the
-  response always arrived before the first frame. `record.stop` for 10 s 1280 × 800 at 30 fps: 63 ms round trip
+  response arrives before or with the first frame, checked on the median of the 5 runs (≤ 50 ms after it): under the
+  full `make check` load one run's answer once reached the test 412 ms late while its frame was already written 6 ms
+  after the request, which is scheduling, not encoding. `record.stop` for 10 s 1280 × 800 at 30 fps: 63 ms round trip
   (budget 2 s). Status poll during recording: median 0.4 ms (budget 50).

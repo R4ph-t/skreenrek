@@ -23,6 +23,7 @@ import Testing
         (.wrongState(.notRecording), 6, "wrong_state"),
         (.wrongState(.stillWriting), 6, "wrong_state"),
         (.wrongState(.noClip), 6, "wrong_state"),
+        (.wrongState(.resizing), 6, "wrong_state"),
         (.recordingFailed(.windowClosed(at: 31)), 7, "recording_failed"),
         (.recordingFailed(.diskLow(at: 252)), 7, "recording_failed"),
         (.recordingFailed(.notWritable), 7, "recording_failed"),

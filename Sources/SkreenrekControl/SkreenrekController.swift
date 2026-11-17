@@ -92,6 +92,9 @@ public actor SkreenrekController {
     private var subscribers: [UUID: AsyncStream<ControllerSnapshot>.Continuation] = [:]
     private var lastPublished: ControllerSnapshot?
     private var endWaiters = 0
+    /// True while `resize` waits on the window: the actor is reentrant, so this keeps a start, pick or second resize
+    /// from slipping in mid-resize.
+    private var resizing = false
     private var endWaiterWatchers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     /// - Parameter socketPath: reported by `doctor`.
@@ -227,6 +230,8 @@ public actor SkreenrekController {
         guard seams.permissions.accessibility == .allowed else {
             throw SkreenrekError.permissionDenied(.accessibility)
         }
+        resizing = true
+        defer { resizing = false }
         let resolved = try await resolveWindow(query)
         let readback = try await ExactResizer(resizer: seams.resizer).resize(
             resolved, to: size, allowInexact: allowInexact)
@@ -355,6 +360,7 @@ public actor SkreenrekController {
                 startedAt: startedAt)
         } catch {
             _ = await events?.stop()
+            try? FileManager.default.removeItem(at: folder)
             throw error
         }
 
@@ -567,8 +573,9 @@ public actor SkreenrekController {
         publish()
     }
 
-    /// `wrong_state` while a recording is starting, running or being written.
+    /// `wrong_state` while a resize runs, or a recording is starting, running or being written.
     private func ensureNotBusy() throws {
+        if resizing { throw SkreenrekError.wrongState(.resizing) }
         switch phase {
         case .starting(let app, _):
             throw SkreenrekError.wrongState(.alreadyRecording(app: app))
