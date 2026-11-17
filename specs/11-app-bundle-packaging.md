@@ -1,6 +1,6 @@
 # 11: App bundle packaging, Info.plist and ad-hoc signing (hand spec)
 
-Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold), by hand (Fraime Lead) · Estimate: – agent run (by hand, about 2 h Fraime Lead) + 0 h Raph review · Risk: high
+Status: Done · Branch: lane/11-app-bundle-packaging · Depends on: 01 (scaffold), by hand (Fraime Lead) · Estimate: – agent run (by hand, about 2 h Fraime Lead) + 0 h Raph review · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -58,4 +58,28 @@ Developer ID signing, notarization, a DMG, Sparkle, an app icon (the default ico
 
 ## Implementation notes
 
-_(filled in by Fraime Lead)_
+- **Files:** `packaging/Info.plist`, `scripts/bundle-app.sh`, `Makefile` (`check`, `app`, `perf`), `.gitignore`
+  (`build/`), `.github/workflows/live.yml`. `check.yml` and `scripts/factory-check.sh` are unchanged.
+- **Info.plist:** the keys from Behaviour 1, plus `CFBundleDevelopmentRegion` `en` and `CFBundleInfoDictionaryVersion`
+  `6.0` (standard boilerplate). `NSHumanReadableCopyright` is "Copyright © 2026 the Skreenrek contributors. Released
+  under the MIT License." It names no person, because shown strings may not contain "Raph" (and the LICENSE holder's
+  name does). No entitlements file.
+- **Version stamp:** `bundle-app.sh` reads `SkreenrekVersion.current` from
+  `Sources/SkreenrekCore/SkreenrekVersion.swift` with `sed` (it doesn't run the binary) and writes it into
+  `CFBundleShortVersionString` with `plutil -replace`. `CFBundleVersion` stays `1`.
+- **Signing:** the linker already signs the arm64 binary ad hoc, so the script removes that signature before
+  `codesign --force --sign - --options runtime --identifier it.fraime.skreenrek` on the bundle, which keeps the output
+  free of "replacing existing signature". It then runs `codesign --verify --strict`. Result: `flags=0x10002(adhoc,runtime)`,
+  `TeamIdentifier=not set`. No identity, keychain or secret is read.
+- **`make check`:** factory lint, `plutil -lint packaging/Info.plist`, then `swift build`, `swift test`, bundling
+  `$(swift build --show-bin-path)` into `.build/app-check/Skreenrek.app`, and running its `skreenrek --version`. The
+  step fails if the output doesn't contain the version from `SkreenrekVersion.swift`, so it keeps working when 06
+  changes the `--version` format.
+- **`make perf`:** `make app`, then `skreenrek debug perf --app "$(PERF_APP)"` (default `Safari`). The `debug perf`
+  subcommand comes with 06's harness, so until 06 lands `make perf` fails at that step. It's manual and never part of
+  `check`.
+- **`live.yml`:** `workflow_dispatch` only, `continue-on-error: true`, not a required check. It runs
+  `SKREENREK_LIVE=1 swift test --filter Live` on macos-15. No `Live…` suite exists yet, so the run is a no-op until 02/03
+  add them.
+- **Open question (default built):** ad-hoc TCC grants are tied to the exact build, so macOS may ask again after an
+  upgrade. Accepted for v1.
