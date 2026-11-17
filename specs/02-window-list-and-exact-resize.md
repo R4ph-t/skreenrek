@@ -1,6 +1,6 @@
 # 02: Window list and exact resize with read-back
 
-Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Done · Branch: lane/02-window-list-and-exact-resize · Depends on: 01 (scaffold) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -81,4 +81,38 @@ CLI wiring and exit handling (06), the picker (10), recording (03), padding or c
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Core** (`Sources/SkreenrekCore/Windows/`): `WindowDirectory` (filter, front-to-back order, display assignment,
+  `resolve`), `ResolvedWindow` (window + display), `SizeRequest`, `ExactResizer`, `ScreenGeometry` and
+  `AXWindowMatch` (the pure AX-to-listed-window matching the real resizer uses). All tested with the fakes.
+- **`WindowInfo.layer`** was added (init default `0`, decodes as `0` when missing) so the layer-0 filter lives in Core,
+  not in the ScreenCaptureKit mapping. Existing call sites are unchanged.
+- **System filter set:** the Dock, the menu bar and Window Server are excluded by app name (`Dock`, `SystemUIServer`,
+  `Control Center`, `Window Server`) or bundle ID (`com.apple.dock`, `com.apple.systemuiserver`,
+  `com.apple.controlcenter`), on top of the layer-0 rule that already drops most of them.
+- **Front to back:** `SCShareableContent` doesn't document its order, so `SCWindowCatalog` sorts by the window
+  server's on-screen list (`CGWindowListCopyWindowInfo`, IDs only, no permission) through
+  `WindowDirectory.ordered(_:byZOrder:)`.
+- **Display:** largest overlap wins; a frame on no display gets the nearest display.
+- **Query wording in messages:** `4127` for an ID, `--app Safari`, `--app Safari --title "localhost"` (the CLI
+  syntax), e.g. `No window matches --app Safari --title "nope".`
+- **Size validation:** the 2× copy is the design spec's, verbatim. Out of range (not in the design spec):
+  `Width 0 px is out of range. Sizes go from 2 to 16384 px.` / `Use a width from 2 to 16384 px.` Other integer
+  scales (none ship today) say `doesn't fit a 3× display … whole points (px ÷ 3)` with the same `Use A or B px.` hint.
+- **Visible-frame move:** if the target crosses the visible frame's right or bottom edge it moves left/up; then it is
+  clamped so it starts inside the visible frame (its top-left corner at worst). A frame bigger than the visible frame
+  is still attempted at that corner.
+- **Not-exact reason:** taken from the last read-back. Steps when both dimensions are off, or when the size differs
+  between attempts 2 and 3 (attempt 1 may be ignored by the app, as in the `attempts: 2` case); otherwise min/max
+  for the one dimension that is off. The hint for steps is spec 01's `Pick another size, or pass --allow-inexact.`
+- **`AXWindowResizer`:** checks `AXIsProcessTrusted()` (no prompt), lists `kAXWindowsAttribute` for the pid, and
+  matches by title and frame (±1 pt), then title alone, then frame alone; two equal matches are `window_ambiguous`.
+  The matched element is cached per window ID, because after the first `setFrame` the frame no longer matches the
+  listing. It sets position, size, then position again (some apps shift while resizing). `apiDisabled` →
+  `permission_denied`, `invalidUIElement` → `window_not_found`, other AX errors → `internal`.
+- **`SCWindowCatalog`:** `SCStreamError.userDeclined` → `permission_denied` (Screen Recording); other failures →
+  `internal`. Displays come from `AppKitDisplays.current()` (`NSScreen`, main actor, via `ScreenGeometry`).
+- **`LiveResizeTests`** is in a new `SkreenrekSystemTests` target (`Package.swift`). It opens its own resizable window
+  in a child `osascript` process (JXA Cocoa bridge), so AX talks to a process with a running event loop, reads its
+  bounds from `CGWindowListCopyWindowInfo` (no permission needed), and resizes it to 800 × 600 px. Skipped unless
+  `SKREENREK_LIVE=1` and `AXIsProcessTrusted()`; not run here (it needs the grant).
+- `make check`: 87 tests in 14 suites pass, no warnings on a clean build (Swift 6.2.3); the live suite is skipped.
