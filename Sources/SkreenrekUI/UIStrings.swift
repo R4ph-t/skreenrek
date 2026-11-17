@@ -279,6 +279,68 @@ public enum UIStrings {
         public static func version(_ version: String) -> String { "Skreenrek \(version)" }
     }
 
+    // MARK: - v2 direction mockups (render-ui only)
+
+    /// Copy the v2 direction mockups add. The menu and Settings copy above is reused unchanged.
+    public enum Directions {
+        /// B's shortened Last Clip button labels; their tooltips keep the full names.
+        public static let finder = "Finder"
+        public static let copyPath = "Copy Path"
+        public static let snippet = "Snippet"
+        /// B and C hero rows.
+        public static let tagline = "Records windows for your coding agents."
+        public static let repoLink = "github.com/R4ph-t/skreenrek"
+        public static let repoURL = "https://github.com/R4ph-t/skreenrek"
+        /// Tooltips and VoiceOver labels for icon-only controls: full sentences.
+        public static let settingsHelp = "Open Skreenrek Settings."
+        public static let moreHelp = "Open the output folder or quit Skreenrek."
+        public static let thumbnailLabel = "The first frame of the last clip."
+        /// A and C header, armed but not exact: `1286 × 800 px · not exact`.
+        public static let notExact = "not exact"
+
+        /// `Not exact: Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800.`
+        public static func notExactReason(
+            app: String, reason: NotExactReason, requested: PixelSize, actual: PixelSize
+        ) -> String {
+            let limit: String
+            switch reason {
+            case .minWidth(let px): limit = "won't go narrower than \(px) px"
+            case .minHeight(let px): limit = "won't go shorter than \(px) px"
+            case .maxWidth(let px): limit = "won't go wider than \(px) px"
+            case .maxHeight(let px): limit = "won't go taller than \(px) px"
+            case .steps: limit = "resizes in steps"
+            }
+            return "Not exact: \(app) \(limit), so the clip is \(actual.width) × \(actual.height) instead of "
+                + "\(requested.width) × \(requested.height)."
+        }
+
+        /// A and C Settings: the permission rows' shorter button, so the detail stays on one line.
+        public static let openSettings = "Open Settings…"
+
+        /// `Recording Safari — localhost:3000, 12 seconds`: the header's VoiceOver label while recording.
+        public static func recordingLabel(target: String, seconds: Int) -> String {
+            "Recording \(target), \(Icon.spokenDuration(seconds))"
+        }
+
+        public static let stopHelp = "Stop recording and save the clip. The shortcut is Control-Command-Escape."
+
+        /// `Size: 1280 × 800 px. Click to choose another size.`
+        public static func sizeTileHelp(_ value: String) -> String {
+            "Size: \(value). Click to choose another size."
+        }
+
+        /// `Frame rate: 60 fps. Click to choose another frame rate.`
+        public static func frameRateTileHelp(_ value: String) -> String {
+            "Frame rate: \(value). Click to choose another frame rate."
+        }
+
+        /// B's recording line, lower case after the size: `started by Claude Code`.
+        public static func startedBy(client: String) -> String { "started by \(client)" }
+        public static let startedOverMCP = "started over MCP"
+        public static let startedFromMenu = "started from the menu"
+        public static let startedFromCommandLine = "started from the command line"
+    }
+
     /// Every fixed string above, for the copy audit.
     public static let allFixed: [String] = [
         Picker.pick, Picker.alreadyOpen, Picker.hint, Picker.escape, Picker.cancel, HUD.stop, HUD.showDetails, HUD.dismiss,
@@ -308,5 +370,9 @@ public enum UIStrings {
         Settings.stopShortcutKeys, Settings.permissions, Settings.screenRecording, Settings.screenRecordingDetail,
         Settings.accessibility, Settings.accessibilityDetail, Settings.allowed, Settings.openSystemSettings,
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
+        Directions.finder, Directions.copyPath, Directions.snippet, Directions.tagline, Directions.repoLink,
+        Directions.settingsHelp, Directions.moreHelp, Directions.thumbnailLabel, Directions.stopHelp,
+        Directions.openSettings, Directions.notExact,
+        Directions.startedOverMCP, Directions.startedFromMenu, Directions.startedFromCommandLine,
     ]
 }

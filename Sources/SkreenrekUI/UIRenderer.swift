@@ -115,17 +115,20 @@ public enum UIRenderer {
     }
 
     /// Draws `view` at 2× with the appearance forced and writes a PNG.
-    static func write(_ view: NSView, appearance: Appearance, to url: URL) throws -> Rendered {
-        let data = try png(view, appearance: appearance)
+    /// `active` draws controls as in the key window (accent switches and default buttons); the shipping renders
+    /// keep the inactive look they've always had.
+    static func write(_ view: NSView, appearance: Appearance, active: Bool = false, to url: URL) throws -> Rendered {
+        let data = try png(view, appearance: appearance, active: active)
         try data.write(to: url, options: .atomic)
         let size = view.bounds.size
         return Rendered(url: url, pixelWidth: Int(size.width * scale), pixelHeight: Int(size.height * scale))
     }
 
-    static func png(_ view: NSView, appearance: Appearance) throws -> Data {
+    static func png(_ view: NSView, appearance: Appearance, active: Bool = false) throws -> Data {
         view.appearance = appearance.nsAppearance
         // An offscreen window gives SwiftUI and the text fields a real layout pass and backing.
-        let window = NSWindow(
+        let windowClass: NSWindow.Type = active ? ActiveRenderWindow.self : NSWindow.self
+        let window = windowClass.init(
             contentRect: NSRect(origin: .zero, size: view.bounds.size), styleMask: .borderless, backing: .buffered,
             defer: false)
         window.appearance = appearance.nsAppearance
@@ -136,12 +139,12 @@ public enum UIRenderer {
         container.addSubview(view)
         view.frame.origin = .zero
         view.layoutSubtreeIfNeeded()
-        if let hosting = view as? NSHostingView<SettingsView> {
-            let size = hosting.fittingSize
-            hosting.frame = NSRect(origin: .zero, size: size)
+        if view is NSHostingView<SettingsView> || view is any RenderRefitting {
+            let size = view.fittingSize
+            view.frame = NSRect(origin: .zero, size: size)
             window.setContentSize(size)
             container.frame = NSRect(origin: .zero, size: size)
-            hosting.layoutSubtreeIfNeeded()
+            view.layoutSubtreeIfNeeded()
         }
         view.displayIfNeeded()
 
@@ -173,6 +176,12 @@ public enum UIRenderer {
             }
         }
     }
+}
+
+/// An offscreen window that reports itself as key, so controls draw in their active state. Never ordered in.
+final class ActiveRenderWindow: NSWindow {
+    override var isKeyWindow: Bool { true }
+    override var isMainWindow: Bool { true }
 }
 
 extension MenuEntry {

@@ -189,6 +189,12 @@ final class FailingLoginItem: LoginItemService {
         let anySpelling = try Regex("(?i)s[ck]reen ?rec?k")
         for text in Self.samples {
             for match in text.matches(of: anySpelling) {
+                // A path (the repository link, github.com/R4ph-t/skreenrek) uses the command's lower-case name.
+                if match.range.lowerBound > text.startIndex, text[text.index(before: match.range.lowerBound)] == "/",
+                    text[match.range] == "skreenrek"
+                {
+                    continue
+                }
                 let commandReference = text == UIStrings.Onboarding.cliDetail && text[match.range] == "skreenrek"
                 #expect(text[match.range] == "Skreenrek" || commandReference, "\(text)")
             }
