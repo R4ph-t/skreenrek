@@ -15,14 +15,12 @@ Requires macOS 15 Sequoia or later and Xcode 16 or later. v1 builds from source 
 brew tap r4ph-t/skreenrek https://github.com/R4ph-t/skreenrek
 brew trust r4ph-t/skreenrek
 brew install --HEAD skreenrek
-mkdir -p ~/Applications
-rm -rf ~/Applications/Skreenrek.app
-cp -R "$(brew --prefix skreenrek)/Skreenrek.app" ~/Applications/Skreenrek.app
-open ~/Applications/Skreenrek.app
+rm -rf /Applications/Skreenrek.app && cp -R "$(brew --prefix)/opt/skreenrek/Skreenrek.app" /Applications/
+open /Applications/Skreenrek.app
 ```
 
 The app is copied, not linked, because Spotlight, Launchpad and the Finder Applications view skip symlinks. Until
-there is a cask, redo the `rm -rf` and `cp -R` lines after each `brew upgrade`.
+there is a cask, redo the `rm -rf … && cp -R …` line after each `brew upgrade`.
 
 Newer Homebrew refuses to load a formula from a third-party tap until you trust it, hence `brew trust`. To update
 to the latest commit, run `brew upgrade --fetch-HEAD skreenrek`.

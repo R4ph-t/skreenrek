@@ -15,13 +15,11 @@ class Skreenrek < Formula
 
   def caveats
     <<~EOS
-      Copy the app into ~/Applications (Spotlight, Launchpad and Finder's
+      Copy the app into /Applications (Spotlight, Launchpad and Finder's
       Applications view skip symlinks). Redo this after each brew upgrade:
-        mkdir -p ~/Applications
-        rm -rf ~/Applications/Skreenrek.app
-        cp -R #{opt_prefix}/Skreenrek.app ~/Applications/Skreenrek.app
+        rm -rf /Applications/Skreenrek.app && cp -R #{opt_prefix}/Skreenrek.app /Applications/
       Open it once to grant Screen Recording and Accessibility:
-        open ~/Applications/Skreenrek.app
+        open /Applications/Skreenrek.app
       Connect your agents:
         skreenrek setup agents
 
