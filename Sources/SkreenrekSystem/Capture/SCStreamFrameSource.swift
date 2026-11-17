@@ -104,16 +104,25 @@ public final class SCStreamFrameSource: FrameSource {
             }
         }
         running.withLock { $0 = Running(stream: stream, output: output, watcher: watcher) }
+        let streamID = ObjectIdentifier(stream)
         continuation.onTermination = { [weak self] _ in
-            Task { await self?.stop() }
+            Task { await self?.stop(only: streamID) }
         }
         return frames
     }
 
     public func stop() async {
+        await stop(only: nil)
+    }
+
+    /// Stops the running stream; with `only`, only when that stream is still the running one.
+    private func stop(only streamID: ObjectIdentifier?) async {
         guard let current = running.withLock({ state -> Running? in
-            defer { state = nil }
-            return state
+            guard let running = state, streamID == nil || ObjectIdentifier(running.stream) == streamID else {
+                return nil
+            }
+            state = nil
+            return running
         }) else { return }
         current.watcher?.cancel()
         try? await current.stream.stopCapture()
