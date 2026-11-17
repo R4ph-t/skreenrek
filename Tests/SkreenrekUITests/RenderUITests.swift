@@ -63,6 +63,36 @@ import Testing
         #expect(light != dark)
     }
 
+    @Test func rendersEveryDirectionWithAll() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let status = try await Self.run(["debug", "render-ui", "--direction", "all", "--out", folder.path])
+        #expect(status == 0)
+
+        let expected = await MainActor.run { Set(DirectionRenderer.fileNames) }
+        #expect(expected.contains("dropdown-idle-light@2x.png"))
+        #expect(expected.contains("settings-default-dark@2x.png"))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == ["a", "b", "c"])
+        for direction in ["a", "b", "c"] {
+            let sub = folder.appendingPathComponent(direction)
+            let written = try FileManager.default.contentsOfDirectory(atPath: sub.path)
+            #expect(Set(written) == expected, "\(direction)")
+            for name in written {
+                let data = try Data(contentsOf: sub.appendingPathComponent(name))
+                let rep = try #require(NSBitmapImageRep(data: data), "\(direction)/\(name)")
+                #expect(Self.hasVisiblePixels(rep), "\(direction)/\(name) is empty")
+                // A and C: the 300 pt menu; B: the 320 pt panel; Settings: 480 pt.
+                let width = name.hasPrefix("settings-") ? 960 : direction == "b" ? 640 : 600
+                #expect(rep.pixelsWide == width, "\(direction)/\(name)")
+            }
+            let light = try Data(contentsOf: sub.appendingPathComponent("dropdown-recording-light@2x.png"))
+            let dark = try Data(contentsOf: sub.appendingPathComponent("dropdown-recording-dark@2x.png"))
+            #expect(light != dark)
+        }
+    }
+
     /// The `skreenrek` executable from the same build as this test bundle (`swift build` puts both in one products
     /// folder), found from the loaded `.xctest` bundle or the test runner's arguments.
     static func binary() throws -> URL {
