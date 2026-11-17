@@ -50,6 +50,8 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
   once `Package.swift` exists. CI runs it on macOS 15 (check name: `factory check`). New warnings count as failures in
   review.
 - Never commit secrets, keys, team ids or personal paths, and never read `.release.env`, `.env`, key or cert files.
+- Designer's spec is in `docs/design-spec.md`. When a spec says 'from the design spec', use that file verbatim;
+  don't block on Notion.
 
 ## Factory (Manufacture)
 
