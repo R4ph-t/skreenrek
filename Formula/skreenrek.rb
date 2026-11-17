@@ -15,16 +15,19 @@ class Skreenrek < Formula
 
   def caveats
     <<~EOS
-      Link the app into ~/Applications:
-        mkdir -p ~/Applications
-        ln -sfn #{opt_prefix}/Skreenrek.app ~/Applications/Skreenrek.app
+      Copy the app into /Applications (Spotlight, Launchpad and Finder's
+      Applications view skip symlinks). Redo this after each brew upgrade:
+        rm -rf /Applications/Skreenrek.app && cp -R #{opt_prefix}/Skreenrek.app /Applications/
       Open it once to grant Screen Recording and Accessibility:
-        open ~/Applications/Skreenrek.app
+        open /Applications/Skreenrek.app
       Connect your agents:
         skreenrek setup agents
 
-      Skreenrek is ad-hoc signed. macOS may ask for Screen Recording and
-      Accessibility again after an upgrade.
+      Skreenrek is ad-hoc signed, and each rebuild changes the signature, so
+      macOS forgets the grants after an upgrade. Reset them, then reopen the
+      app and allow both again:
+        tccutil reset ScreenCapture it.fraime.skreenrek
+        tccutil reset Accessibility it.fraime.skreenrek
     EOS
   end
 

@@ -8,6 +8,8 @@
 	<string>Skreenrek</string>
 	<key>CFBundleExecutable</key>
 	<string>skreenrek</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>it.fraime.skreenrek</string>
 	<key>CFBundleInfoDictionaryVersion</key>

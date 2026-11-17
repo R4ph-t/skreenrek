@@ -37,7 +37,7 @@ extension Runner {
                 sr, "Screen Recording",
                 sr ? "Allowed"
                     : "Not allowed. Allow it in System Settings › Privacy & Security › Screen & System Audio "
-                        + "Recording."
+                        + "Recording, then quit and reopen Skreenrek."
             ))
             let ax = body.permissions.accessibility == .allowed
             lines.append((

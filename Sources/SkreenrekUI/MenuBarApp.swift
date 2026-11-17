@@ -69,7 +69,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         let store = SettingsStore(defaults: defaults)
         let effects = SystemEffects()
-        let model = AppModel(controller: host.controller, settings: store, effects: effects)
+        let model = AppModel(controller: host.controller, settings: store, effects: effects, permissions: permissions)
         let installer = AgentInstaller(
             home: FileManager.default.homeDirectoryForCurrentUser,
             executablePath: Bundle.main.executablePath ?? CommandLine.arguments[0],
@@ -78,7 +78,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let onboardingModel = OnboardingModel(
             permissions: permissions, requester: requester, defaults: defaults,
             agents: installer.connections().map { OnboardingAgent(agent: $0.agent, detected: $0.detected) },
-            install: { installer.run(agents: $0) })
+            install: { installer.run(agents: $0) }, relaunch: { AppRelauncher.relaunch() })
         let onboarding = OnboardingWindowController(model: onboardingModel)
         self.onboarding = onboarding
         let panel = SettingsPanelState(permissions: permissions, loginItem: MainAppLoginItem(), agents: agents)
@@ -95,6 +95,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                     Task { await model.pushSettings() }
                 }))
         effects.showSettings = { [weak settingsWindow] in settingsWindow?.show() }
+        effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show(missingPermission: true) }
         self.model = model
         self.settingsWindow = settingsWindow
         let menu = MenuController(model: model)

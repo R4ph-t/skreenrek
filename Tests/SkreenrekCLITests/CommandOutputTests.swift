@@ -274,7 +274,7 @@ import Testing
         let lines = result.out.split(separator: "\n").map(String.init)
         #expect(lines.count == 6)
         #expect(lines[0] == "✗ Screen Recording   Not allowed. Allow it in System Settings › Privacy & Security › "
-            + "Screen & System Audio Recording.")
+            + "Screen & System Audio Recording, then quit and reopen Skreenrek.")
         #expect(lines[1] == "✗ Accessibility      Not allowed. Allow it in System Settings › Privacy & Security › "
             + "Accessibility for exact sizes.")
         #expect(lines[4].hasPrefix("✗ Command-line tool  /usr/local/bin/skreenrek isn't on your PATH as skreenrek."))

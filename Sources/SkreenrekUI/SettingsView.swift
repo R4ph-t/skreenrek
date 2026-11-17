@@ -178,26 +178,26 @@ struct PermissionRow: View {
     let open: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            if compact {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 13))
+        // One 12 pt minimum gap between the text and the status. The text column takes the room up to the trailing
+        // status first, and the status keeps its own size, so the detail stays on one line.
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 13))
+                if compact {
                     Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
-                }
-                .layoutPriority(1)
-            } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 13))
+                } else {
                     Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 8)
+            .layoutPriority(1)
+            Spacer(minLength: 12)
             if status == .allowed {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).frame(width: 16)
                         .foregroundStyle(Color(nsColor: .systemGreen))
                     Text(UIStrings.Settings.allowed).foregroundStyle(.secondary)
                 }
+                .fixedSize()
                 .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
@@ -207,6 +207,7 @@ struct PermissionRow: View {
                         compact ? UIStrings.Directions.openSettings : UIStrings.Settings.openSystemSettings,
                         action: open)
                 }
+                .fixedSize()
             }
         }
         .accessibilityElement(children: .contain)

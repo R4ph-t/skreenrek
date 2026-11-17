@@ -55,6 +55,8 @@ public struct MenuContext: Sendable, Hashable {
     public var display: DisplayInfo?
     public var cursor: Bool
     public var events: Bool
+    /// Screen Recording or Accessibility is missing: the dropdown offers "Permissions needed…".
+    public var permissionsMissing: Bool
     /// For the Last Clip row's start time.
     public var timeZone: TimeZone
     public var locale: Locale
@@ -62,8 +64,10 @@ public struct MenuContext: Sendable, Hashable {
     public init(
         snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, lastClipTitle: String? = nil,
         sizeChoice: SizeChoice = .default, display: DisplayInfo? = nil, cursor: Bool = true, events: Bool = true,
+        permissionsMissing: Bool = false,
         timeZone: TimeZone = .current, locale: Locale = .current
     ) {
+        self.permissionsMissing = permissionsMissing
         self.snapshot = snapshot
         self.actionError = actionError
         self.lastClipTitle = lastClipTitle

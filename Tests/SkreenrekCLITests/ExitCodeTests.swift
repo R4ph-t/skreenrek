@@ -71,8 +71,8 @@ import Testing
         #expect(result.code == 3)
         #expect(result.err == """
             error: Screen Recording isn't allowed for Skreenrek.
-            hint:  Allow it in System Settings › Privacy & Security › Screen & System Audio Recording, then run: \
-            skreenrek doctor
+            hint:  Open Skreenrek.app and allow it in System Settings › Privacy & Security › Screen & System Audio \
+            Recording, then quit and reopen Skreenrek. Check with: skreenrek doctor
 
             """)
         let json = try await h.run(["record", "--app", "Safari", "--json"])

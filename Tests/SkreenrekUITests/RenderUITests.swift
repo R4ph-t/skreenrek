@@ -80,9 +80,14 @@ import Testing
             for state in CaptureRenderSamples.hudStates {
                 #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
             }
-            #expect(sizes["hud-recording-\(appearance)@2x.png"]?.0 == sizes["hud-recording-tenminutes-\(appearance)@2x.png"]?.0)
+            // The time slot fits its string: one monospaced digit wider at 10:00, the same with Increase Contrast.
+            let recording = sizes["hud-recording-\(appearance)@2x.png"]?.0 ?? 0
+            let tenMinutes = sizes["hud-recording-tenminutes-\(appearance)@2x.png"]?.0 ?? 0
+            #expect(recording == 342)
+            #expect(tenMinutes == 358)
+            #expect(sizes["hud-recording-contrast-\(appearance)@2x.png"]?.0 == recording)
             for state in CaptureRenderSamples.onboardingStates {
-                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 992))
+                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 800))
             }
         }
         for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("statusrow-") {

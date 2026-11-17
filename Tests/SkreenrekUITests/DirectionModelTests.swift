@@ -54,7 +54,7 @@ import Testing
             "Not exact: Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800."
         #expect(header.help == sentence)
         #expect(header.accessibilityLabel == "Safari — localhost:3000. \(sentence)")
-        // B's status card keeps the shipping detail.
+        // B's status card keeps the shipping detail (one line; the reason is in the tooltip).
         #expect(header.panelDetail == "1286 × 800 px · not exact")
         // The Size row keeps the requested size.
         let sizes = DirectionModel.dropdownRows(for: context).compactMap { row -> String? in

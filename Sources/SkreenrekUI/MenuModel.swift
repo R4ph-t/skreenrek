@@ -22,6 +22,8 @@ public enum MenuAction: Sendable, Hashable {
     case copyErrorDetails(String)
     case openPrivacySettings(Permission)
     case chooseOutputFolder
+    /// Opens onboarding step 1, where each missing permission can be allowed.
+    case showPermissions
 }
 
 /// A key equivalent shown in the dropdown. No numeric shortcuts.
@@ -67,9 +69,9 @@ public struct StatusRow: Sendable, Hashable {
     /// The state rows (Ready, Recording…, errors) set their title in semibold; the Last Clip row doesn't.
     public var emphasized: Bool
     public var detail: String
-    /// More about the detail on hover, e.g. why the size isn't exact.
+    /// A longer explanation for the tooltip and VoiceOver, kept out of the one-line detail (the not-exact reason).
     public var toolTip: String?
-    /// The accessibility sentence for the row: title, detail and the tooltip.
+    /// The accessibility sentence for the row: title, detail and the explanation when there is one.
     public var accessibilityLabel: String {
         ["\(title). \(detail)", toolTip].compactMap { $0 }.joined(separator: ". ")
     }
@@ -150,6 +152,9 @@ public enum MenuModel {
         } else {
             entries.append(.status(context.isArmed ? armedRow(context) : idleRow))
         }
+        if context.permissionsMissing {
+            entries.append(.item(MenuItemModel(UIStrings.Menu.permissionsNeeded, action: .showPermissions)))
+        }
         entries.append(.separator)
         entries.append(
             .item(
@@ -218,18 +223,24 @@ public enum MenuModel {
         symbol: StatusIconModel.Symbol.idle, title: UIStrings.Menu.ready, detail: UIStrings.Menu.noWindowPicked)
 
     /// `viewfinder` · window title · `1920 × 1080 px · 60 fps`. A size that isn't exact stays one line,
-    /// `1286 × 800 px · not exact`, with the reason in the tooltip.
+    /// `1286 × 800 px · not exact`, with the full reason in the tooltip and VoiceOver. A window that was picked
+    /// but not resized yet shows its size alone.
     static func armedRow(_ context: MenuContext) -> StatusRow {
         let snapshot = context.snapshot
         let size = snapshot.size?.description ?? ""
-        var note = UIStrings.Menu.fps(snapshot.fps)
+        var note: String?
         var toolTip: String?
-        if let readback = snapshot.readback, snapshot.window != nil, !readback.exact {
-            note = UIStrings.Menu.notExactShort
-            toolTip = UIStrings.Menu.notExact(
-                ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+        if let readback = snapshot.readback, snapshot.window != nil {
+            if readback.exact {
+                note = UIStrings.Menu.fps(snapshot.fps)
+            } else {
+                note = UIStrings.Menu.notExact
+                toolTip = UIStrings.Menu.notExactReason(
+                    app: readback.window.app, requested: readback.requested, actual: readback.actual,
+                    reason: ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+            }
         }
-        let detail = [size, note].filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
+        let detail = [size, note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: UIStrings.Menu.separator)
         return StatusRow(
             symbol: StatusIconModel.Symbol.armed, title: context.targetTitle ?? UIStrings.Menu.region, detail: detail,
             toolTip: toolTip)

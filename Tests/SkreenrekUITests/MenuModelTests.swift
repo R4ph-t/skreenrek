@@ -1,7 +1,7 @@
 import Foundation
 import SkreenrekControl
 import SkreenrekCore
-import SkreenrekUI
+@testable import SkreenrekUI
 import Testing
 
 enum UIFixtures {
@@ -78,25 +78,48 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     @Test func armedExact() {
         let menu = lines(UIFixtures.context(UIFixtures.armed))
         #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1280 × 800 px · 60 fps")
+        #expect(MenuModel.entries(for: UIFixtures.context(UIFixtures.armed)).first?.statusRow?.toolTip == nil)
         #expect(menu.contains("Pick Another Window…"))
         #expect(!menu.contains("Pick Window…"))
         #expect(menu.contains("Record Window"))
     }
 
-    @Test func armedNotExact() {
+    @Test func armedNotExact() throws {
         var snapshot = UIFixtures.armed
         snapshot.size = PixelSize(width: 1286, height: 800)
         snapshot.readback = UIFixtures.readback(actual: PixelSize(width: 1286, height: 800))
         let menu = lines(UIFixtures.context(snapshot))
-        // Not exact stays one line; the reason is in the tooltip.
         #expect(menu[0] == "[viewfinder] Safari — localhost:3000 | 1286 × 800 px · not exact")
-        guard case .status(let row)? = MenuModel.entries(for: UIFixtures.context(snapshot)).first else {
-            Issue.record("The menu starts with its status row")
-            return
-        }
-        #expect(row.toolTip == "not exact (min width 1286 px)")
-        #expect(row.accessibilityLabel.hasSuffix("not exact. not exact (min width 1286 px)"))
         #expect(menu.contains("Record Window"))
+        let row = try #require(MenuModel.entries(for: UIFixtures.context(snapshot)).first?.statusRow)
+        let reason = "Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800."
+        #expect(row.toolTip == reason)
+        #expect(row.accessibilityLabel == "Safari — localhost:3000. 1286 × 800 px · not exact. \(reason)")
+        // The Size submenu keeps the requested size, not the read-back.
+        let size = MenuModel.entries(for: UIFixtures.context(snapshot)).compactMap { entry -> SubmenuModel? in
+            if case .submenu(let submenu) = entry, submenu.title == "Size" { return submenu }
+            return nil
+        }.first
+        #expect(size?.detail == "1280 × 800 px")
+    }
+
+    @Test func notExactReasonsNameTheLimit() {
+        let requested = PixelSize(width: 1280, height: 800)
+        func reason(_ actual: PixelSize, _ why: NotExactReason) -> String {
+            UIStrings.Menu.notExactReason(app: "Terminal", requested: requested, actual: actual, reason: why)
+        }
+        #expect(
+            reason(PixelSize(width: 1280, height: 812), .minHeight(812))
+                == "Terminal won't go shorter than 812 px, so the clip is 1280 × 812 instead of 1280 × 800.")
+        #expect(
+            reason(PixelSize(width: 1200, height: 800), .maxWidth(1200))
+                == "Terminal won't go wider than 1200 px, so the clip is 1200 × 800 instead of 1280 × 800.")
+        #expect(
+            reason(PixelSize(width: 1280, height: 700), .maxHeight(700))
+                == "Terminal won't go taller than 700 px, so the clip is 1280 × 700 instead of 1280 × 800.")
+        #expect(
+            reason(PixelSize(width: 1274, height: 798), .steps)
+                == "Terminal resizes in steps, so the clip is 1274 × 798 instead of 1280 × 800.")
     }
 
     @Test func armedWithoutReadbackShowsTheSizeAlone() {
