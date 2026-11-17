@@ -89,9 +89,10 @@ Picker overlay, recording HUD and onboarding (10); Agents rows (09); Sparkle upd
   the controller, with a `UIEffects` seam for Finder, pasteboard, alerts and panels), and thin AppKit/SwiftUI
   renderers: `MenuController` (`NSStatusItem` + `NSMenu`), `StatusRowView`, `SettingsView`, `CustomSizeView`,
   `StopHotKey` (Carbon), `SystemEffects`, `MenuBarApp`, `UIRenderer`. Tests: `Tests/SkreenrekUITests` (64 tests).
-- **Dispatch.** `skreenrek app` now runs the menu-bar app (controller, control server, menu bar, `.accessory`
-  activation policy) instead of the headless host. Hidden `skreenrek debug render-ui --out DIR` is added to
-  `main.swift` as two small branches; 06 owns the full dispatch rule and can fold them into its parser.
+- **Dispatch.** 06's `LaunchMode` `.app` (a Finder or `open` launch, or `skreenrek app`) now runs the menu-bar app
+  (controller, control server, menu bar, `.accessory` activation policy) instead of the headless host. The hidden
+  `skreenrek debug render-ui --out DIR` is matched in `main.swift` before the CLI parser, because it draws with
+  AppKit on the main thread and the CLI target doesn't depend on `SkreenrekUI`.
 - **Open questions, built with the defaults:** `NSMenu`, not `MenuBarExtra`; the ⌃⌘⎋ hot key is registered only
   while recording, and a failed registration is logged (the menu item still stops).
 - **Errors the menu shows.** The controller only holds recording failures, so `AppModel` keeps the error from an
