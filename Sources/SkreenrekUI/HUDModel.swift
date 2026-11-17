@@ -61,7 +61,9 @@ public struct HUDModel: Sendable {
             wasCapturing = false
         }
         lastClipID = snapshot.lastClip?.recording.id
-        if !enabled || !indicatorEnabled { state = .hidden }
+        // The indicator option (Settings, `--no-hud`) hides the HUD while capturing, when it could get in the way.
+        // Saved and Stopped show after the clip ends, so they always appear: a recording never ends silently.
+        if !enabled || !indicatorEnabled, state.kind == .recording || state.kind == .writing { state = .hidden }
         tick(now: now)
     }
 

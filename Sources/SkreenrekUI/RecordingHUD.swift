@@ -19,6 +19,7 @@ struct RecordingHUDView: View {
     @Bindable var presentation: HUDPresentation
     var stop: () -> Void = {}
     var reveal: (String) -> Void = { _ in }
+    var copyPath: (String) -> Void = { _ in }
     var details: () -> Void = {}
     var dismiss: () -> Void = {}
     var hover: (Bool) -> Void = { _ in }
@@ -68,7 +69,9 @@ struct RecordingHUDView: View {
             HStack(spacing: 12) {
                 symbol("checkmark.circle.fill").foregroundStyle(Color(nsColor: .systemGreen))
                 Text(UIStrings.HUD.saved(duration))
+                // The Last Clip row's first two actions.
                 Button(UIStrings.Menu.showInFinder) { reveal(path) }
+                Button(UIStrings.Menu.copyFilePath) { copyPath(path) }
             }
         case .error(let reason):
             HStack(spacing: 12) {
@@ -215,6 +218,10 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
                 presentation: presentation,
                 stop: { [weak self] in self?.stop() },
                 reveal: { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: $0)]) },
+                copyPath: { path in
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(path, forType: .string)
+                },
                 details: { [weak self] in self?.showDetails() },
                 dismiss: { [weak self] in self?.model.dismiss(); self?.render() },
                 hover: { [weak self] in self?.model.hovered = $0 }))
