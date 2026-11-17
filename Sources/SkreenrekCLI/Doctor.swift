@@ -66,7 +66,12 @@ extension Runner {
         let cli = commandLineTool()
         lines.append((cli.onPath, "Command-line tool", cli.detail))
         let socket = f.tilde(body?.socket ?? environment.socketPath.path)
-        lines.append((body != nil, "Socket", body != nil ? socket : "Nothing answers at \(socket)."))
+        let socketDetail =
+            body != nil
+            ? socket
+            : appFailure?.code == "sandboxed"
+                ? "This shell's sandbox blocks \(socket)." : "Nothing answers at \(socket)."
+        lines.append((body != nil, "Socket", socketDetail))
         let width = lines.map(\.label.count).max() ?? 0
         return lines.map { f.doctorLine(ok: $0.ok, label: $0.label, detail: $0.detail, labelWidth: width) }.joined()
     }

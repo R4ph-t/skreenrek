@@ -7,6 +7,9 @@ import Synchronization
 public enum ControlClientError: Error, Hashable, CustomStringConvertible {
     /// Nothing listens on the socket: the app isn't running.
     case notRunning(path: String)
+    /// `connect()` to the socket was refused with `EPERM` or `EACCES`: this process is sandboxed (e.g. Codex's
+    /// seatbelt without network access). The app may well be running; launching it from here would fail too.
+    case sandboxed(path: String, errno: Int32)
     /// The app didn't answer in time.
     case timedOut(method: String)
     /// The app closed the connection before answering.
@@ -17,10 +20,17 @@ public enum ControlClientError: Error, Hashable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .notRunning(let path): "Nothing is listening on \(path)."
+        case .sandboxed(let path, let code): "Connecting to \(path) was refused: \(String(cString: strerror(code)))."
         case .timedOut(let method): "The app didn't answer \(method) in time."
         case .connectionClosed: "The app closed the connection."
         case .badResponse(let detail): "The app's answer couldn't be read: \(detail)"
         }
+    }
+
+    /// What a failed `connect()` with errno `code` means: `EPERM`/`EACCES` is a sandbox (or a socket this user
+    /// can't open), anything else is nothing listening.
+    public static func connectFailed(path: String, errno code: Int32) -> ControlClientError {
+        code == EPERM || code == EACCES ? .sandboxed(path: path, errno: code) : .notRunning(path: path)
     }
 }
 
@@ -83,7 +93,8 @@ public final class ControlClient: Sendable {
         Darwin.close(fd)
     }
 
-    /// Connects to the app. Throws `notRunning` when nothing listens on `path`.
+    /// Connects to the app. Throws `notRunning` when nothing listens on `path`, `sandboxed` when connecting isn't
+    /// allowed.
     public static func connect(
         path: URL = ControlPaths.socketURL(), client: ClientInfo, timeout: TimeInterval = connectTimeout
     ) async throws -> ControlClient {
@@ -95,7 +106,7 @@ public final class ControlClient: Sendable {
                     let code = UnixSocket.connect(fd, path: path.path, timeout: timeout)
                     guard code == 0 else {
                         Darwin.close(fd)
-                        throw ControlClientError.notRunning(path: path.path)
+                        throw ControlClientError.connectFailed(path: path.path, errno: code)
                     }
                     continuation.resume(returning: fd)
                 } catch {

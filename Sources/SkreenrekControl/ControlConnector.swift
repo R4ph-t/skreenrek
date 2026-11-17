@@ -22,10 +22,18 @@ public struct ControlConnector: Sendable {
     public var launchTimeout: TimeInterval
     /// Resolves `executablePath` to the bundle to launch.
     public var locator: AppBundleLocator
+    /// Opens the socket. Real: `ControlClient.connect`; tests throw `ControlClientError.connectFailed(path:errno:)`
+    /// to stand in for a sandbox's `EPERM`/`EACCES`.
+    public var dial: Dial
+
+    public typealias Dial = @Sendable (_ path: URL, _ client: ClientInfo) async throws -> ControlClient
+
+    public static let socketDial: Dial = { path, client in try await ControlClient.connect(path: path, client: client) }
 
     public init(
         socketPath: URL, executablePath: String, launcher: any AppLauncher, clock: any HostClock,
-        launchTimeout: TimeInterval = ControlConnector.launchTimeout, locator: AppBundleLocator = .live
+        launchTimeout: TimeInterval = ControlConnector.launchTimeout, locator: AppBundleLocator = .live,
+        dial: @escaping Dial = ControlConnector.socketDial
     ) {
         self.socketPath = socketPath
         self.executablePath = executablePath
@@ -33,10 +41,12 @@ public struct ControlConnector: Sendable {
         self.clock = clock
         self.launchTimeout = launchTimeout
         self.locator = locator
+        self.dial = dial
     }
 
     /// A connection for `client` that has answered `hello` with this protocol version. Fails with
-    /// `ControlConnectError`.
+    /// `ControlConnectError`. A sandboxed process (connecting refused with `EPERM`/`EACCES`) never launches the
+    /// app: the launch would be blocked too, and macOS would call the app damaged.
     public func connect(as client: ClientInfo) async throws -> ControlClient {
         do {
             return try await attempt(client)
@@ -67,7 +77,13 @@ public struct ControlConnector: Sendable {
     }
 
     private func attempt(_ client: ClientInfo) async throws -> ControlClient {
-        let connection = try await ControlClient.connect(path: socketPath, client: client)
+        let connection: ControlClient
+        do {
+            connection = try await dial(socketPath, client)
+        } catch let error as ControlClientError {
+            if case .sandboxed = error { throw ControlConnectError(body: error.body) }
+            throw error
+        }
         let hello = try await connection.call(.hello, as: HelloBody.self)
         guard hello.protocol == ControlProtocol.version else {
             connection.close()
@@ -123,6 +139,12 @@ extension ControlClientError {
             return ErrorBody(
                 code: "internal", message: ControlConnector.notRunningMessage, hint: ControlConnector.notRunningHint,
                 exit: 1)
+        case .sandboxed:
+            // Exit 1, like every other way of not reaching the app; the `sandboxed` code tells agents why.
+            return ErrorBody(
+                code: "sandboxed", message: "Skreenrek can't reach its app from this shell.",
+                hint: "This shell is sandboxed. Use the Skreenrek MCP tools, or allow network access for this "
+                    + "command.", exit: 1)
         case .connectionClosed:
             return ErrorBody(
                 code: "internal", message: "Skreenrek closed the connection before answering.",
