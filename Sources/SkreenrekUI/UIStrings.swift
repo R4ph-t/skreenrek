@@ -271,6 +271,37 @@ public enum UIStrings {
         public static func version(_ version: String) -> String { "Skreenrek \(version)" }
     }
 
+    // MARK: - Updates
+
+    public enum Updates {
+        public static let title = "Updates"
+        public static let checkForUpdates = "Check for Updates"
+        public static let checking = "Checking…"
+        public static let update = "Update"
+        public static let download = "Download…"
+        public static let retry = "Retry"
+        public static let relaunch = "Relaunch"
+        public static let openReleasePage = "Open Release Page"
+        public static let failed = "Couldn't check for updates."
+        public static let installing = "Updating with Homebrew…"
+        public static let installFailed = "Homebrew couldn't update Skreenrek."
+        /// The dropdown's footer line while a newer release waits.
+        public static let menuAvailable = "Update available"
+
+        /// `Skreenrek 1.0.2`, before the first check.
+        public static func currentVersion(_ version: String) -> String { "Skreenrek \(version)" }
+        /// `Skreenrek 1.0.2 is up to date.`
+        public static func upToDate(_ version: String) -> String { "Skreenrek \(version) is up to date." }
+        /// `Skreenrek 1.0.3 is available. You have 1.0.2.`
+        public static func available(_ version: String, current: String) -> String {
+            "Skreenrek \(version) is available. You have \(current)."
+        }
+        /// `Skreenrek 1.0.3 is installed. Relaunch to use it.`
+        public static func installed(_ version: String) -> String {
+            "Skreenrek \(version) is installed. Relaunch to use it."
+        }
+    }
+
     // MARK: - Dropdown header, Last Clip row and Settings hero
 
     /// Copy the branded dropdown and Settings add. The menu and Settings copy above is reused unchanged.
@@ -279,6 +310,14 @@ public enum UIStrings {
         public static let repoURL = "https://github.com/R4ph-t/skreenrek"
         public static let repoHelp = "Open the Skreenrek project on GitHub."
         public static let thumbnailLabel = "The first frame of the last clip."
+        /// The header's compact controls.
+        public static let record = "Record"
+        public static let stop = "Stop"
+
+        /// `Stop Recording, 12 seconds`: the header's Stop button for VoiceOver.
+        public static func stopLabel(seconds: Int) -> String {
+            "\(Menu.stopRecording), \(Icon.spokenDuration(seconds))"
+        }
 
         /// `Not exact: Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800.`
         public static func notExactReason(
@@ -331,6 +370,9 @@ public enum UIStrings {
         Settings.stopShortcutKeys, Settings.permissions, Settings.screenRecording, Settings.screenRecordingDetail,
         Settings.accessibility, Settings.accessibilityDetail, Settings.allowed, Settings.openSystemSettings,
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
-        Brand.repoLink, Brand.repoHelp, Brand.thumbnailLabel,
+        Brand.repoLink, Brand.repoHelp, Brand.thumbnailLabel, Brand.record, Brand.stop,
+        Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
+        Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
+        Updates.menuAvailable,
     ]
 }

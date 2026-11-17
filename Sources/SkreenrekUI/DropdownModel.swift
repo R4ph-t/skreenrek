@@ -29,10 +29,42 @@ public struct DropdownHeader: Sendable, Hashable {
     public var spokenLabel: String? = nil
     /// The header's tooltip (not exact): the reason the size isn't exact.
     public var help: String? = nil
+    /// The compact pill at the header's trailing edge: Record once a window is picked, Stop with the time while
+    /// recording. The same actions stay in the menu below, with their shortcuts.
+    public var control: HeaderControl? = nil
 
     public var accessibilityLabel: String {
         if let spokenLabel { return spokenLabel }
         return [title, elapsed, detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
+    }
+}
+
+/// The header's compact pill: a small red dot and `Record`, or a red square, `Stop` and the elapsed time.
+public struct HeaderControl: Sendable, Hashable {
+    public enum Kind: Sendable, Hashable {
+        case record
+        case stop
+    }
+
+    public var kind: Kind
+    public var title: String
+    /// `0:12` on the Stop pill.
+    public var elapsed: String?
+    public var action: MenuAction
+    /// Record is dimmed until a window is picked, like the Record Window item.
+    public var enabled: Bool
+    public var accessibilityLabel: String
+
+    public static func record(enabled: Bool) -> HeaderControl {
+        HeaderControl(
+            kind: .record, title: UIStrings.Brand.record, elapsed: nil, action: .record, enabled: enabled,
+            accessibilityLabel: UIStrings.Menu.recordWindow)
+    }
+
+    public static func stop(seconds: Int) -> HeaderControl {
+        HeaderControl(
+            kind: .stop, title: UIStrings.Brand.stop, elapsed: TimeFormat.minutesSeconds(Double(seconds)),
+            action: .stop, enabled: true, accessibilityLabel: UIStrings.Brand.stopLabel(seconds: seconds))
     }
 }
 
@@ -117,7 +149,8 @@ public enum DropdownModel {
                 kind: .recording, symbol: StatusIconModel.Symbol.recording, title: UIStrings.Menu.recording(target),
                 detail: sizeAndRate(context), elapsed: TimeFormat.minutesSeconds(Double(context.elapsedSeconds)),
                 fixes: [],
-                spokenLabel: UIStrings.Brand.recordingLabel(target: target, seconds: context.elapsedSeconds))
+                spokenLabel: UIStrings.Brand.recordingLabel(target: target, seconds: context.elapsedSeconds),
+                control: .stop(seconds: context.elapsedSeconds))
         case .writing:
             return DropdownHeader(
                 kind: .saving, symbol: StatusIconModel.Symbol.writing, title: UIStrings.Menu.savingClip,
@@ -133,7 +166,7 @@ public enum DropdownModel {
             guard let readback = context.snapshot.readback, context.snapshot.window != nil, !readback.exact else {
                 return DropdownHeader(
                     kind: .armed, symbol: StatusIconModel.Symbol.armed, title: row.title, detail: row.detail,
-                    elapsed: nil, fixes: [])
+                    elapsed: nil, fixes: [], control: .record(enabled: true))
             }
             // One line: `1286 × 800 px · not exact`; the reason moves to the tooltip and VoiceOver.
             let reason = ExactResizer.reason(requested: readback.requested, actuals: [readback.actual])
@@ -141,11 +174,12 @@ public enum DropdownModel {
                 app: readback.window.app, reason: reason, requested: readback.requested, actual: readback.actual)
             return DropdownHeader(
                 kind: .notExact, symbol: StatusIconModel.Symbol.armed, title: row.title, detail: row.detail,
-                elapsed: nil, fixes: [], spokenLabel: "\(row.title). \(sentence)", help: sentence)
+                elapsed: nil, fixes: [], spokenLabel: "\(row.title). \(sentence)", help: sentence, control: .record(enabled: true))
         case .idle:
             let row = MenuModel.idleRow
             return DropdownHeader(
-                kind: .idle, symbol: row.symbol, title: row.title, detail: row.detail, elapsed: nil, fixes: [])
+                kind: .idle, symbol: row.symbol, title: row.title, detail: row.detail, elapsed: nil, fixes: [],
+                control: .record(enabled: false))
         }
     }
 
@@ -175,6 +209,7 @@ public enum DropdownModel {
         case .copySnippet: "chevron.left.forwardslash.chevron.right"
         case .copyErrorDetails: "doc.on.clipboard"
         case .showPermissions: "hand.raised"
+        case .showUpdate: "arrow.down.circle"
         default: nil
         }
     }
@@ -200,6 +235,7 @@ public enum DropdownModel {
 
     public static func iconTint(for item: MenuItemModel, context: MenuContext) -> IconTint {
         if item.action == .stop { return .red }
+        if item.action == .showUpdate { return .accent }
         guard isPrimary(item, context: context) else { return .neutral }
         return item.action == .record ? .red : .accent
     }

@@ -97,7 +97,8 @@ public enum UIRenderer {
                         base.sizeChoice, display: RenderSamples.display, window: base.snapshot.window
                     ).entries, width: MenuMetrics.sizeSubmenuWidth), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
-            try save(settingsView(home: home), "settings", "default", active: true)
+            try save(settingsView(home: home, latest: SkreenrekVersion.current), "settings", "default", active: true)
+            try save(settingsView(home: home, latest: RenderSamples.newerVersion), "settings", "updateavailable", active: true)
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
                           size: NSSize(width: 280, height: 56)), "picker", "label")
             try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
@@ -162,15 +163,21 @@ public enum UIRenderer {
     }
 
     /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).
-    static func settingsView(home: URL) -> NSView {
+    /// `latest` is the release the Updates row last saw: the current version (up to date) or a newer one.
+    static func settingsView(home: URL, latest: String) -> NSView {
         let defaults = UserDefaults(suiteName: "skreenrek.render-ui.\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
+        defaults.set(latest, forKey: UpdateChecker.Key.latestVersion)
+        let updates = UpdateChecker(
+            feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
+            openURL: { _ in }, relaunch: {})
         let panel = SettingsPanelState(
             permissions: StaticPermissions(screenRecording: .allowed, accessibility: .missing),
             loginItem: StaticLoginItem(),
             agents: AgentsPanelState(
-                installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")))
+                installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")),
+            updates: updates)
         return RefitHostingView.fitted(
             SettingsView(store: store, panel: panel, actions: .none, version: SkreenrekVersion.current)
                 .environment(\.controlActiveState, .key).environment(\.drawsActiveControls, true))
@@ -286,15 +293,17 @@ public enum RenderSamples {
 
     static func context(
         _ snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, title: String? = nil,
-        sizeChoice: SizeChoice = .size(size), permissionsMissing: Bool = false
+        sizeChoice: SizeChoice = .size(size), permissionsMissing: Bool = false, updateAvailable: String? = nil
     ) -> MenuContext {
         MenuContext(
             snapshot: snapshot, actionError: actionError, lastClipTitle: title, sizeChoice: sizeChoice,
-            permissionsMissing: permissionsMissing,
+            permissionsMissing: permissionsMissing, updateAvailable: updateAvailable,
             timeZone: TimeZone(identifier: "Europe/Paris")!, locale: Locale(identifier: "en_GB"))
     }
 
     static let clipTitle = "Safari — localhost:3000"
+    /// The newer release the update renders show.
+    public static let newerVersion = "1.0.3"
 
     public static let idle = Sample(name: "idle", context: context(ControllerSnapshot(state: .idle, fps: .fps60)))
     public static let armed = Sample(
@@ -325,6 +334,13 @@ public enum RenderSamples {
                 ControllerSnapshot(
                     state: .armed, window: safari, displayId: 1, size: PixelSize(width: 1286, height: 800),
                     readback: readback(actual: PixelSize(width: 1286, height: 800)), fps: .fps60))),
+        Sample(
+            name: "updateavailable",
+            context: context(
+                ControllerSnapshot(
+                    state: .armed, window: safari, displayId: 1, size: size, readback: readback(actual: size),
+                    fps: .fps60),
+                updateAvailable: newerVersion)),
         Sample(
             name: "permissionsneeded",
             context: context(ControllerSnapshot(state: .idle, fps: .fps60), permissionsMissing: true)),
@@ -379,6 +395,13 @@ public enum RenderSamples {
 struct StaticPermissions: PermissionProbe {
     var screenRecording: PermissionStatus
     var accessibility: PermissionStatus
+}
+
+/// A release feed and installer for previews: the renders never check or install, so neither is called.
+struct StaticReleaseFeed: ReleaseFeed, UpdateInstaller {
+    struct NotUsed: Error {}
+    func latestRelease() async throws -> ReleaseInfo { throw NotUsed() }
+    func upgrade(progress: @escaping @Sendable (String) -> Void) async throws { throw NotUsed() }
 }
 
 /// An Open at login stand-in for previews: off, and never touches the system.
