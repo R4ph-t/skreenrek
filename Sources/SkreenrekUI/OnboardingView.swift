@@ -18,10 +18,12 @@ public struct OnboardingView: View {
                 Spacer()
                 if model.step == 1 {
                     Button(UIStrings.Onboarding.continueButton) { model.continueToAgents() }
-                        .keyboardShortcut(.defaultAction).disabled(!model.canContinue)
+                        .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                        .disabled(!model.canContinue)
                 } else {
                     Button(UIStrings.Onboarding.skip) { model.skip() }
-                    Button(UIStrings.Onboarding.connect) { model.connect() }.keyboardShortcut(.defaultAction)
+                    Button(UIStrings.Onboarding.connect) { model.connect() }
+                        .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                 }
             }
         }
