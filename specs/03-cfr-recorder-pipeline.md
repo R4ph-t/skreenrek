@@ -1,6 +1,6 @@
 # 03: Constant-frame-rate recorder pipeline and ScreenCaptureKit frame source
 
-Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold) · Estimate: 6–8 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Done · Branch: `lane/03-cfr-recorder-pipeline` · Depends on: 01 (scaffold) · Estimate: 6–8 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
@@ -137,4 +137,77 @@ events.json and the HyperFrames snippet (04), the controller and state machine (
 
 ## Implementation notes
 
-_(filled in by the agent)_
+- **Layout.** Core: `Sources/SkreenrekCore/Recording/` (`CFRScheduler`, `PixelBufferSink` + `ClipWriterSettings`,
+  `ClipWriter`, `RecordingSession`, `RecordingResult` + `StopReason` + `FrameSourceError`, `OutputFolder`,
+  `HostTimeClock`). System: `Sources/SkreenrekSystem/Capture/` (`SCStreamFrameSource`, `VolumeDiskSpaceProbe`).
+  No `Package.swift` change: `LiveRecordTests` joins 02's `SkreenrekSystemTests` target.
+- **Slot rule.** Slot n is `t0 + n / fps`, t0 = the first frame's host time. "Newest frame with host time ≤ slot
+  time" is built with half a slot of jitter tolerance: a frame belongs to the first slot whose time is ≥ its host
+  time − ½ slot (exactly half rounds down), so ScreenCaptureKit's jitter around a boundary never pushes a frame into
+  the next slot and causes a skip. The first frame is written at once as slot 0 (fast start).
+- **When slots are decided.** A frame's arrival decides every slot before its own, so a steady source is written
+  one frame behind with no timer. The tick loop (`sleep(until:)` on `HostClock`, one wake per slot) writes slots that
+  fell due with no new frame; a slot is due `RecordingSession.defaultTickGrace` = **0.25 s** after its time, and a
+  late tick catches up every due slot at once. The grace only gives a late frame time to land in its own slot (a
+  0.1 s grace let a ~300 ms test-runner stall show up as idle repeats + skips); it adds no latency to slots with
+  frames and nothing to the clip's timing (timestamps are slot numbers).
+- **Stats accounting.** Every slot is exactly one of fresh, idle repeat or dropped (tests check the sum). A slot
+  that finds the writer input busy is dropped: nothing queues; it is appended later as a repeat of the last
+  appended buffer (timestamps only, no extra buffers held), and a fresh frame stays pending for the next slot (if a
+  newer one arrives first, the old one counts in `sourceFramesSkipped`). A fresh frame written more than one slot
+  after its own slot moves up to that many directly preceding idle repeats to `framesDropped`; one slot late is
+  tolerated. A frame still pending at stop counts as skipped. `slotsWritten` is the appended count.
+- **Stops.** `stop()` and "window closed" write every slot up to now plus the pending frame; `duration` stops at
+  exactly `duration × fps` (frames after it are ignored, not counted as skipped); disk low and write failure stop at
+  the slots already decided. Free space is checked at slot 0 and every 5 s of clip time; low is < 2,000,000,000
+  bytes; the `at` in the copy is the check's clip time (`Less than 2 GB free. The clip up to 0:05 was saved.`).
+  Window closed reports the clip length (`The window closed at 0:31. …`). A probe error is ignored. A source that
+  finishes without an error (only fakes do) keeps the recording going with idle repeats until stop or duration.
+  Before finishing, owed repeats are flushed (waiting up to 2 s per wait for the input). No frame at all: no
+  `clip.mp4`, duration 0. `start` creates the writer before starting the source, so an unwritable folder never
+  starts capture; a failed start removes the clip folder if it is still empty.
+- **`RecordingResult`.** Fields per the spec, with `origin: RecordingOrigin` (`startedBy` + MCP `client`, 01's type;
+  `startedBy` is a computed shortcut), `stopReason: StopReason` (`stopped`, `duration`, `windowClosed(at:)`,
+  `diskLow(at:)`, `writeFailed`, `sourceFailed(SkreenrekError)`, `discarded`, each with a `code`), `error` (the
+  `recording_failed` copy, or e.g. `permission_denied` if the source failed with it), `firstFrameHostTime` and
+  `clipURL`. Not `Codable`: 05 shapes the JSON. `discard()` cancels the writer, deletes the folder and ends with
+  `.discarded`.
+- **Tick hook for 04.** `RecordingSession(onSlot:)` gets a `SlotTick` (`index`, slot `hostTime`,
+  `firstFrameHostTime`) once per slot, in order, including catch-up slots. For 04's `EventRecorder`:
+  `if tick.index == 0 { recorder.firstFrame(hostTime: tick.firstFrameHostTime) }; recorder.sample(hostTime: tick.hostTime)`.
+- **`ClipWriter`.** `.mp4`, `shouldOptimizeForNetworkUse = false`, PTS `CMTime(value: n, timescale: fps)`,
+  `endSession` at `slots / fps` (every sample lasts exactly 1/fps). H.264 High (`AVVideoProfileLevelH264HighAutoLevel`)
+  or HEVC Main; `AVVideoAverageBitRateKey` from the 0.08 rule (pure `ClipWriterSettings.averageBitRate`);
+  `MaxKeyFrameInterval` 2 × fps and `MaxKeyFrameIntervalDuration` 2 s; Rec. 709 colour properties;
+  `AVVideoExpectedSourceFrameRateKey`; frame reordering off (no B-frames: lower latency, faster finalize).
+  `.requireHardware` sets `RequireHardwareAcceleratedVideoEncoder`; if `canApply` or `startWriting` fails it logs
+  (`os.Logger`, subsystem `it.fraime.skreenrek`) and restarts with software. `.software` sets
+  `EnableHardwareAcceleratedVideoEncoder = false`. The adaptor has no source attributes (with them it allocates a
+  buffer pool we never use; it moved the software encoder's lazy first-frame setup into `init`, no net gain). The
+  forced-fallback path isn't unit-tested: CI can't be made to refuse the hardware request (`ClipWriterTests` prints
+  which encoder `.requireHardware` got; it was hardware here).
+- **Offline writer for tests.** `RecordingSession(realTimeWriter: false)` makes `ClipWriter.isReady` wait for the
+  encoder (key-value observed), so deterministic MP4 tests get every frame even when synthetic frames arrive faster
+  than the VM encodes. The app uses the default real-time mode (`expectsMediaDataInRealTime`, never blocks).
+- **`HostTimeClock`** (`CMClockGetHostTimeClock()`, the base ScreenCaptureKit stamps frames with; sleeps on the
+  suspending clock and re-checks) lives in Core, not System: it is pure time, and the `Perf…` suites in
+  `SkreenrekCoreTests` need the real clock.
+- **`SCStreamFrameSource`.** As specified (filters, size, `minimumFrameInterval`, cursor, `420v`, `queueDepth` 6, no
+  audio), plus `colorMatrix` = ITU-R 709 to match the writer's tags. Region `sourceRect` = px ÷ the filter's
+  `pointPixelScale`. Window closed is detected three ways: `didStopWithError`, a `.stopped` frame status, and a
+  0.5 s `CGWindowListCopyWindowInfo` check (window IDs need no permission). `userDeclined`/`missingEntitlements` map
+  to `permission_denied` (Screen Recording). `SCStreamFrameSource.screenRecordingAllowed` wraps the non-prompting
+  preflight so tests never name the API. Not run here (needs the permission).
+- **Output folder.** Slugs fold accents and full-width forms, turn every other run into one `-`, trim, cap at 40.
+  A name that slugifies to nothing falls back to the app slug; an app name with no ASCII letters or digits gives
+  `window`. Date parts come from a Gregorian calendar in the given time zone (no locale-dependent formatter).
+- **Tests.** `CFRSchedulerTests`, `StatsAccountingTests` (pure), `RecorderVideoTests` (real MP4s: 60 and 30 fps with
+  a 300 ms gap → 120 / 60 samples of exactly 1/fps showing the repeated frame; three sizes; 1.5 s → 90 frames;
+  window closed; disk low; HEVC when available), `RecordingSessionTests`, `ZeroCopyTests`, `OutputFolderTests`,
+  `ClipWriterTests`, `RecorderGuardrailTests` (the `rg` guard as a test), `PerfStartTests`, `PerfSustainTests`,
+  `PerfFinalizeTests`, and the opt-in `LiveRecordTests`. Suites that encode or measure time are nested in one
+  `.serialized` `RecorderSuites` so they don't starve each other on the VM. `PerfStartTests` does one uncounted
+  warm-up run (it loads the encoder; 300–1000 ms cold) before the 5 measured runs.
+- **Measured here** (Apple silicon, Xcode 26.2, under heavy load from parallel lanes): start to first frame median
+  7–55 ms (171 ms once at load average ~220), sustain 60/30 fps clean, finalize 10 s 1280 × 800 in 67–700 ms.
+  The macos-15 CI run is the check for the runner's toolchain.
