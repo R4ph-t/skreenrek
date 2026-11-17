@@ -90,11 +90,11 @@ import Testing
         let original = "\u{feff}" + object + "\n"
         try home.write(AgentClient.claude.config, original)
         #expect(home.installer.run(agents: [.claude]).allSatisfy { $0.success })
-        let installed = try home.read(AgentClient.claude.config)
+        let installed = String(decoding: try Data(contentsOf: home.file(AgentClient.claude.config)), as: UTF8.self)
         #expect(installed.hasPrefix("\u{feff}"))
         #expect(try JSONConfig.server(in: installed) != nil)
         #expect(home.installer.run(agents: [.claude], remove: true).allSatisfy { $0.success })
-        #expect(try home.read(AgentClient.claude.config) == original)
+        #expect(try Data(contentsOf: home.file(AgentClient.claude.config)) == Data(original.utf8))
     }
 
     @Test(arguments: ["{", "[]", "{\"a\":1,\"a\":2}", "{\"mcpServers\":null}", "{\"mcpServers\":[]}"])
