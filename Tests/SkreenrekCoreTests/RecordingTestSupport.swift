@@ -241,10 +241,19 @@ enum VideoFile {
     }
 }
 
-/// Polls an actor-isolated condition without sleeping.
-func eventually(_ condition: () async -> Bool) async {
+/// Polls an actor-isolated condition every ~1 ms until it holds. After `timeout` seconds of real time it records an
+/// issue and returns, so a condition that never comes true fails the test instead of spinning forever. The sleep only
+/// paces the polling (it keeps the loop off the CPU); it never drives the test's timing.
+func eventually(
+    timeout: Double = 10, sourceLocation: SourceLocation = #_sourceLocation, _ condition: () async -> Bool
+) async {
+    let deadline = ContinuousClock.now + .seconds(timeout)
     while await !condition() {
-        await Task.yield()
+        guard ContinuousClock.now < deadline else {
+            Issue.record("Condition still false after \(timeout) s.", sourceLocation: sourceLocation)
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(1))
     }
 }
 
