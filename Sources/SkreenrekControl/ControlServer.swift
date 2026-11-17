@@ -45,12 +45,30 @@ public final class ControlServer: @unchecked Sendable {
     private var listenSource: (any DispatchSourceRead)?
     private var connections: [ObjectIdentifier: Connection] = [:]
     private var rejectedPeers = 0
+    private let connectionClosed: (@Sendable () -> Void)?
 
-    /// - Parameter allowedUID: the only uid served; this user by default (tests pass another one to check refusal).
-    public init(path: URL, allowedUID: uid_t = geteuid(), handler: @escaping Handler) {
+    /// - Parameters:
+    ///   - allowedUID: the only uid served; this user by default (tests pass another one to check refusal).
+    ///   - connectionClosed: called once per connection after its file descriptor is closed (tests use it to check
+    ///     that no connection outlives the server).
+    public init(
+        path: URL, allowedUID: uid_t = geteuid(), connectionClosed: (@Sendable () -> Void)? = nil,
+        handler: @escaping Handler
+    ) {
         self.path = path
         self.allowedUID = allowedUID
+        self.connectionClosed = connectionClosed
         self.handler = handler
+    }
+
+    /// A server dropped without `stop()` still ends every connection: a read source left armed on a socket at end of
+    /// stream would fire forever and burn a CPU core.
+    deinit {
+        listenSource?.cancel()
+        for connection in connections.values {
+            connection.source?.cancel()
+            shutdown(connection.fd, SHUT_RDWR)
+        }
     }
 
     public var isRunning: Bool { queue.sync { listenSource != nil } }
@@ -65,14 +83,18 @@ public final class ControlServer: @unchecked Sendable {
         try queue.sync { try startOnQueue() }
     }
 
-    /// Stops listening, removes the socket file and closes every idle connection.
+    /// Stops listening, removes the socket file and ends every connection: reading stops at once, and each
+    /// connection closes as soon as its request in flight (if any) has answered.
     public func stop() {
         queue.sync {
             guard let source = listenSource else { return }
             listenSource = nil
             source.cancel()
             unlink(path.path)
-            for connection in connections.values { shutdown(connection.fd, SHUT_RDWR) }
+            for connection in connections.values {
+                connection.source?.cancel()
+                shutdown(connection.fd, SHUT_RDWR)
+            }
         }
     }
 
@@ -160,22 +182,21 @@ public final class ControlServer: @unchecked Sendable {
     // MARK: - Connections
 
     private func open(_ fd: Int32) {
-        let connection = Connection(fd: fd)
+        let connection = Connection(fd: fd, closed: connectionClosed)
         let key = ObjectIdentifier(connection)
         connections[key] = connection
         let (lines, continuation) = AsyncStream<Data>.makeStream()
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         connection.source = source
-        source.setEventHandler { [weak self, connection] in
-            guard let self else { return }
-            if !self.read(connection, into: continuation) {
-                continuation.finish()
-                connection.source?.cancel()
-            }
+        // The read handler never depends on the server being alive: it always reads, so end of stream always cancels
+        // the source. (Returning early once the server was gone left the source firing in a busy loop.)
+        source.setEventHandler { [connection] in
+            if !ControlServer.read(connection, into: continuation) { connection.source?.cancel() }
         }
         source.setCancelHandler { [weak self, connection] in
             connection.readDone = true
-            self?.closeIfDone(connection, key: key)
+            continuation.finish()
+            if let self { self.closeIfDone(connection, key: key) } else { connection.closeIfDone() }
         }
         source.resume()
 
@@ -196,13 +217,13 @@ public final class ControlServer: @unchecked Sendable {
             queue.async {
                 connection.consumerDone = true
                 connection.source?.cancel()
-                server?.closeIfDone(connection, key: key)
+                if let server { server.closeIfDone(connection, key: key) } else { connection.closeIfDone() }
             }
         }
     }
 
     /// Reads what is there and yields each complete line. False at end of stream or on an error.
-    private func read(_ connection: Connection, into continuation: AsyncStream<Data>.Continuation) -> Bool {
+    private static func read(_ connection: Connection, into continuation: AsyncStream<Data>.Continuation) -> Bool {
         var chunk = [UInt8](repeating: 0, count: 65536)
         while true {
             let n = chunk.withUnsafeMutableBytes { Darwin.read(connection.fd, $0.baseAddress, $0.count) }
@@ -235,10 +256,7 @@ public final class ControlServer: @unchecked Sendable {
             ).body))
 
     private func closeIfDone(_ connection: Connection, key: ObjectIdentifier) {
-        guard connection.readDone, connection.consumerDone, !connection.closed else { return }
-        connection.closed = true
-        close(connection.fd)
-        connections[key] = nil
+        if connection.closeIfDone() { connections[key] = nil }
     }
 
     /// One client connection. `buffer`, `source` and the flags are only touched on the server queue.
@@ -249,10 +267,22 @@ public final class ControlServer: @unchecked Sendable {
         var readDone = false
         var consumerDone = false
         var closed = false
+        private let onClosed: (@Sendable () -> Void)?
         private let writeQueue = DispatchQueue(label: "it.fraime.skreenrek.control.write", qos: .userInitiated)
 
-        init(fd: Int32) {
+        init(fd: Int32, closed: (@Sendable () -> Void)?) {
             self.fd = fd
+            self.onClosed = closed
+        }
+
+        /// Closes the descriptor once reading and the request consumer are both done. True when it closed now.
+        @discardableResult
+        func closeIfDone() -> Bool {
+            guard readDone, consumerDone, !closed else { return false }
+            closed = true
+            close(fd)
+            onClosed?()
+            return true
         }
 
         /// Writes a reply off the cooperative pool. False when the client is gone.

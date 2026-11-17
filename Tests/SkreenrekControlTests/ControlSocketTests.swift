@@ -66,8 +66,11 @@ import Testing
         #expect(try String(contentsOfFile: stop.files.snippet, encoding: .utf8) == stop.snippet)
         #expect(stop.snippet.hasPrefix("<!-- Skreenrek · Safari — localhost:3000 · 1440×900 px · 30 fps"))
 
-        let size = try await AVURLAsset(url: URL(fileURLWithPath: stop.files.clip))
-            .loadTracks(withMediaType: .video).first?.load(.naturalSize)
+        let clip = stop.files.clip
+        let size = try await within("the clip's video size") {
+            try await AVURLAsset(url: URL(fileURLWithPath: clip)).loadTracks(withMediaType: .video).first?
+                .load(.naturalSize)
+        }
         #expect(size == CGSize(width: 1440, height: 900))
 
         let events = try JSONDecoder().decode(

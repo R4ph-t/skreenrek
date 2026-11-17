@@ -81,9 +81,13 @@ import Testing
             #expect(ms <= 2000)
             #expect(stop.recording.width == 1280 && stop.recording.height == 800)
             #expect(stop.recording.duration >= 10)
-            let asset = AVURLAsset(url: URL(fileURLWithPath: stop.files.clip))
-            #expect(try await asset.load(.isPlayable))
-            #expect(try await asset.load(.duration).seconds >= 10)
+            let clip = stop.files.clip
+            let (playable, seconds) = try await within("the clip's playability and duration") {
+                let asset = AVURLAsset(url: URL(fileURLWithPath: clip))
+                return (try await asset.load(.isPlayable), try await asset.load(.duration).seconds)
+            }
+            #expect(playable)
+            #expect(seconds >= 10)
         }
     }
 
