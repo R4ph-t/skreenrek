@@ -20,16 +20,19 @@ public struct ControlConnector: Sendable {
     /// Times the wait for a launched app; nothing else.
     public var clock: any HostClock
     public var launchTimeout: TimeInterval
+    /// Resolves `executablePath` to the bundle to launch.
+    public var locator: AppBundleLocator
 
     public init(
         socketPath: URL, executablePath: String, launcher: any AppLauncher, clock: any HostClock,
-        launchTimeout: TimeInterval = ControlConnector.launchTimeout
+        launchTimeout: TimeInterval = ControlConnector.launchTimeout, locator: AppBundleLocator = .live
     ) {
         self.socketPath = socketPath
         self.executablePath = executablePath
         self.launcher = launcher
         self.clock = clock
         self.launchTimeout = launchTimeout
+        self.locator = locator
     }
 
     /// A connection for `client` that has answered `hello` with this protocol version. Fails with
@@ -38,16 +41,14 @@ public struct ControlConnector: Sendable {
         do {
             return try await attempt(client)
         } catch ControlClientError.notRunning {}
-        guard let bundle = Self.appBundle(executablePath: executablePath) else {
-            throw ControlConnectError(body: ErrorBody(
-                code: "internal", message: Self.notRunningMessage, hint: Self.notRunningHint, exit: 1))
+        let resolved = locator.resolve(executablePath)
+        guard let bundle = AppBundleLocator.enclosingBundle(ofResolved: resolved) else {
+            throw ControlConnectError(body: Self.notInBundleBody(executablePath: executablePath, resolved: resolved))
         }
         do {
             try await launcher.launchHidden(appAt: bundle)
         } catch {
-            throw ControlConnectError(body: ErrorBody(
-                code: "internal", message: "Skreenrek couldn't be opened: \(error.localizedDescription)",
-                hint: Self.notRunningHint, exit: 1))
+            throw ControlConnectError(body: Self.launchFailedBody(bundle: bundle, error: error))
         }
         let deadline = clock.now() + launchTimeout
         while true {
@@ -79,18 +80,29 @@ public struct ControlConnector: Sendable {
         return connection
     }
 
-    /// The `Skreenrek.app` bundle this executable lives in, through symlinks (`~/.local/bin/skreenrek` →
+    /// The `.app` bundle this executable lives in, through symlinks (`~/.local/bin/skreenrek` →
     /// `…/Skreenrek.app/Contents/MacOS/skreenrek`); nil outside a bundle.
     public static func appBundle(executablePath: String) -> URL? {
-        let resolved = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
-        let components = resolved.pathComponents
-        guard components.count >= 4,
-            components[components.count - 1] == "skreenrek",
-            components[components.count - 2] == "MacOS",
-            components[components.count - 3] == "Contents",
-            components[components.count - 4] == "Skreenrek.app"
-        else { return nil }
-        return resolved.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        AppBundleLocator.live.appBundle(executablePath: executablePath)
+    }
+
+    /// The app isn't running and this executable has no bundle to open: names the path that was tried.
+    static func notInBundleBody(executablePath: String, resolved: String) -> ErrorBody {
+        let tried = resolved == executablePath ? resolved : "\(executablePath) (resolved to \(resolved))"
+        return ErrorBody(
+            code: "internal",
+            message: "Skreenrek isn't running, and \(tried) isn't inside an app bundle, so it can't be opened.",
+            hint: notRunningHint, exit: 1)
+    }
+
+    /// macOS refused to open `bundle`: names the bundle and the macOS error (description, domain and code).
+    static func launchFailedBody(bundle: URL, error: any Error) -> ErrorBody {
+        let ns = error as NSError
+        return ErrorBody(
+            code: "internal",
+            message: "Skreenrek couldn't be opened at \(bundle.path): \(ns.localizedDescription) "
+                + "(\(ns.domain) error \(ns.code))",
+            hint: "Reinstall Skreenrek, or open \(bundle.path) by hand, then run: skreenrek doctor", exit: 1)
     }
 }
 

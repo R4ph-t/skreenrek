@@ -172,7 +172,12 @@ import Testing
         let result = try await h.run(["status"], launcher: launcher)
         #expect(result.code == 1)
         #expect(result.out.isEmpty)
-        #expect(result.err == "error: Skreenrek isn't running.\nhint:  Open Skreenrek.app, or run: skreenrek app\n")
+        #expect(result.err == """
+            error: Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so it can't be \
+            opened.
+            hint:  Open Skreenrek.app, or run: skreenrek app
+
+            """)
         #expect(launcher.launches.isEmpty)
         let json = try await h.run(["status", "--json"])
         #expect(try json.jsonError()["code"] as? String == "internal")
@@ -185,7 +190,8 @@ import Testing
         let result = try await h.run(["doctor"], variables: ["PATH": "/nowhere"])
         #expect(result.code == 1)
         #expect(result.out == """
-            ✗ Skreenrek app      Skreenrek isn't running. Open Skreenrek.app, or run: skreenrek app
+            ✗ Skreenrek app      Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so \
+            it can't be opened. Open Skreenrek.app, or run: skreenrek app
             ✗ Command-line tool  /usr/local/bin/skreenrek isn't on your PATH as skreenrek. Link it: \
             ln -s "/usr/local/bin/skreenrek" ~/.local/bin/skreenrek
             ✗ Socket             Nothing answers at ~/s/c.sock.

@@ -314,7 +314,11 @@ import Testing
         #expect(result["isError"] == true)
         #expect(try result.structured() == [
             "error": [
-                "code": "internal", "message": "Skreenrek isn't running.",
+                "code": "internal",
+                "message": """
+                    Skreenrek isn't running, and /usr/local/bin/skreenrek isn't inside an app bundle, so it can't be \
+                    opened.
+                    """,
                 "hint": "Open Skreenrek.app, or run: skreenrek app",
             ]
         ])
