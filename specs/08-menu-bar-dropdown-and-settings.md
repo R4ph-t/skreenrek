@@ -1,6 +1,6 @@
 # 08: Menu-bar icon, dropdown, Settings and the ⌃⌘⎋ stop shortcut
 
-Status: Ready · Branch: – · Depends on: 05 (controller) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
+Status: Queued (herdr) · Branch: – · Depends on: 05 (controller) · Estimate: 5–7 h agent run + 0 h Raph review (no hand test)
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal

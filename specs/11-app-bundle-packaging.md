@@ -1,6 +1,6 @@
 # 11: App bundle packaging, Info.plist and ad-hoc signing (hand spec)
 
-Status: Ready · Branch: – · Depends on: 01 (scaffold), by hand (Fraime Lead) · Estimate: – agent run (by hand, about 2 h Fraime Lead) + 0 h Raph review · Risk: high
+Status: Queued (herdr) · Branch: – · Depends on: 01 (scaffold), by hand (Fraime Lead) · Estimate: – agent run (by hand, about 2 h Fraime Lead) + 0 h Raph review · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal

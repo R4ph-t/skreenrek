@@ -1,6 +1,6 @@
 # 09: record-window skill, agent setup and the Homebrew formula
 
-Status: Ready · Branch: – · Depends on: 06 (CLI), 07 (MCP), 11 (app bundle, by hand) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
+Status: Queued (herdr) · Branch: – · Depends on: 06 (CLI), 07 (MCP), 11 (app bundle, by hand) · Estimate: 3–5 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
 ## Goal
