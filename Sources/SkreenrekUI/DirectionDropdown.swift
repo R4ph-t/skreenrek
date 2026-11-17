@@ -203,6 +203,7 @@ struct DirectionHeaderView: View {
         .background(band)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(header.accessibilityLabel)
+        .help(header.help ?? "")
     }
 
     @ViewBuilder
@@ -220,6 +221,7 @@ struct DirectionHeaderView: View {
             Text(header.detail)
                 .font(.system(size: 12))
                 .foregroundStyle(header.kind == .notExact ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+                .lineLimit(header.kind == .notExact ? 1 : nil)
                 .monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.trailing, 4)  // the detail keeps a 16 pt right inset and wraps

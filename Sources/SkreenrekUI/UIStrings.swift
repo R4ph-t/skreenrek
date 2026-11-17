@@ -240,6 +240,25 @@ public enum UIStrings {
         public static let settingsHelp = "Open Skreenrek Settings."
         public static let moreHelp = "Open the output folder or quit Skreenrek."
         public static let thumbnailLabel = "The first frame of the last clip."
+        /// A and C header, armed but not exact: `1286 × 800 px · not exact`.
+        public static let notExact = "not exact"
+
+        /// `Not exact: Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800.`
+        public static func notExactReason(
+            app: String, reason: NotExactReason, requested: PixelSize, actual: PixelSize
+        ) -> String {
+            let limit: String
+            switch reason {
+            case .minWidth(let px): limit = "won't go narrower than \(px) px"
+            case .minHeight(let px): limit = "won't go shorter than \(px) px"
+            case .maxWidth(let px): limit = "won't go wider than \(px) px"
+            case .maxHeight(let px): limit = "won't go taller than \(px) px"
+            case .steps: limit = "resizes in steps"
+            }
+            return "Not exact: \(app) \(limit), so the clip is \(actual.width) × \(actual.height) instead of "
+                + "\(requested.width) × \(requested.height)."
+        }
+
         /// A and C Settings: the permission rows' shorter button, so the detail stays on one line.
         public static let openSettings = "Open Settings…"
 
@@ -292,7 +311,7 @@ public enum UIStrings {
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
         Directions.finder, Directions.copyPath, Directions.snippet, Directions.tagline, Directions.repoLink,
         Directions.settingsHelp, Directions.moreHelp, Directions.thumbnailLabel, Directions.stopHelp,
-        Directions.openSettings,
+        Directions.openSettings, Directions.notExact,
         Directions.startedOverMCP, Directions.startedFromMenu, Directions.startedFromCommandLine,
     ]
 }

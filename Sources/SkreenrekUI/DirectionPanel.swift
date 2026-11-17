@@ -112,7 +112,7 @@ struct DirectionPanelView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(header.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                         .truncationMode(.middle)
-                    Text(header.detail)
+                    Text(header.panelDetail ?? header.detail)
                         .font(.system(size: 12))
                         .foregroundStyle(
                             header.kind == .notExact ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary)

@@ -27,7 +27,7 @@ import Testing
 
         let notExact = DirectionModel.header(for: try Self.sample("armednotexact"))
         #expect(notExact.kind == .notExact)
-        #expect(notExact.detail == "1286 × 800 px · not exact (min width 1286 px)")
+        #expect(notExact.detail == "1286 × 800 px · not exact")
 
         let recording = DirectionModel.header(for: try Self.sample("recording"))
         #expect(recording.kind == .recording)
@@ -45,6 +45,37 @@ import Testing
         #expect(error.symbol == "exclamationmark.triangle.fill")
         #expect(error.title == "Recording stopped")
         #expect(error.fixes.map(\.title) == ["Show in Finder", "Copy Error Details"])
+    }
+
+    @Test func notExactReasonMovesToTheTooltipAndVoiceOver() throws {
+        let context = try Self.sample("armednotexact")
+        let header = DirectionModel.header(for: context)
+        let sentence =
+            "Not exact: Safari won't go narrower than 1286 px, so the clip is 1286 × 800 instead of 1280 × 800."
+        #expect(header.help == sentence)
+        #expect(header.accessibilityLabel == "Safari — localhost:3000. \(sentence)")
+        // B's status card keeps the shipping detail.
+        #expect(header.panelDetail == "1286 × 800 px · not exact (min width 1286 px)")
+        // The Size row keeps the requested size.
+        let sizes = DirectionModel.dropdownRows(for: context).compactMap { row -> String? in
+            if case .submenu(let submenu) = row, submenu.title == "Size" { return submenu.detail }
+            return nil
+        }
+        #expect(sizes == ["1280 × 800 px"])
+        // An exact window has no tooltip.
+        #expect(DirectionModel.header(for: try Self.sample("armed")).help == nil)
+    }
+
+    @Test func notExactReasonUsesTheRealAppAndSizes() {
+        let requested = PixelSize(width: 1920, height: 1080)
+        #expect(
+            UIStrings.Directions.notExactReason(
+                app: "Terminal", reason: .steps, requested: requested, actual: PixelSize(width: 1918, height: 1074))
+                == "Not exact: Terminal resizes in steps, so the clip is 1918 × 1074 instead of 1920 × 1080.")
+        #expect(
+            UIStrings.Directions.notExactReason(
+                app: "Notes", reason: .maxHeight(900), requested: requested, actual: PixelSize(width: 1920, height: 900))
+                == "Not exact: Notes won't go taller than 900 px, so the clip is 1920 × 900 instead of 1920 × 1080.")
     }
 
     @Test func panelRecordingLineNamesWhoStartedIt() throws {

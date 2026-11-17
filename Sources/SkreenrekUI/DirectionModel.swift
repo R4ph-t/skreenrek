@@ -38,6 +38,10 @@ public struct DirectionHeader: Sendable, Hashable {
     public var fixes: [MenuItemModel]
     /// What VoiceOver reads when it differs from the visible text (recording).
     public var spokenLabel: String? = nil
+    /// The header's tooltip (A and C, not exact): the reason the size isn't exact.
+    public var help: String? = nil
+    /// B's status card keeps the shipping detail, reason included.
+    public var panelDetail: String? = nil
 
     public var accessibilityLabel: String {
         if let spokenLabel { return spokenLabel }
@@ -114,10 +118,21 @@ public enum DirectionModel {
                 detail: presentation.row.detail, elapsed: nil, fixes: presentation.fixes)
         case .armed:
             let row = MenuModel.armedRow(context)
-            let exact = context.snapshot.readback?.exact ?? true
+            guard let readback = context.snapshot.readback, !readback.exact else {
+                return DirectionHeader(
+                    kind: .armed, symbol: StatusIconModel.Symbol.armed, title: row.title, detail: row.detail,
+                    elapsed: nil, fixes: [])
+            }
+            // One line: `1286 × 800 px · not exact`; the reason moves to the tooltip and VoiceOver.
+            let reason = ExactResizer.reason(requested: readback.requested, actuals: [readback.actual])
+            let sentence = UIStrings.Directions.notExactReason(
+                app: readback.window.app, reason: reason, requested: readback.requested, actual: readback.actual)
             return DirectionHeader(
-                kind: exact ? .armed : .notExact, symbol: StatusIconModel.Symbol.armed, title: row.title,
-                detail: row.detail, elapsed: nil, fixes: [])
+                kind: .notExact, symbol: StatusIconModel.Symbol.armed, title: row.title,
+                detail: [readback.actual.description, UIStrings.Directions.notExact]
+                    .joined(separator: UIStrings.Menu.separator),
+                elapsed: nil, fixes: [], spokenLabel: "\(row.title). \(sentence)", help: sentence,
+                panelDetail: row.detail)
         case .idle:
             let row = MenuModel.idleRow
             return DirectionHeader(
