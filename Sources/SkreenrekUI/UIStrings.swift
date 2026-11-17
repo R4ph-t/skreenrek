@@ -192,6 +192,12 @@ public enum UIStrings {
 
     // MARK: - Settings
 
+    public enum Agents {
+        public static let title = "Agents"
+        public static let connect = "Connect"
+        public static let remove = "Remove"
+    }
+
     public enum Settings {
         public static let windowTitle = "Skreenrek Settings"
         public static let outputFolder = "Output folder"
@@ -220,6 +226,7 @@ public enum UIStrings {
 
     /// Every fixed string above, for the copy audit.
     public static let allFixed: [String] = [
+        Agents.title, Agents.connect, Agents.remove,
         productName, Icon.idle, Icon.writing, Icon.regionTarget,
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,
         Menu.showCursor, Menu.writeClickEvents, Menu.recordWindow, Menu.lastClip, Menu.showInFinder,

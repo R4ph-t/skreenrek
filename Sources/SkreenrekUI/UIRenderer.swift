@@ -61,7 +61,10 @@ public enum UIRenderer {
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
         let panel = SettingsPanelState(
             permissions: StaticPermissions(screenRecording: .allowed, accessibility: .missing),
-            loginItem: StaticLoginItem())
+            loginItem: StaticLoginItem(),
+            agents: AgentsPanelState(installer: AgentInstaller(
+                home: FileManager.default.temporaryDirectory.appendingPathComponent("skreenrek-preview-\(UUID().uuidString)"),
+                executablePath: "/unused/skreenrek", path: "")))
         let hosting = NSHostingView(
             rootView: SettingsView(store: store, panel: panel, actions: .none, version: SkreenrekVersion.current))
         hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)

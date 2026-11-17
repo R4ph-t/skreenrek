@@ -19,7 +19,7 @@ struct SkreenrekCommand: ParsableCommand {
         subcommands: [
             WindowsCommand.self, PickCommand.self, ResizeCommand.self, RecordCommand.self, StopCommand.self,
             DiscardCommand.self, StatusCommand.self, LastCommand.self, DoctorCommand.self, MCPCommand.self,
-            DebugCommand.self,
+            SetupCommand.self, DebugCommand.self,
         ])
 }
 
@@ -109,6 +109,27 @@ struct DoctorCommand: ParsableCommand {
 
 struct MCPCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "mcp", abstract: "Run the stdio MCP server")
+}
+
+struct SetupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "setup", abstract: "Connect your agents", subcommands: [SetupAgentsCommand.self])
+}
+
+struct SetupAgentsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "agents", abstract: "Connect your agents and link the command-line tool")
+    @Flag(help: "Connect Claude Code.") var claude = false
+    @Flag(help: "Connect Codex.") var codex = false
+    @Flag(help: "Connect Cursor.") var cursor = false
+    @Flag(help: "Links skreenrek into ~/.local/bin.") var cli = false
+    @Flag(help: "Remove the connections setup added.") var remove = false
+    @OptionGroup var global: GlobalOptions
+
+    var agents: [AgentClient] {
+        [(AgentClient.claude, claude), (.codex, codex), (.cursor, cursor), (.cli, cli)]
+            .filter(\.1).map(\.0)
+    }
 }
 
 struct DebugCommand: ParsableCommand {

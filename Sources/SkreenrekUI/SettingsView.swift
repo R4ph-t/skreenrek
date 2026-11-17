@@ -33,13 +33,15 @@ public final class SettingsPanelState {
     public var openAtLogin: Bool
     /// Shown under the Open at login row after a failed change.
     public var loginError: String?
+    public var agents: AgentsPanelState?
 
     @ObservationIgnored private let permissions: any PermissionProbe
     @ObservationIgnored private let loginItem: any LoginItemService
 
-    public init(permissions: any PermissionProbe, loginItem: any LoginItemService) {
+    public init(permissions: any PermissionProbe, loginItem: any LoginItemService, agents: AgentsPanelState? = nil) {
         self.permissions = permissions
         self.loginItem = loginItem
+        self.agents = agents
         screenRecording = permissions.screenRecording
         accessibility = permissions.accessibility
         openAtLogin = loginItem.isEnabled
@@ -50,6 +52,7 @@ public final class SettingsPanelState {
         screenRecording = permissions.screenRecording
         accessibility = permissions.accessibility
         openAtLogin = loginItem.isEnabled
+        agents?.refresh()
     }
 
     public func setOpenAtLogin(_ enabled: Bool) {
@@ -138,6 +141,7 @@ public struct SettingsView: View {
                     Text(UIStrings.Settings.stopShortcutKeys).foregroundStyle(.secondary)
                 }
             }
+            if let agents = panel.agents { AgentsSection(panel: agents) }
             Section {
                 PermissionRow(
                     title: UIStrings.Settings.screenRecording, detail: UIStrings.Settings.screenRecordingDetail,
@@ -158,7 +162,6 @@ public struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .frame(width: Self.width)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: store.controllerSettings) { actions.settingsChanged() }
