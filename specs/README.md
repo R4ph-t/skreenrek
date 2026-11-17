@@ -6,7 +6,7 @@ verdict; `Risk: high` specs and risky paths wait for a Merge OK.
 
 Skreenrek v1 is specs 01–12, planned in Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)" (Notion, Bot Docs)
 from Designer's spec. 11 is a hand spec (guarded files: Info.plist, `scripts/`, `Makefile`, `.github/`), so the
-factory skips it; 09 waits until it is `Done`. Every spec merges on a green `factory check` with no hand test.
+factory skips it; 09 waits until it is `Done`. Every spec merges when `make check` passes in its lane worktree on Raph's Mac (no GitHub CI since 2026-11-17), with no hand test.
 
 > **2026-11-17: off Manufacture.** On Raph's call, skreenrek is built by parallel Claude Code agents in herdr on `lane/<spec>` branches, not by the factory. Rows are `Queued (herdr)` so the factory never picks one; each lane PR sets its own row to `Done`.
 
