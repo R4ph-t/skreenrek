@@ -50,7 +50,9 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
 ## Factory (Manufacture)
 
 The factory builds specs from `specs/` (index: `specs/README.md`), one `factory/<nn>-<slug>` branch and PR each; its
-config is `.factory/project.conf`. Raph merges every PR (`AUTO_MERGE=0`).
+config is `.factory/project.conf`. `AUTO_MERGE=1` (Raph's call, 2026-11-17): the factory merges a PR when CI is green
+and the review verdict is `merge`; a PR touching `.factory/risky-paths.txt` paths, or whose spec on main says
+`Risk: high`, waits for a Merge OK.
 
 - `make check` is the only target the factory runs. After `Package.swift` exists it also builds and tests the package.
   Tests that need Screen Recording or Accessibility stay out of that gate.

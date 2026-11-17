@@ -1,7 +1,8 @@
 # skreenrek specs: index
 
 Specs for the factory (Manufacture, `.factory/project.conf`) live here, one branch and PR each. The factory picks the
-first `Ready` row whose `Depends on` are all `Done`. Raph merges every PR (`AUTO_MERGE=0`).
+first `Ready` row whose `Depends on` are all `Done`. `AUTO_MERGE=1`: it merges on a green `factory check` plus a `merge`
+verdict; `Risk: high` specs and risky paths wait for a Merge OK.
 
 Skreenrek v1 is specs 01–11, planned in Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)" (Notion, Bot Docs)
 from Designer's spec. 11 is a hand spec (guarded files: Info.plist, `scripts/`, `Makefile`, `.github/`), so the

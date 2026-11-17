@@ -31,7 +31,7 @@ for key in $required; do
   grep -qE "^$key=" "$conf" || fail "$conf: missing $key"
 done
 
-[ "$(value AUTO_MERGE)" = 0 ] || fail "$conf: AUTO_MERGE must stay 0; Raph merges every PR"
+case "$(value AUTO_MERGE)" in 0 | 1) ;; *) fail "$conf: AUTO_MERGE must be 0 or 1" ;; esac
 
 wf=$(value CI_WORKFLOW)
 check=$(value CHECK_NAME)
