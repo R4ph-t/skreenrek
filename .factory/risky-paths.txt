@@ -1,0 +1,26 @@
+# A factory PR whose diff touches any of these waits for Raph's Merge OK. With AUTO_MERGE=0 Raph merges every PR
+# anyway; this marks the ones to read closely. One extended regex per line, matched against repo-relative paths.
+
+# Build, CI, release and agent settings (also in GUARDED_PATHS: the factory never pushes them).
+^\.factory/
+^\.github/
+^\.claude/
+^\.agents/
+^\.cursor/
+^Makefile$
+^scripts/
+^AGENTS\.md$
+^CLAUDE\.md$
+^Package\.swift$
+# Signing, entitlements, Info.plists, privacy manifests and release/notarization files.
+\.entitlements$
+(^|/)[^/]*Info\.plist$
+\.xcprivacy$
+^RELEASE_PROCESS\.md$
+^\.release\.env
+(^|/)[^/]*notariz[^/]*$
+(^|/)[^/]*codesign[^/]*$
+# Signing material, if any ever lands in the tree.
+\.(p8|p12|cer|mobileprovision|provisionprofile|keychain)$
+# Screen recording, capture, Accessibility and TCC permission code.
+(^|/)[^/]*(Permission|Privacy|TCC)[^/]*$
