@@ -189,14 +189,18 @@ public struct StartParams: Sendable, Hashable, Codable {
     public var outDir: String?
     public var assetsDir: String?
     public var name: String?
-    /// `h264` or `hevc`.
+    /// `h264`, `hevc` or `prores`.
     public var codec: String?
+    public var format: String?
+    public var quality: String?
+    public var bitrateMbps: Double?
 
     public init(
         windowId: UInt32? = nil, app: String? = nil, title: String? = nil, region: RegionParams? = nil,
         displayId: UInt32? = nil, width: Int? = nil, height: Int? = nil, allowInexact: Bool? = nil, fps: Int? = nil,
         durationSeconds: Double? = nil, cursor: Bool? = nil, events: Bool? = nil, hud: Bool? = nil,
-        outDir: String? = nil, assetsDir: String? = nil, name: String? = nil, codec: String? = nil
+        outDir: String? = nil, assetsDir: String? = nil, name: String? = nil, codec: String? = nil,
+        format: String? = nil, quality: String? = nil, bitrateMbps: Double? = nil
     ) {
         self.windowId = windowId
         self.app = app
@@ -215,6 +219,9 @@ public struct StartParams: Sendable, Hashable, Codable {
         self.assetsDir = assetsDir
         self.name = name
         self.codec = codec
+        self.format = format
+        self.quality = quality
+        self.bitrateMbps = bitrateMbps
     }
 
     /// The window the params name, if any.

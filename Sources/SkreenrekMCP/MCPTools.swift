@@ -73,6 +73,10 @@ public enum MCPTool: String, Sendable, CaseIterable {
                     "type": "integer", "enum": [30, 60],
                     "description": "Frames per second (default from Settings, otherwise 60).",
                 ],
+                "format": ["type": "string", "enum": ["mp4", "mov"], "default": "mp4"],
+                "codec": ["type": "string", "enum": ["h264", "hevc", "prores"], "default": "h264"],
+                "quality": ["type": "string", "enum": ["low", "medium", "high", "max"], "default": "high"],
+                "bitrateMbps": ["type": "number", "minimum": 1, "maximum": 200],
                 "durationSeconds": [
                     "type": "number", "exclusiveMinimum": 0, "description": "Stop on its own after this many seconds.",
                 ],

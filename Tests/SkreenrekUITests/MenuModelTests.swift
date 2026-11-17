@@ -184,11 +184,15 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         let mov = RenderSamples.clip(file: "clip.mov")
         #expect(
             MenuModel.lastClipDetail(mov, timeZone: UIFixtures.paris, locale: UIFixtures.british)
-                == "0:42 · 1280 × 800 px · 60 fps · H.264 MOV · 10:24")
+                == "0:42 · 1280 × 800 px · 60 fps · H.264 MOV")
         let hevc = RenderSamples.clip(codec: .hevc)
         #expect(
             MenuModel.lastClipDetail(hevc, timeZone: UIFixtures.paris, locale: UIFixtures.british)
-                == "0:42 · 1280 × 800 px · 60 fps · HEVC MP4 · 10:24")
+                == "0:42 · 1280 × 800 px · 60 fps · HEVC MP4")
+        let prores = RenderSamples.clip(codec: .prores, file: "clip.mov")
+        #expect(
+            MenuModel.lastClipDetail(prores, timeZone: UIFixtures.paris, locale: UIFixtures.british)
+                == "0:42 · 1280 × 800 px · 60 fps · ProRes MOV")
     }
 
     @Test func formatLabels() {

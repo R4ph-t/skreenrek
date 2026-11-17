@@ -62,7 +62,7 @@ enum Values {
     static func codec(_ text: String) throws -> String {
         guard let codec = VideoCodec(rawValue: text.lowercased()) else {
             throw SkreenrekError.usage(
-                message: "\"\(text)\" isn't a codec Skreenrek can record.", hint: "Use --codec h264 or hevc.")
+                message: "\"\(text)\" isn't a codec Skreenrek can record.", hint: "Use --codec h264, hevc or prores.")
         }
         return codec.rawValue
     }

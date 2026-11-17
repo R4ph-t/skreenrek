@@ -38,7 +38,7 @@ extension RecorderSuites {
             await eventually { await session.framesReceived == times.count }
             // The last frame waits for its slot to fall due: move the clock past it.
             clock.advance(to: 2 + RecordingSession.defaultTickGrace)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
 
             #expect(result.stopReason == .duration)
             #expect(result.complete)
@@ -78,7 +78,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: size, options: RecordingOptions(fps: .fps30, duration: 0.5),
                 folder: try temp.clipFolder())
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.size == size)
             #expect(try await VideoFile.naturalSize(result.clipURL) == size)
             #expect(try await VideoFile.codec(result.clipURL) == kCMVideoCodecType_H264)
@@ -92,7 +92,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 640, height: 400),
                 options: RecordingOptions(fps: .fps60, duration: 1.5), folder: try temp.clipFolder())
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.stopReason == .duration)
             #expect(result.stats.slotsWritten == 90)
             #expect(result.duration == 1.5)
@@ -109,7 +109,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800, options: RecordingOptions(fps: .fps60),
                 folder: try temp.clipFolder())
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
 
             #expect(result.stopReason == .windowClosed(at: 0.5))
             #expect(!result.complete)
@@ -133,7 +133,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 320, height: 200),
                 options: RecordingOptions(fps: .fps60), folder: folder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
 
             #expect(result.stopReason == .diskLow(at: 5))
             #expect(!result.complete)
@@ -152,7 +152,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800,
                 options: RecordingOptions(fps: .fps30, codec: .hevc, duration: 1), folder: try temp.clipFolder())
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.codec == .hevc)
             #expect(try await VideoFile.codec(result.clipURL) == kCMVideoCodecType_HEVC)
             #expect(try await VideoFile.samples(result.clipURL).count == 30)
@@ -197,7 +197,7 @@ extension RecorderSuites {
             await eventually { await session.framesReceived == 10 }
             clock.advance(to: 52)
             await eventually { await session.stats.slotsWritten > 1 }
-            let result = try await session.stop()
+            let result = try await withTestDeadline { try await session.stop() }
 
             #expect(result.id == "2026-11-17_104207_safari")
             #expect(result.folder == folder)
@@ -224,7 +224,7 @@ extension RecorderSuites {
             #expect(source.stopCount >= 1)
 
             // Stopping again returns the same result; the stats stay final.
-            #expect(try await session.stop() == result)
+            #expect(try await withTestDeadline { try await session.stop() } == result)
             #expect(await session.stats == result.stats)
         }
 
@@ -243,7 +243,7 @@ extension RecorderSuites {
             let stats = await session.stats
             #expect(stats.framesRepeatedIdle == 60)
             #expect(stats.framesDropped == 0)
-            _ = try await session.stop()
+            _ = try await withTestDeadline { try await session.stop() }
         }
 
         @Test func theTickHookSeesEverySlotOnceInOrderWithTheFirstFrameTime() async throws {
@@ -253,7 +253,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800,
                 options: RecordingOptions(fps: .fps60, duration: 0.15), folder: Fixtures.unusedFolder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             let seen = ticks.withLock { $0 }
             #expect(seen.map(\.index) == Array(0..<9))
             #expect(seen.allSatisfy { $0.firstFrameHostTime == 7 })
@@ -270,7 +270,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800,
                 options: RecordingOptions(fps: .fps30, duration: 9.0 / 30), folder: Fixtures.unusedFolder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.stats.sourceFramesSkipped == 1)
             #expect(result.stats.framesRepeatedIdle == 1)
             #expect(!result.stats.isClean)
@@ -293,7 +293,7 @@ extension RecorderSuites {
             #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("clip.mp4").path))
             await session.discard()
             #expect(!FileManager.default.fileExists(atPath: folder.path))
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.stopReason == .discarded)
             #expect(!result.complete)
             #expect(result.error == nil)
@@ -315,7 +315,7 @@ extension RecorderSuites {
             }
             #expect(source.startCalls.isEmpty)
             #expect(SkreenrekError.recordingFailed(.notWritable).message == "The output folder isn't writable.")
-            await #expect(throws: SkreenrekError.wrongState(.notRecording)) { try await session.stop() }
+            await #expect(throws: SkreenrekError.wrongState(.notRecording)) { try await withTestDeadline { try await session.stop() } }
         }
 
         @Test func aWriteFailureStopsWithTheNotWritableCopy() async throws {
@@ -331,7 +331,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: Fixtures.size1280x800, options: RecordingOptions(),
                 folder: Fixtures.unusedFolder)
-            let result = await session.waitForEnd()
+            let result = try await withTestDeadline { await session.waitForEnd() }
             #expect(result.stopReason == .writeFailed)
             #expect(!result.complete)
             #expect(result.error == .recordingFailed(.notWritable))
@@ -364,7 +364,7 @@ extension RecorderSuites {
                     target: .window(Fixtures.safari), size: Fixtures.size1280x800, options: RecordingOptions(),
                     folder: folder)
             }
-            _ = try await session.stop()
+            _ = try await withTestDeadline { try await session.stop() }
         }
 
         @Test func theSourceGetsTheTargetSizeFpsAndCursorOption() async throws {
@@ -374,7 +374,7 @@ extension RecorderSuites {
             try await session.start(
                 target: region, size: PixelSize(width: 800, height: 600),
                 options: RecordingOptions(fps: .fps30, cursor: false), folder: Fixtures.unusedFolder)
-            _ = try await session.stop()
+            _ = try await withTestDeadline { try await session.stop() }
             #expect(
                 source.startCalls
                     == [.init(target: region, size: PixelSize(width: 800, height: 600), fps: .fps30, showsCursor: false)])
@@ -390,7 +390,7 @@ extension RecorderSuites {
             try await session.start(
                 target: .window(Fixtures.safari), size: PixelSize(width: 320, height: 200), options: RecordingOptions(),
                 folder: folder)
-            let result = try await session.stop()
+            let result = try await withTestDeadline { try await session.stop() }
             #expect(result.stats.slotsWritten == 0)
             #expect(result.duration == 0)
             #expect(!FileManager.default.fileExists(atPath: result.clipURL.path))

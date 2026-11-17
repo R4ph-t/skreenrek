@@ -274,7 +274,7 @@ public actor SkreenrekController {
     private func performStart(_ params: StartParams, previous: Armed?, startedBy: StartedBy, client: String?)
         async throws -> StartBody
     {
-        let options = try recordingOptions(params)
+        let options = try recordingOptions(params, surface: startedBy)
         let size = try requestedSize(params)
 
         // The target, its display and, for a resize, the read-back. The window frame is fixed here: events map
@@ -373,7 +373,7 @@ public actor SkreenrekController {
         Self.log.info("Recording \(active.recordingId, privacy: .public) started by \(startedBy.rawValue, privacy: .public)")
         return StartBody(
             recordingId: active.recordingId, startedAt: EventsFile.timestamp(startedAt), readback: readback,
-            fps: options.fps.framesPerSecond)
+            fps: options.fps.framesPerSecond, video: try options.resolvedOutput())
     }
 
     /// Stops the recording and writes the clip, events and snippet. Stopping while the clip is being written waits for
@@ -480,10 +480,11 @@ public actor SkreenrekController {
                     ?? .recordingFailed(.other("No frames arrived from the window, so no clip was saved.")))
         }
         let startedAt = EventsFile.timestamp(result.startedAt)
+        var video = result.video
+        video.scale = active.display.scale
         let recording = EventsFile.Recording(
             id: result.id, startedAt: startedAt, duration: result.duration, fps: result.fps.framesPerSecond,
-            video: EventsFile.Video(
-                width: result.width, height: result.height, scale: active.display.scale, codec: result.codec),
+            video: video,
             source: EventsFile.Source(target: active.target), startedBy: result.startedBy,
             client: result.origin.client, stats: result.stats)
         let written: ClipArtifacts.Written
@@ -500,7 +501,7 @@ public actor SkreenrekController {
                 recording: StopBody.Recording(
                     id: result.id, duration: result.duration, fps: result.fps.framesPerSecond, width: result.width,
                     height: result.height, codec: result.codec, startedAt: startedAt, startedBy: result.startedBy,
-                    stats: result.stats),
+                    stats: result.stats, video: video),
                 files: StopBody.Files(
                     clip: result.clipURL.path, events: written.eventsFile?.path, snippet: written.snippetFile.path),
                 snippet: written.snippet, readback: active.readback))
@@ -640,21 +641,15 @@ public actor SkreenrekController {
         }
     }
 
-    private func recordingOptions(_ params: StartParams) throws -> RecordingOptions {
+    private func recordingOptions(_ params: StartParams, surface: StartedBy) throws -> RecordingOptions {
+        let output = try OutputSettings.resolve(container: params.format, codec: params.codec,
+            quality: params.quality, bitrateMbps: params.bitrateMbps, surface: surface)
         var fps = settings.fps
         if let value = params.fps {
             guard let rate = FrameRate(rawValue: value) else {
                 throw SkreenrekError.usage(message: "Frame rate \(value) isn't offered.", hint: "Use fps 30 or 60.")
             }
             fps = rate
-        }
-        var codec = VideoCodec.h264
-        if let value = params.codec {
-            guard let parsed = VideoCodec(rawValue: value) else {
-                throw SkreenrekError.usage(
-                    message: "\"\(value)\" isn't a codec Skreenrek can record.", hint: "Use codec h264 or hevc.")
-            }
-            codec = parsed
         }
         if let duration = params.durationSeconds, !(duration > 0) || !duration.isFinite {
             throw SkreenrekError.usage(
@@ -663,8 +658,9 @@ public actor SkreenrekController {
         return RecordingOptions(
             fps: fps, cursor: params.cursor ?? settings.cursor, events: params.events ?? settings.events,
             hud: params.hud ?? settings.hud, outDir: params.outDir.map(Self.folderURL), name: params.name,
-            assetsDir: params.assetsDir.map(Self.folderURL), codec: codec, duration: params.durationSeconds,
-            allowInexact: params.allowInexact ?? false)
+            assetsDir: params.assetsDir.map(Self.folderURL), codec: output.codec, duration: params.durationSeconds,
+            allowInexact: params.allowInexact ?? false, container: output.container,
+            quality: output.quality, bitrateMbps: output.requestedBitrateMbps)
     }
 
     /// A folder path from a request: `~` expands to the home folder.
