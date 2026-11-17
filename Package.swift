@@ -11,9 +11,12 @@ let package = Package(
         .target(name: "SkreenrekCore"),
         .target(name: "SkreenrekSystem", dependencies: ["SkreenrekCore"]),
         .target(name: "SkreenrekTesting", dependencies: ["SkreenrekCore"]),
-        .executableTarget(name: "skreenrek", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
+        .target(name: "SkreenrekControl", dependencies: ["SkreenrekCore"]),
+        .executableTarget(name: "skreenrek", dependencies: ["SkreenrekCore", "SkreenrekSystem", "SkreenrekControl"]),
         .testTarget(name: "SkreenrekCoreTests", dependencies: ["SkreenrekCore", "SkreenrekTesting"]),
         .testTarget(name: "SkreenrekSystemTests", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
+        .testTarget(
+            name: "SkreenrekControlTests", dependencies: ["SkreenrekControl", "SkreenrekCore", "SkreenrekTesting"]),
     ],
     swiftLanguageModes: [.v6]
 )
