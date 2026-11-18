@@ -55,8 +55,8 @@ import Vision
                 expected.append("panel-\(state)-\(appearance)@2x.png")
             }
             for state in [
-                "below", "above", "docked", "narrow", "size-menu", "recording", "saving", "saving-reducedmotion",
-                "disabled", "disabled-size", "custom", "resizing", "not-exact", "refused",
+                "below", "above", "docked", "narrow", "size-menu", "recording", "recording-hour", "saving",
+                "saving-reducedmotion", "disabled", "disabled-size", "custom", "resizing", "not-exact", "refused",
             ] {
                 expected.append("control-bar-\(state)-\(appearance)@2x.png")
             }
