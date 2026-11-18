@@ -10,6 +10,8 @@ import os
 public protocol UIEffects: AnyObject {
     func revealInFinder(_ path: String)
     func open(_ url: URL)
+    /// Opens a clip in the default player. The panel injects this; tests record the URL.
+    func openClip(at url: URL)
     func copy(_ text: String)
     func openSettings()
     /// Opens onboarding on step 1 (the permissions), even after onboarding was completed.
@@ -219,6 +221,8 @@ public final class AppModel {
             effects.copy(path)
         case .copySnippet(let snippet):
             effects.copy(snippet)
+        case .openClip(let path):
+            effects.openClip(at: URL(fileURLWithPath: path))
         case .copyErrorDetails(let details):
             effects.copy(details)
         case .openPrivacySettings(let permission):

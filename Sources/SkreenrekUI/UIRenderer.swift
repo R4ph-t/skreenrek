@@ -90,6 +90,9 @@ public enum UIRenderer {
                 try save(menuBarIcon(sample.context), "menubaricon", sample.name)
                 try save(dropdown(sample.context, thumbnail: thumbnail), "dropdown", sample.name, active: true)
             }
+            for panel in specPanels(preview: thumbnail ?? swatch(width: 320, height: 200)) {
+                try save(panel.view, "panel", panel.name, active: true)
+            }
             let base = RenderSamples.armed.context
             try save(
                 DropdownPreview(
@@ -151,11 +154,106 @@ public enum UIRenderer {
             elapsed: icon.elapsed, sentence: icon.sentence)
     }
 
-    /// The dropdown for `context`, composed around the live menu's header and clip views.
+    /// The menu panel for `context`. The file names stay `dropdown-…`: this is the shipping menu.
     static func dropdown(_ context: MenuContext, thumbnail: NSImage?) -> NSView {
-        RefitHostingView.fitted(
-            DropdownPreviewView(context: context, thumbnail: thumbnail)
-                .environment(\.controlActiveState, .key).environment(\.drawsActiveControls, true))
+        panel(
+            PanelModel.content(
+                for: context, preview: PanelModel.illustratedPhase(for: context), clipFileExists: true,
+                closedTitle: context.lastClipTitle ?? context.targetTitle),
+            preview: thumbnail, clip: thumbnail)
+    }
+
+    /// The spec's panel states, one file each: idle, recording, no window, loading, a slow load, capture failed,
+    /// permission missing, window closed, and the three preview aspects.
+    static func specPanels(preview: NSImage) -> [(name: String, view: NSView)] {
+        let idle = specArmed(update: "1.0.4")
+        let idleContent = PanelModel.content(for: idle, preview: readyStill)
+        let recordingContext = specRecording(update: "1.0.4")
+        let closed = specClosed()
+        return [
+            ("idle", panel(idleContent, preview: preview, clip: preview)),
+            ("recording", panel(
+                PanelModel.content(for: recordingContext, preview: readyStill), preview: preview, clip: nil)),
+            ("nowindow", panel(PanelModel.content(for: specIdleMenu(), preview: .noWindow), preview: nil, clip: preview)),
+            ("loading", panel(PanelModel.content(for: idle, preview: .loading), preview: nil, clip: preview)),
+            ("loading-slow", panel(
+                PanelModel.content(for: idle, preview: .loading, showSpinner: true), preview: nil, clip: preview)),
+            ("capture-failed", panel(PanelModel.content(for: idle, preview: .failed), preview: nil, clip: preview)),
+            ("permission-missing", panel(
+                PanelModel.content(for: idle, preview: .permissionMissing(.screenRecording)), preview: nil, clip: preview)),
+            ("window-closed", panel(
+                PanelModel.content(
+                    for: closed, preview: .windowClosed(nil), closedTitle: RenderSamples.clipTitle),
+                preview: preview, clip: preview)),
+            ("aspect-16x10", panel(idleContent, preview: swatch(width: 320, height: 200), clip: preview)),
+            ("aspect-21x9", panel(idleContent, preview: swatch(width: 420, height: 180), clip: preview)),
+            ("aspect-9x16", panel(idleContent, preview: swatch(width: 180, height: 320), clip: preview)),
+        ]
+    }
+
+    private static var readyStill: PanelPreviewPhase {
+        .ready(WindowStill(png: Data(), pixelWidth: 320, pixelHeight: 180))
+    }
+
+    /// Armed, 1080p, with a last clip and an update: the 619.5 pt idle panel.
+    private static func specArmed(update: String) -> MenuContext {
+        var context = RenderSamples.armed.context
+        let size = SizePreset.p1080.size
+        context.sizeChoice = .size(size)
+        context.snapshot.size = size
+        context.updateAvailable = update
+        if var clip = context.snapshot.lastClip {
+            clip.recording.width = size.width
+            clip.recording.height = size.height
+            context.snapshot.lastClip = clip
+        }
+        return context
+    }
+
+    private static func specRecording(update: String) -> MenuContext {
+        var context = RenderSamples.states.first { $0.name == "recording" }?.context ?? RenderSamples.armed.context
+        context.updateAvailable = update
+        context.snapshot.size = SizePreset.p1080.size
+        return context
+    }
+
+    /// No window, but with a last clip and an update: the 591.5 pt panel.
+    private static func specIdleMenu() -> MenuContext {
+        var context = RenderSamples.idle.context
+        context.updateAvailable = "1.0.4"
+        context.snapshot.lastClip = RenderSamples.clip()
+        context.lastClipTitle = RenderSamples.clipTitle
+        return context
+    }
+
+    private static func specClosed() -> MenuContext {
+        var context = specIdleMenu()
+        context.snapshot.error = .recordingFailed(.windowClosed(at: 31))
+        return context
+    }
+
+    /// A solid image of `width` by `height` points, so a render can show letterboxing.
+    static func swatch(width: Int, height: Int) -> NSImage {
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(x: 0, y: 0, width: width, height: height).fill()
+        image.unlockFocus()
+        return image
+    }
+
+    /// The panel at its content height, 300 pt wide, opaque so the render has a background.
+    static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?) -> NSView {
+        let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
+        let root = MenuPanelView(
+            content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview, clipImage: clip,
+            reduceMotion: true, showsMaterial: false, onAction: { _ in })
+            .environment(\.controlActiveState, .key)
+            .environment(\.drawsActiveControls, true)
+        let hosting = NSHostingView(rootView: root)
+        hosting.sizingOptions = []
+        hosting.frame = NSRect(x: 0, y: 0, width: PanelMetrics.width, height: height)
+        return hosting
     }
 
     /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).

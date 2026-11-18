@@ -41,6 +41,12 @@ import Testing
             expected.append("hud-regionoutline-contrast-\(appearance)@2x.png")
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
+            for state in [
+                "idle", "recording", "nowindow", "loading", "loading-slow", "capture-failed",
+                "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
+            ] {
+                expected.append("panel-\(state)-\(appearance)@2x.png")
+            }
         }
         let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
         #expect(Set(written) == Set(expected))
@@ -89,7 +95,7 @@ import Testing
                 #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 800))
             }
         }
-        for (name, size) in sizes where name.hasPrefix("dropdown-") {
+        for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("panel-") {
             #expect(size.0 == 600, "\(name)")
         }
         // The appearance really was forced.

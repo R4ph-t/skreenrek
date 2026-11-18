@@ -12,7 +12,7 @@ How it is used: UI copy and the product name are Skreenrek. The CLI command, the
 
 ## What it is
 
-One signed, unsandboxed macOS app (macOS 26 Tahoe; also runs on 15 Sequoia). It's also a CLI, a menu-bar app with a dropdown, a stdio MCP server and an agent skill. The job: pick a window (or region), resize it to an exact pixel size and verify that size by reading it back, record native 30/60 fps video at a constant frame rate, stop, and get back `clip.mp4`, `events.json` (cursor, clicks, mouse button, no keystrokes) and a short HyperFrames snippet. It's a sibling to [Fraime.it](http://Fraime.it), written fresh (path B, no code from Fraime). It ships as a notarized download, then as a Homebrew cask. Free and open source.
+One signed, unsandboxed macOS app (macOS 26 Tahoe; also runs on 15 Sequoia). It's also a CLI, a menu-bar app with a panel, a stdio MCP server and an agent skill. The job: pick a window (or region), resize it to an exact pixel size and verify that size by reading it back, record native 30/60 fps video at a constant frame rate, stop, and get back `clip.mp4`, `events.json` (cursor, clicks, mouse button, no keystrokes) and a short HyperFrames snippet. It's a sibling to [Fraime.it](http://Fraime.it), written fresh (path B, no code from Fraime). It ships as a notarized download, then as a Homebrew cask. Free and open source.
 
 Out of scope (from the brief): screenshots and grids, the editor, effects, webcam, microphone and system audio, Windows and Linux, an upstream HyperFrames component, and a public launch.
 
@@ -48,50 +48,64 @@ A template image, so it follows light, dark and tinted menu bars. Every state ha
 | Writing output | `arrow.down.circle` | template | "Skreenrek is saving the clip." |
 | Error | `exclamationmark.triangle` | template | "Skreenrek stopped recording: the window closed." (always the actual reason) |
 
-Decisions: no blinking or pulsing (calm, Reduce Motion-safe). The recording symbol is the only tinted one, and it also differs in shape and text, so colour is never the only cue. The elapsed time updates once a second, and the VoiceOver value updates every 10 s to avoid chatter. Clicking the icon opens the dropdown. There is no click-to-stop on the icon, so a recording is never stopped by accident; Stop is the first item in the dropdown.
+Decisions: no blinking or pulsing (calm, Reduce Motion-safe). The recording symbol is the only tinted one, and it also differs in shape and text, so colour is never the only cue. The elapsed time updates once a second, and the VoiceOver value updates every 10 s to avoid chatter. Clicking the icon opens the panel. There is no click-to-stop on the icon, so a recording is never stopped by accident; Stop is the panel's hero button.
 
-### 2. Dropdown
+### 2. Menu-bar panel
 
-A native `NSMenu` (MenuBarExtra `.menu` style). Rationale: free keyboard navigation, VoiceOver, type-to-select and Tahoe styling. CleanShot X and Kap both use native menus. The menu is 300 pt wide with 24 pt rows. Status rows are custom views 48 pt tall (8 pt padding, 13 pt title on line 1, 12 pt secondary detail on line 2), with a 16 pt symbol column aligned to the menu's checkmark column, so every text start sits at 32 pt.
+Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel is SwiftUI in a non-activating `NSPanel` at `.popUpMenu` level, anchored under the status item. It closes on Esc, on a click outside, or after an action that leaves the panel (Record, Stop, Settings…, opening the clip). Copy actions, Size, Frame Rate and the toggles stay open. Width is 300 pt. Idle with a window, an update and a last clip is **619.5 pt** (the cap is 620). Recording is **485.5 pt**. No window and window-closed are **591.5 pt**. All three fit an 800 pt screen minus the menu bar; anything taller scrolls.
 
-**Idle (no window picked)**
+Material is `.menu`. Corner radius 10, plus the system hairline and shadow. Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
 
-- Status: `record.circle` · **Ready** · No window picked
-- Pick Window…
-- Size ▸ `1280 × 800 px` (the default for the next recording)
-- Frame Rate ▸ `60 fps` (30 fps / 60 fps)
-- ✓ Show Cursor
-- ✓ Write Click Events
-- Record Window (disabled until a window is picked)
-- **Last Clip** (section header, only once a clip exists): status row `play.rectangle` · *Safari — *[*localhost:3000*](http://localhost:3000) · `0:42 · 1280 × 800 px · 60 fps · 10:24`. Below it: Show in Finder · Copy File Path · Copy HyperFrames Snippet
-- Open Output Folder · Settings… ⌘, · Quit Skreenrek ⌘Q
+The header tile is gone. The title and the detail sit under the preview. The window block (preview, caption, cells, hero) shares one left edge, x = 16, and is 268 pt wide. Rows use that same margin. Inside a row the icon is at x = 24 and the text at x = 48. The row highlight is inset with the row (268 × 28, radius 6). Switches and the clip's icon buttons end at x = 276.
 
-**Window picked (armed):** the status row becomes `viewfinder` · window title · `1280 × 800 px · exact size`. It reads `1286 × 800 px · not exact (min width 1286 px)` when read-back disagrees; that wording is the "something is wrong" case. "Pick Window…" becomes "Pick Another Window…" and Record Window is enabled.
+**Idle, top to bottom**
 
-**Size submenu:** Keep Current Size · separator · 1280 × 720 px · 1280 × 800 px · 1440 × 900 px · 1920 × 1080 px · 1080 × 1920 px · portrait · 1080 × 1080 px · square · separator · Custom Size… The custom size sheet has width and height fields in px and shows the points equivalent as 12 pt secondary text. Choosing a size while a window is picked resizes it immediately and re-reads its size. Rationale: sizes match common video and laptop sizes, with no numeric shortcuts.
+| Element | Size (pt) | Gap above |
+| --- | --- | --- |
+| Preview | 268 × 167.5 (16:10), radius 6 | 16 |
+| Caption: title 13/16 semibold, then the size line 12/15 secondary | 268 × 33 | 12 |
+| Size and Frame Rate pop-up cells. Size is 116 wide, an 8 pt gap, Frame Rate takes the rest. Radius 6 | 28 tall | 12 |
+| Record, with the V1 mark | 268 × 40, radius 6 | 12 |
+| Separator, inset 8 from the 268 pt block | 1 | 8 / 8 |
+| Pick Another Window…, Show Cursor, Write Click Events | 28 each | |
+| Separator | 1 | 8 / 8 |
+| Last Clip | 44 | |
+| Separator | 1 | 8 / 8 |
+| Update available · 1.0.4 (only when an update exists), Open Output Folder, Settings… ⌘,, Quit Skreenrek ⌘Q | 28 each | |
+| Bottom padding | 8 | |
 
-**Recording**
+**Preview.** One still per open, of that window only (desktop-independent window filter), sized to the preview box times the backing scale (536 × 335 px at 2×), with the cursor hidden. No stream, and no refresh while the panel stays open. Opening it again takes a new still. Opening it during a recording takes one still and does not touch the recording stream. The still is aspect-fit and centred, never cropped: 16:10 fills the box, 21:9 gets bars top and bottom, 9:16 gets bars at the sides. The bars are the preview fill (`quaternarySystemFill`), not pixels in the image. A 0.5 pt hairline sits on top. While recording that hairline becomes a 2 pt inner stroke in system red. The still is decorative for VoiceOver. The caption carries the meaning.
 
-- Status: `record.circle.fill` (red) · **Recording Safari — **[**localhost:3000**](http://localhost:3000) · `0:12 · 1280 × 800 px · 60 fps`
-- Disabled info row: "Started by Claude Code over MCP" (or "Started from the menu" / "Started from the command line"). Rationale: when an agent records you, you can see who started it.
-- Stop Recording ⌃⌘⎋ (default item). This is also the global shortcut, the same as macOS's own stop-screen-recording shortcut, and it works on AZERTY.
-- Discard Recording… opens a native alert: "Discard this recording?" / "The clip and its events will be deleted." / \[Cancel\] \[Discard\] (destructive).
-- Open Output Folder · Settings… · Quit. Quit while recording asks "Stop and save the recording before quitting?" \[Cancel\] \[Stop and Quit\].
+**Size.** The cell shows the preset name: `720p`, `1080p`, `1440p`, `4K`, `Square`, `Portrait`. Current Size and any other size show `Custom`. The exact px stays on the caption (`1920 × 1080 px · 60 fps`). The cells open the existing Size and Frame Rate menus, with the same checkmarks, disabled presets and tooltips. Choosing a size while armed resizes the window immediately.
 
-Size, frame rate and picking are hidden while recording, because they can't change mid-clip.
+**States**
 
-**Error:** the first row is a status row with `exclamationmark.triangle`, a one-line title and one plain sentence that wraps to two lines. The fix comes directly below it, then the normal idle items. Copy:
+| State | Preview | Caption | Hero |
+| --- | --- | --- | --- |
+| Idle, window picked | The still, aspect-fit | Window title / `1920 × 1080 px · 60 fps` | Record |
+| Recording | The still from this open, 2 pt red inner stroke | `Recording Safari — localhost:3000` / the size line | Stop Recording, elapsed time at the right. Then the origin line and Discard Recording…. Cells, toggles, Last Clip and Pick are hidden |
+| No window | Empty fill, the idle mark at 32 pt and 28% ink | Ready / No window picked | Pick Window…, and Record disabled at 104 pt. Tooltip: "Pick a window first." No Pick Another row |
+| Loading | Empty fill. A 16 pt spinner only after 300 ms. The still fades in over 120 ms (no fade when Reduce Motion is on) | Unchanged | Record stays enabled |
+| Capture failed | "Preview unavailable" | Unchanged | Record stays enabled. Tooltip and VoiceOver: "Skreenrek couldn't take a preview of this window. Recording still works." |
+| Screen Recording off | A lock, "Screen Recording is off", and Open Settings… | Unchanged | Record disabled. The full sentence is the tooltip and VoiceOver: "Allow Skreenrek in System Settings › Privacy & Security, then reopen it." |
+| Window closed | The last still at 22% opacity, greyscale, under a 70% scrim, and a window-with-× icon | The window title / Window closed | Pick Another Window…. Record is not shown |
+
+Red appears only while recording. The icon shape carries each empty state (the mark, the lock, the slashed preview, the window with ×).
+
+**Last Clip.** One 44 pt row. The visible title is "Last Clip". The detail is `0:42 · 1080p · 60 fps`: duration, the preset name (or Custom), and the frame rate. The thumbnail (40 × 25, radius 4), the title or the detail opens `clip.mp4` and closes the panel. Tooltip: "Open Clip". VoiceOver: "Open last clip, <title>, <spoken duration>". The trailing icon buttons (Show in Finder, Copy File Path, Copy HyperFrames Snippet) do not open the clip, and the copy actions do not close the panel. Rest has no fill. Hover paints the main area (radius 6), darkens the thumbnail 22%, and shows a play glyph. Pressed is deeper, and the action fires on mouse-up inside the row. If the file is missing, the row is not clickable, the detail reads "Clip moved or deleted", Show in Finder is disabled, and VoiceOver reads "Last clip, moved or deleted".
+
+**Tokens.** System colours. Accent is `controlAccentColor` (Record, Pick, switches, the update icon). Red is `systemRed`, and only while recording. The preview fill is `quaternarySystemFill`. Cells and Open Settings… use `tertiarySystemFill`. Type is only 13/16 and 12/15. The timer is 13 pt semibold with tabular digits. Radii are only 10, 6 and 4, plus the system switch. Rows are 28 pt, the clip row 44, the hero 40, the cells 28, the icon buttons 24. Every hit target is at least 24 × 24. Focus rings follow the system's style and each control's radius.
+
+**Errors.** The copy below is unchanged. A missing capture permission and a closed window are the preview states above, not extra rows. Every other error keeps its title, its sentence and its fix row. The error clears when the next action starts, or after the panel is opened and closed once.
 
 | Cause | Title | Detail | Fix item |
 | --- | --- | --- | --- |
-| Window closed | Recording stopped | The window closed at 0:31. The clip up to that point was saved. | Show in Finder · Copy Error Details |
-| Screen Recording off | Screen Recording is off | Allow Skreenrek in System Settings › Privacy & Security, then reopen it. | Open Privacy Settings… |
+| Window closed | The window's title | Window closed | Pick Another Window… (the hero). The saved clip stays on the Last Clip row |
+| Screen Recording off | Screen Recording is off | Allow Skreenrek in System Settings › Privacy & Security, then reopen it. (tooltip and VoiceOver; the box shows the title only) | Open Settings… |
 | Accessibility off | Can't resize windows | Allow Skreenrek in Accessibility settings to set exact sizes. | Open Accessibility Settings… |
 | Not exact | Size isn't exact | Safari can't be narrower than 1286 px. It is 1286 × 800 px now. | Pick Another Size… |
 | Disk low | Recording stopped | Less than 2 GB free. The clip up to 4:12 was saved. | Show in Finder |
 | Write failed | Couldn't save the clip | The output folder isn't writable. | Choose Output Folder… |
-
-The error state clears when you start the next action, or after you open the menu once and close it.
 
 ### 3. Window picker overlay
 
@@ -354,13 +368,13 @@ Fraime Lead checks these on a real Mac (Apple silicon, 2× display, plus one 1×
 1. **Exact size:** `skreenrek resize --app Safari --size 1280x800 --json` returns `exact: true`, and `ffprobe` on a following recording reports 1280 × 800. This repeats for 1920x1080 and 1080x1920 on a 2× display. An odd width on a 2× display exits 2 with the hint.
 2. **Smooth video:** a 60 s recording at 60 fps has `r_frame_rate == avg_frame_rate == 60/1`, `nb_frames` = 3600 ± 1, and no gaps, including while the window is idle. The same check runs at 30 fps. A 15-minute recording completes, with no time or size cap.
 3. **Not exact:** resizing Terminal to a size it can't reach exits 4. The JSON shows the actual size, and the menu status row reads "not exact" with the reason.
-4. **Three-call agent flow:** from Claude Code over MCP, `list_windows` → `start_recording` (with size) → `stop_recording` produces clip, events and snippet. The dropdown shows "Started by Claude Code over MCP" during the recording.
+4. **Three-call agent flow:** from Claude Code over MCP, `list_windows` → `start_recording` (with size) → `stop_recording` produces clip, events and snippet. The panel shows "Started by Claude Code over MCP" during the recording.
 5. **Permissions belong to the app:** running the CLI from Terminal, iTerm and Cursor's terminal never triggers a per-terminal Screen Recording prompt.
 6. **events.json:** clicks land within ±2 px of the real click position when overlaid on the video, mouse buttons are correct, and there are no keystroke fields.
 7. **Snippet:** pasting `hyperframes.html` into a fresh HyperFrames project (with `--assets`) previews the clip with no edits.
 8. **The HUD and region outline never appear in the clip** (checked frame by frame on a region recording that overlaps the HUD position).
 9. **Menu-bar icon:** each of the five states shows its symbol, and its tooltip and VoiceOver label match the table word for word. Recording is the only tinted state, and nothing blinks.
-10. **Dropdown:** native NSMenu, 300 pt wide, text starts aligned at 32 pt, status rows are 48 pt, 13/12 pt type. Matches the dropdown boards in both appearances.
+10. **Menu panel:** the direction B panel, 300 pt wide. Idle with a window and an update is 619.5 pt (at most 620). Recording is 485.5 pt (at most 490). No window and window-closed are 591.5 pt. Preview, caption, cells and the hero share x = 16 and are 268 pt wide. Matches the panel states in both appearances.
 11. **Picker:** tint and 2 pt outline follow the hovered window, the label shows the correct px size per display, Tab/arrows/Return/Esc work, and VoiceOver announces the window.
 12. **Onboarding:** status updates live when permissions are granted in System Settings, Continue unlocks on Screen Recording, the window comes back on the same step after macOS's relaunch, and step 2 installs MCP and the skill for the checked agents only.
 13. **Errors:** each row of the error copy table can be triggered, and each shows its exact title, detail and fix item. The CLI prints `error:` + `hint:` and the right exit code.
@@ -375,7 +389,7 @@ Fraime Lead checks these on a real Mac (Apple silicon, 2× display, plus one 1×
 
 ## Output format and compression (design addition, 2026-11-17)
 
-Agents can pick the file format, codec and compression. Defaults don't change: H.264 in MP4 at `high` quality. The menu-bar dropdown and Settings stay as they are; this is CLI and MCP only.
+Agents can pick the file format, codec and compression. Defaults don't change: H.264 in MP4 at `high` quality. The menu panel and Settings stay as they are; this is CLI and MCP only.
 
 ### CLI flags (on `record`)
 

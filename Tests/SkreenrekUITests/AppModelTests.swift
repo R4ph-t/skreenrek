@@ -60,6 +60,7 @@ private final class ResumeOnce<T: Sendable>: Sendable {
 final class RecordingEffects: UIEffects {
     var revealed: [String] = []
     var opened: [URL] = []
+    var openedClips: [URL] = []
     var copied: [String] = []
     var settingsOpened = 0
     var discardAnswer = false
@@ -73,6 +74,7 @@ final class RecordingEffects: UIEffects {
 
     func revealInFinder(_ path: String) { revealed.append(path) }
     func open(_ url: URL) { opened.append(url) }
+    func openClip(at url: URL) { openedClips.append(url) }
     func copy(_ text: String) { copied.append(text) }
     func openSettings() { settingsOpened += 1 }
     func confirmDiscard() async -> Bool {
