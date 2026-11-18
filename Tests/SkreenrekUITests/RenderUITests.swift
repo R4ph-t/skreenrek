@@ -138,7 +138,8 @@ import Vision
             let data = try Data(contentsOf: folder.appendingPathComponent(name))
             let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
             let size = try Self.recognizedText(in: try #require(rep.cgImage?.cropping(to: sizeCell), "\(name)"))
-            #expect(size.contains("1080p"), "\(name) drew: \(size)")
+            // Only the digits: on the white light cell, Vision reads the p as a Cyrillic letter.
+            #expect(size.contains("1080"), "\(name) drew: \(size)")
             let frameRate = try Self.recognizedText(
                 in: try #require(rep.cgImage?.cropping(to: frameRateCell), "\(name)"))
             #expect(frameRate.contains("Frame Rate"), "\(name) drew: \(frameRate)")
@@ -184,6 +185,34 @@ import Vision
         let window = try #require(outline.colorAt(x: 100, y: 400)?.usingColorSpace(.deviceRGB))
         #expect(stroke.blueComponent - stroke.redComponent > 0.5, "\(stroke)")
         #expect(window.redComponent > 0.9, "\(window)")
+    }
+
+    /// Reads the drawn pixels: the surface is the addendum's solid colour right up to its hairline, and the corners
+    /// outside the 10 pt radius stay empty, so no SwiftUI shadow or grey halo is drawn on top of the window's shadow.
+    @Test func panelsDrawAnOpaqueSurfaceWithCleanCorners() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-surface-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try await Self.run(["debug", "render-ui", "--out", folder.path]) == 0)
+
+        for (appearance, red, blue) in [("light", 0xF6, 0xF8), ("dark", 0x1E, 0x20)] {
+            for state in ["idle", "picked", "recording", "nowindow"] {
+                let name = "panel-\(state)-\(appearance)@2x.png"
+                let data = try Data(contentsOf: folder.appendingPathComponent(name))
+                let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+                let (right, bottom) = (rep.pixelsWide - 1, rep.pixelsHigh - 1)
+                for (x, y) in [(0, 0), (right, 0), (0, bottom), (right, bottom)] {
+                    #expect(rep.colorAt(x: x, y: y)?.alphaComponent == 0, "\(name) corner \(x), \(y)")
+                }
+                // In the left margin, clear of every control.
+                // Raw bytes: the PNG is tagged sRGB, and `colorAt` would convert them again.
+                var surface = [Int](repeating: 0, count: 4)
+                rep.getPixel(&surface, atX: 12, y: rep.pixelsHigh / 2)
+                #expect(surface == [red, red, blue, 255], "\(name)")
+                // The hairline sits on the fill, so the edge is opaque too.
+                #expect(rep.colorAt(x: 0, y: rep.pixelsHigh / 2)?.alphaComponent == 1, "\(name) edge")
+            }
+        }
     }
 
     private static func recognizedText(in image: CGImage) throws -> String {
