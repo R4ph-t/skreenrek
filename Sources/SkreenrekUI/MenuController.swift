@@ -232,11 +232,10 @@ public final class MenuController: NSObject {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) {
             [weak self] event -> NSEvent? in
             // NSEvent isn't Sendable, so only its values cross into the main-actor closure.
-            let isKeyDown = event.type == .keyDown
-            let keyCode = event.keyCode
+            let (isKeyDown, keyCode) = MenuController.monitorInput(event)
             let consumed = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
-                if isKeyDown, keyCode == 53, self.panel.isVisible {
+                if keyCode == 53, self.panel.isVisible {
                     self.closePanel()
                     return true
                 }
@@ -249,6 +248,13 @@ public final class MenuController: NSObject {
             [weak self] _ in
             MainActor.assumeIsolated { self?.closeIfClickIsOutside() }
         }
+    }
+
+    /// The values the event monitor needs. `keyCode` is read only on key events: on a mouse event it raises, and
+    /// AppKit then drops the click, so the status item never opens the panel.
+    nonisolated static func monitorInput(_ event: NSEvent) -> (isKeyDown: Bool, keyCode: UInt16?) {
+        let isKeyDown = event.type == .keyDown
+        return (isKeyDown, isKeyDown ? event.keyCode : nil)
     }
 
     /// A click in the panel, on the status item, or on a Size / Frame Rate menu stays. Anything else closes.

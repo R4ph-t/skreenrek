@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clicking the menu-bar icon opens the menu again (broken in 1.0.4).
+
 ## [1.0.4] - 2026-11-18
 
 ### Added
