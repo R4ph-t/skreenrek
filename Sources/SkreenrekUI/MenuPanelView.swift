@@ -225,36 +225,53 @@ struct MenuPanelView: View {
         }
     }
 
+    /// The value and the fill are drawn beside the menu, not inside its label. On macOS a
+    /// `.borderlessButton` menu keeps only the first text ("Size", "Frame Rate") and its own chevron, and drops the
+    /// value and the `tertiarySystemFill`.
     private func popup(_ submenu: SubmenuModel, value: String, width: CGFloat) -> some View {
-        Menu {
-            ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
-                menuEntry(entry)
+        ZStack {
+            Menu {
+                ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
+                    menuEntry(entry)
+                }
+            } label: {
+                Color.clear
+                    .frame(width: width, height: PanelMetrics.cellHeight)
+                    .contentShape(Rectangle())
             }
-        } label: {
-            HStack(spacing: 4) {
-                Text(submenu.title)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Text(value)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Spacer(minLength: 2)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-            .font(.system(size: 13))
-            .padding(.horizontal, 8)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .frame(width: width, height: PanelMetrics.cellHeight)
-            .background(
-                Color(nsColor: .tertiarySystemFill),
-                in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+            .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
+            cellFace(title: submenu.title, value: value, width: width)
+                .background(
+                    Color(nsColor: .tertiarySystemFill),
+                    in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
         .frame(width: width, height: PanelMetrics.cellHeight)
-        .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
+        .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+    }
+
+    private func cellFace(title: String, value: String, width: CGFloat) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(value)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .font(.system(size: 13))
+        .padding(.horizontal, 8)
+        .frame(width: width, height: PanelMetrics.cellHeight)
     }
 
     @ViewBuilder
