@@ -53,7 +53,7 @@ final class ControlBarPanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
@@ -64,7 +64,9 @@ final class ControlBarPanel: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none
         sharingType = .none
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        // `.transient` hides a panel when Skreenrek deactivates. The bar has to stay up while the
+        // user works in the picked window, which is never Skreenrek.
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     }
 }
 
@@ -131,7 +133,10 @@ final class ControlBarWindow: ControlBarSurface {
 
     func keepAbove(_ window: WindowID) {
         shadowPanel.order(.above, relativeTo: Int(window.rawValue))
+        // Relative order can leave a never-shown panel off screen; the HUD uses the same fallback.
+        if !shadowPanel.isVisible { shadowPanel.orderFrontRegardless() }
         panel.order(.above, relativeTo: shadowPanel.windowNumber)
+        if !panel.isVisible { panel.orderFrontRegardless() }
     }
 
     func announce(_ text: String) {
