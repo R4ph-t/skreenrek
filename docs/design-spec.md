@@ -8,7 +8,7 @@ Source: Designer's Notion spec, https://app.notion.com/p/41b0d0d44592815d89b9d08
 
 The chosen name is **Skreenrek**, picked by Raph on 2026-11-17. The GitHub user/org name and the Homebrew names were free when checked that day.
 
-How it is used: UI copy and the product name are Skreenrek. The CLI command, the MCP tool prefix (`skreenrek_…`) and the Application Support folder are `skreenrek`. The output folder is `~/Movies/Skreenrek/` and the bundle ID is `it.fraime.skreenrek`. The skill is `record-window`. App copy never uses "Raph" or "CTO".
+How it is used: UI copy and the product name are Skreenrek. The CLI command, the MCP tool prefix (`skreenrek_…`) and the Application Support folder are `skreenrek`. The output folder is `~/Movies/Skreenrek/` and the bundle ID is `com.raphaelterrier.skreenrek`. The skill is `record-window`. App copy never uses "Raph" or "CTO".
 
 ## What it is
 

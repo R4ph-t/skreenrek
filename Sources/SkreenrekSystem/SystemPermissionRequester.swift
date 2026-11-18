@@ -8,7 +8,7 @@ import os
 
 /// Only onboarding calls this, one step at a time. Launch, polling and control requests only probe.
 public struct SystemPermissionRequester: PermissionRequester {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "permissions")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "permissions")
     private let approval: DirectCaptureApproval
 
     public init(defaults: UserDefaults = .standard) { approval = DirectCaptureApproval(defaults: defaults) }

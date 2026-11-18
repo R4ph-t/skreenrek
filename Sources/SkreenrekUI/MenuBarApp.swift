@@ -119,7 +119,7 @@ final class SettingsWindowController {
 /// The app delegate: the controller, the control socket and the menu bar, with no Dock icon and no main window.
 @MainActor
 public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "app")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "app")
 
     private let host: HeadlessHost
     private let permissions: any PermissionProbe
@@ -260,6 +260,7 @@ public enum MenuBarApp {
     public static func run(
         seams: ControllerSeams, requester: any PermissionRequester, previews: any WindowPreviewSource
     ) -> Never {
+        migrateLegacyDefaults()
         let host = HeadlessHost(seams: seams, settings: SettingsStore().controllerSettings)
         do {
             try host.start()
@@ -274,5 +275,13 @@ public enum MenuBarApp {
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
         exit(0)
+    }
+
+    /// Runs before anything reads settings. Only the real app has the new ID's defaults as `.standard`.
+    private static func migrateLegacyDefaults() {
+        guard Bundle.main.bundleIdentifier == SkreenrekIdentity.bundleID else { return }
+        LegacyDefaultsMigration.run(
+            old: UserDefaults(suiteName: SkreenrekIdentity.legacyBundleID), new: .standard,
+            excluding: OnboardingModel.permissionStateKeys)
     }
 }

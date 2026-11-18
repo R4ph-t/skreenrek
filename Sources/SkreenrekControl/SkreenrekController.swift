@@ -12,7 +12,7 @@ import Synchronization
 /// It is an actor off the main thread, so a busy UI never delays recording (the mouse monitors stamp clicks with
 /// `clock.now()` on the main thread, so the main actor must stay free while recording).
 public actor SkreenrekController {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "controller")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "controller")
 
     private enum Armed: Sendable {
         case window(ResolvedWindow, readback: Readback?)

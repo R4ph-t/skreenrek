@@ -17,7 +17,7 @@ specs in `specs/`: `SkreenrekCore` (domain, seams, pure logic, the AVAssetWriter
 implementations of the seams: ScreenCaptureKit, Accessibility, mouse monitors), `SkreenrekTesting` (fakes, tests only),
 `SkreenrekControl` (controller and local socket), `SkreenrekCLI`, `SkreenrekMCP`, `SkreenrekUI` (menu bar, picker, HUD,
 onboarding, settings), and the `skreenrek` executable. `make app` (added by hand spec 11) wraps the executable into
-`Skreenrek.app` (bundle ID `it.fraime.skreenrek`).
+`Skreenrek.app` (bundle ID `com.raphaelterrier.skreenrek`).
 
 ## Architecture and test rules (every spec)
 
