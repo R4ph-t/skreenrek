@@ -514,7 +514,7 @@ public enum PanelModel {
     private static func pickButton(another: Bool, isDefault: Bool) -> PanelButton {
         let title = another ? UIStrings.Menu.pickAnotherWindow : UIStrings.Menu.pickWindow
         return PanelButton(
-            title: title, action: .pickWindow, role: .pick, symbol: "macwindow",
+            title: title, action: .pickWindow, role: .pick, symbol: PanelSymbol.pickWindow,
             accessibilityLabel: title, tint: .accent, isDefault: isDefault)
     }
 
@@ -536,7 +536,7 @@ public enum PanelModel {
             rows.append(
                 PanelButton(
                     title: another ? UIStrings.Menu.pickAnotherWindow : UIStrings.Menu.pickWindow,
-                    action: .pickWindow, role: .row, symbol: "macwindow"))
+                    action: .pickWindow, role: .row, symbol: PanelSymbol.pickWindow))
         }
         if showsPermissionsRow(context, phase: phase) {
             rows.append(
@@ -549,7 +549,7 @@ public enum PanelModel {
                 guard let action = fix.action else { continue }
                 rows.append(
                     PanelButton(
-                        title: fix.title, action: action, role: .row, symbol: DropdownModel.symbol(for: action),
+                        title: fix.title, action: action, role: .row, symbol: PanelSymbol.symbol(for: action),
                         help: fix.toolTip))
             }
         }
@@ -626,7 +626,7 @@ public enum PanelModel {
                     role: .icon, symbol: "folder", accessibilityLabel: UIStrings.Menu.showInFinder),
                 PanelButton(
                     title: UIStrings.Menu.copyFilePath, action: .copyFilePath(path: path), role: .icon,
-                    symbol: "doc.on.doc", accessibilityLabel: UIStrings.Menu.copyFilePath),
+                    symbol: PanelSymbol.copyFilePath, accessibilityLabel: UIStrings.Menu.copyFilePath),
                 PanelButton(
                     title: UIStrings.Menu.copySnippet, action: .copySnippet(clip.snippet), role: .icon,
                     symbol: "chevron.left.forwardslash.chevron.right",
@@ -651,8 +651,24 @@ public enum PanelModel {
                 trailing: MenuShortcut.settings.display, shortcut: .settings))
         rows.append(
             PanelButton(
-                title: UIStrings.Menu.quit, action: .quit, role: .footer, trailing: MenuShortcut.quit.display,
-                shortcut: .quit))
+                title: UIStrings.Menu.quit, action: .quit, role: .footer, symbol: PanelSymbol.quit,
+                trailing: MenuShortcut.quit.display, shortcut: .quit))
         return rows
+    }
+}
+
+/// The SF Symbols where the panel's design differs from the older dropdown's.
+enum PanelSymbol {
+    static let pickWindow = "viewfinder"
+    static let copyFilePath = "square.on.square"
+    static let quit = "power"
+
+    static func symbol(for action: MenuAction) -> String? {
+        switch action {
+        case .pickWindow: pickWindow
+        case .copyFilePath: copyFilePath
+        case .quit: quit
+        default: DropdownModel.symbol(for: action)
+        }
     }
 }

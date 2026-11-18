@@ -3,6 +3,7 @@ import Foundation
 import SkreenrekUI
 import Synchronization
 import Testing
+import Vision
 
 /// `skreenrek debug render-ui` writes non-empty PNGs of the expected sizes in both appearances.
 ///
@@ -102,6 +103,46 @@ import Testing
         let light = try Data(contentsOf: folder.appendingPathComponent("dropdown-idle-light@2x.png"))
         let dark = try Data(contentsOf: folder.appendingPathComponent("dropdown-idle-dark@2x.png"))
         #expect(light != dark)
+    }
+
+    /// The Size and Frame Rate pop-ups draw their current value on a filled cell. This reads the drawn pixels, because
+    /// a `Menu` style can drop a custom label while the model still holds the right value.
+    @Test func panelPopupsDrawTheirValueOnAFilledCell() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-popups-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let status = try await Self.run(["debug", "render-ui", "--out", folder.path])
+        #expect(status == 0)
+
+        // At 2×, the cells are 56 px tall and start 481 px down (16 + 167.5 + 12 + 33 + 12 pt). Each is read on its
+        // own, because recognition drops short words when both cells share one image.
+        let sizeCell = CGRect(x: 32, y: 481, width: 232, height: 56)
+        let frameRateCell = CGRect(x: 280, y: 481, width: 288, height: 56)
+        for appearance in ["light", "dark"] {
+            let name = "panel-idle-\(appearance)@2x.png"
+            let data = try Data(contentsOf: folder.appendingPathComponent(name))
+            let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+            let size = try Self.recognizedText(in: try #require(rep.cgImage?.cropping(to: sizeCell), "\(name)"))
+            #expect(size.contains("1080p"), "\(name) drew: \(size)")
+            let frameRate = try Self.recognizedText(
+                in: try #require(rep.cgImage?.cropping(to: frameRateCell), "\(name)"))
+            #expect(frameRate.contains("Frame Rate"), "\(name) drew: \(frameRate)")
+            #expect(frameRate.contains("60 fps"), "\(name) drew: \(frameRate)")
+
+            // Inside the Size cell's left padding, against the panel background beside the cell.
+            let fill = try #require(rep.colorAt(x: 38, y: 509)?.usingColorSpace(.deviceRGB), "\(name)")
+            let panel = try #require(rep.colorAt(x: 12, y: 509)?.usingColorSpace(.deviceRGB), "\(name)")
+            #expect(abs(fill.brightnessComponent - panel.brightnessComponent) > 0.02, "\(name) has no cell fill")
+        }
+    }
+
+    private static func recognizedText(in image: CGImage) throws -> String {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        try VNImageRequestHandler(cgImage: image).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
     }
 
     /// `--direction c` is an alias for the shipping render.

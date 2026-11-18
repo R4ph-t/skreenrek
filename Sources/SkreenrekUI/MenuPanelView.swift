@@ -145,7 +145,7 @@ struct MenuPanelView: View {
                 symbol: "lock", symbolSize: 20, message: content.preview.message, help: content.preview.messageHelp,
                 settings: content.preview.settings)
         case .noWindow, .region:
-            mark(pointSize: 32, ink: 0.28)
+            mark(pointSize: 32, color: Color.primary.opacity(0.28))
         }
     }
 
@@ -225,53 +225,41 @@ struct MenuPanelView: View {
         }
     }
 
-    /// The value and the fill are drawn beside the menu, not inside its label. On macOS a
-    /// `.borderlessButton` menu keeps only the first text ("Size", "Frame Rate") and its own chevron, and drops the
-    /// value and the `tertiarySystemFill`.
     private func popup(_ submenu: SubmenuModel, value: String, width: CGFloat) -> some View {
-        ZStack {
-            Menu {
-                ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
-                    menuEntry(entry)
-                }
-            } label: {
-                Color.clear
-                    .frame(width: width, height: PanelMetrics.cellHeight)
-                    .contentShape(Rectangle())
+        Menu {
+            ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
+                menuEntry(entry)
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
+        } label: {
+            HStack(spacing: 0) {
+                Text(submenu.title)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+                Spacer(minLength: 4)
+                Text(value)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .fixedSize()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 6)
+                    .accessibilityHidden(true)
+            }
+            .font(.system(size: 13))
+            .padding(.horizontal, 8)
             .frame(width: width, height: PanelMetrics.cellHeight)
-            .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
-            cellFace(title: submenu.title, value: value, width: width)
-                .background(
-                    Color(nsColor: .tertiarySystemFill),
-                    in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            .background(
+                Color(nsColor: .tertiarySystemFill),
+                in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
         }
+        // `.borderlessButton` reduces a custom label to its first text, which loses the value and the fill.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
         .frame(width: width, height: PanelMetrics.cellHeight)
-        .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
-    }
-
-    private func cellFace(title: String, value: String, width: CGFloat) -> some View {
-        HStack(spacing: 4) {
-            Text(title)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Text(value)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Spacer(minLength: 2)
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        }
-        .font(.system(size: 13))
-        .padding(.horizontal, 8)
-        .frame(width: width, height: PanelMetrics.cellHeight)
+        .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
     }
 
     @ViewBuilder
@@ -358,11 +346,11 @@ struct MenuPanelView: View {
                 .frame(width: 11, height: 11)
                 .accessibilityHidden(true)
         case .pick:
-            Image(systemName: button.symbol ?? "macwindow")
+            Image(systemName: button.symbol ?? PanelSymbol.pickWindow)
                 .font(.system(size: 16, weight: .semibold))
                 .accessibilityHidden(true)
         default:
-            mark(pointSize: 20, ink: nil)
+            mark(pointSize: 20, color: heroForeground(button))
         }
     }
 
@@ -379,12 +367,12 @@ struct MenuPanelView: View {
         button.enabled ? .white : Color(nsColor: .tertiaryLabelColor)
     }
 
-    /// `ink` nil lets the mark take the button's foreground (white on Record, tertiary when Record is disabled).
-    private func mark(pointSize: CGFloat, ink: Double?) -> some View {
+    /// The V1 mark in `color`: white on Record in both appearances, tertiary when Record is disabled.
+    private func mark(pointSize: CGFloat, color: Color) -> some View {
         Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
             .resizable()
             .renderingMode(.template)
-            .foregroundStyle(ink.map { AnyShapeStyle(Color.primary.opacity($0)) } ?? AnyShapeStyle(.foreground))
+            .foregroundStyle(color)
             .frame(width: pointSize, height: pointSize)
             .accessibilityHidden(true)
     }
@@ -423,7 +411,7 @@ private struct PanelRowButton: View {
             HStack(spacing: PanelMetrics.iconGap) {
                 if let symbol = button.symbol {
                     Image(systemName: symbol)
-                        .font(.system(size: 16))
+                        .font(.system(size: 13))
                         .frame(width: PanelMetrics.iconColumn, height: PanelMetrics.iconColumn)
                         .foregroundStyle(button.tint == .accent ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                         .accessibilityHidden(true)
@@ -472,7 +460,7 @@ private struct PanelToggleRow: View {
         ) {
             HStack(spacing: PanelMetrics.iconGap) {
                 Image(systemName: toggle.symbol)
-                    .font(.system(size: 16))
+                    .font(.system(size: 13))
                     .frame(width: PanelMetrics.iconColumn, height: PanelMetrics.iconColumn)
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
@@ -619,7 +607,7 @@ private struct PanelIconButton: View {
             onAction(button.action)
         } label: {
             Image(systemName: button.symbol ?? "circle")
-                .font(.system(size: 16))
+                .font(.system(size: 13))
                 .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
                 .foregroundStyle(button.enabled ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                 .background(

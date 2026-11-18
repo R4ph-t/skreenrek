@@ -202,6 +202,15 @@ import Testing
         #expect(clip.actions.dropFirst().allSatisfy { $0.enabled })
     }
 
+    @Test func rowsUseTheSpecSymbols() throws {
+        let content = Self.armed()
+        #expect(content.rows.first { $0.action == .pickWindow }?.symbol == "viewfinder")
+        #expect(content.footer.first { $0.action == .quit }?.symbol == "power")
+        let clip = try #require(content.lastClip)
+        #expect(clip.actions.first { $0.title == UIStrings.Menu.copyFilePath }?.symbol == "square.on.square")
+        #expect(try Self.recording().footer.first { $0.action == .quit }?.symbol == "power")
+    }
+
     @Test func copyAndSizeKeepThePanelOpen() {
         #expect(PanelModel.keepsPanelOpen(.copyFilePath(path: "a")))
         #expect(PanelModel.keepsPanelOpen(.copySnippet("a")))
