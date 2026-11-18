@@ -3,23 +3,25 @@
 Status: Done · Branch: lane/11-app-bundle-packaging · Depends on: 01 (scaffold), by hand (Fraime Lead) · Estimate: – agent run (by hand, about 2 h Fraime Lead) + 0 h Raph review · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
+Note: the bundle ID was `it.fraime.skreenrek` before the switch to `com.raphaelterrier.skreenrek`.
+
 ## Goal
 
-Wrap the SwiftPM `skreenrek` executable into `Skreenrek.app` (bundle ID `it.fraime.skreenrek`, menu-bar only) with an
+Wrap the SwiftPM `skreenrek` executable into `Skreenrek.app` (bundle ID `com.raphaelterrier.skreenrek`, menu-bar only) with an
 ad-hoc signature, so Screen Recording and Accessibility belong to the app and Homebrew can build it from source. Every
 file here is a guarded path (Info.plist, `scripts/`, `Makefile`, `.github/`), so the factory can't push it: Fraime Lead
 writes it by hand in its own PR.
 
 ## Behaviour
 
-1. `packaging/Info.plist`: `CFBundleIdentifier` `it.fraime.skreenrek`, `CFBundleName` and `CFBundleDisplayName`
+1. `packaging/Info.plist`: `CFBundleIdentifier` `com.raphaelterrier.skreenrek`, `CFBundleName` and `CFBundleDisplayName`
    `Skreenrek`, `CFBundleExecutable` `skreenrek`, `CFBundlePackageType` `APPL`, `CFBundleShortVersionString` `0.1.0`,
    `CFBundleVersion` `1`, `LSMinimumSystemVersion` `15.0`, `LSUIElement` true, `NSHighResolutionCapable` true,
    `LSApplicationCategoryType` `public.app-category.developer-tools`, `NSHumanReadableCopyright` (MIT). No
    entitlements file: unsandboxed, no special entitlements.
 2. `scripts/bundle-app.sh <products-dir> <out-dir>`: builds `<out-dir>/Skreenrek.app/Contents/{MacOS/skreenrek,
    Info.plist}`, stamps the version from `SkreenrekVersion`, then `codesign --force --sign - --options runtime
-   --identifier it.fraime.skreenrek` and `codesign --verify --strict`. It prints the bundle path and never reads
+   --identifier com.raphaelterrier.skreenrek` and `codesign --verify --strict`. It prints the bundle path and never reads
    signing identities, keychains or secrets.
 3. `Makefile`: `make app` = `swift build -c release --product skreenrek` + `bundle-app.sh .build/release build/`.
    `make check` additionally runs `plutil -lint packaging/Info.plist` and, once `Package.swift` exists, bundles the
@@ -68,7 +70,7 @@ Developer ID signing, notarization, a DMG, Sparkle, an app icon (the default ico
   `Sources/SkreenrekCore/SkreenrekVersion.swift` with `sed` (it doesn't run the binary) and writes it into
   `CFBundleShortVersionString` with `plutil -replace`. `CFBundleVersion` stays `1`.
 - **Signing:** the linker already signs the arm64 binary ad hoc, so the script removes that signature before
-  `codesign --force --sign - --options runtime --identifier it.fraime.skreenrek` on the bundle, which keeps the output
+  `codesign --force --sign - --options runtime --identifier com.raphaelterrier.skreenrek` on the bundle, which keeps the output
   free of "replacing existing signature". It then runs `codesign --verify --strict`. Result: `flags=0x10002(adhoc,runtime)`,
   `TeamIdentifier=not set`. No identity, keychain or secret is read.
 - **`make check`:** factory lint, `plutil -lint packaging/Info.plist`, then `swift build`, `swift test`, bundling

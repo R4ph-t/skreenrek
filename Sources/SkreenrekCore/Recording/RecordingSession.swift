@@ -47,7 +47,7 @@ public actor RecordingSession {
     private let tickGrace: TimeInterval
     private let makeSink: SinkFactory
     private let onSlot: (@Sendable (SlotTick) -> Void)?
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "recorder")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "recorder")
 
     private enum Phase { case idle, recording, finalizing, finished }
 
@@ -419,7 +419,7 @@ public actor RecordingSession {
 }
 
 private final class RecordingExecutor: SerialExecutor {
-    private let queue = DispatchQueue(label: "it.fraime.skreenrek.recording")
+    private let queue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).recording")
     func enqueue(_ job: UnownedJob) {
         let executor = asUnownedSerialExecutor()
         queue.async { job.runSynchronously(on: executor) }

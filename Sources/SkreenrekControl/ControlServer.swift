@@ -35,12 +35,12 @@ public final class ControlServer: @unchecked Sendable {
     /// The longest request line accepted. A longer one is answered with `usage` and the connection is closed.
     public static let maxLineBytes = 1 << 20
 
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "control")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "control")
 
     public let path: URL
     private let handler: Handler
     private let allowedUID: uid_t
-    private let queue = DispatchQueue(label: "it.fraime.skreenrek.control.server", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).control.server", qos: .userInitiated)
 
     private var listenSource: (any DispatchSourceRead)?
     private var connections: [ObjectIdentifier: Connection] = [:]
@@ -268,7 +268,7 @@ public final class ControlServer: @unchecked Sendable {
         var consumerDone = false
         var closed = false
         private let onClosed: (@Sendable () -> Void)?
-        private let writeQueue = DispatchQueue(label: "it.fraime.skreenrek.control.write", qos: .userInitiated)
+        private let writeQueue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).control.write", qos: .userInitiated)
 
         init(fd: Int32, closed: (@Sendable () -> Void)?) {
             self.fd = fd

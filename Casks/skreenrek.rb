@@ -17,13 +17,17 @@ cask "skreenrek" do
   app "Skreenrek.app"
   binary "#{appdir}/Skreenrek.app/Contents/MacOS/skreenrek"
 
-  uninstall quit: "it.fraime.skreenrek"
+  uninstall quit: "com.raphaelterrier.skreenrek"
 
   zap trash: [
     "~/Library/Application Support/skreenrek",
+    "~/Library/Caches/com.raphaelterrier.skreenrek",
     "~/Library/Caches/it.fraime.skreenrek",
+    "~/Library/HTTPStorages/com.raphaelterrier.skreenrek",
     "~/Library/HTTPStorages/it.fraime.skreenrek",
+    "~/Library/Preferences/com.raphaelterrier.skreenrek.plist",
     "~/Library/Preferences/it.fraime.skreenrek.plist",
+    "~/Library/Saved Application State/com.raphaelterrier.skreenrek.savedState",
     "~/Library/Saved Application State/it.fraime.skreenrek.savedState",
   ]
 

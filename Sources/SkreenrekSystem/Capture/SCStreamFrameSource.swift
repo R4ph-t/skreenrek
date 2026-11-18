@@ -26,10 +26,10 @@ public final class SCStreamFrameSource: FrameSource {
     private let running = Mutex<Running?>(nil)
     /// The latest start's stream, kept after stop so the recorder can read its drop count.
     private let lastFeed = Mutex<FrameStreamFeed?>(nil)
-    private let sampleQueue = DispatchQueue(label: "it.fraime.skreenrek.capture", qos: .userInteractive)
+    private let sampleQueue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).capture", qos: .userInteractive)
 
     /// - Parameter excludedBundleID: the app left out of region captures (Skreenrek itself).
-    public init(excludedBundleID: String? = Bundle.main.bundleIdentifier,
+    public init(excludedBundleID: String? = Bundle.main.bundleIdentifier ?? SkreenrekIdentity.bundleID,
                 ownPid: Int32 = ProcessInfo.processInfo.processIdentifier) {
         self.filterPlan = CaptureFilterPlan(ownPid: ownPid, bundleID: excludedBundleID)
     }

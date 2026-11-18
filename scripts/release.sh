@@ -35,7 +35,7 @@ esac
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-bundle_id=it.fraime.skreenrek
+bundle_id=com.raphaelterrier.skreenrek
 version_src=Sources/SkreenrekCore/SkreenrekVersion.swift
 source_version=$(sed -nE 's/.*static let current = "([^"]+)".*/\1/p' "$version_src" | head -n1)
 [ "$source_version" = "$version" ] \
