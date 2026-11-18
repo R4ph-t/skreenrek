@@ -389,6 +389,23 @@ private enum Bar {
         #expect(content.action.accessibilityLabel == "Stop Recording, 12 minutes 4 seconds")
     }
 
+    @Test(arguments: [(12, "0:12"), (3599, "59:59"), (3600, "1:00:00"), (3723, "1:02:03")])
+    func theTimerGainsHoursAndTheBarKeepsItsWidth(seconds: Int, expected: String) throws {
+        let display = try #require(Bar.model(Bar.input(activity: .recording(seconds: seconds))).display(at: 0))
+        #expect(display.content.leading == .timer(expected))
+        #expect(display.frame.width == 300)
+        #expect(display.content.readout?.text == "1920 × 1080 px")
+    }
+
+    /// After the inset, the dot and its gap, the widest clock under 100 hours still fits the first slot.
+    @Test func theLongestTimerFitsItsSlot() {
+        let m = ControlBarMetrics.self
+        let room = m.sizeSlotWidth - m.slotInset - m.statusDot - m.statusGap
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+        let width = NSAttributedString(string: "88:88:88", attributes: [.font: font]).size().width
+        #expect(width <= room, "\(width) in \(room)")
+    }
+
     @Test func savingShowsTheSpinnerAndDisablesRecord() throws {
         let content = try content(Bar.model(Bar.input(activity: .saving)))
         #expect(content.leading == .saving(spinner: true, label: nil))
@@ -1037,7 +1054,10 @@ private final class FakeBarTracker: WindowFrameTracking {
 
     @Test func everyRenderCaseIsThere() {
         let names = Set(ControlBarRenderer.samples().map(\.name))
-        for name in ["below", "above", "docked", "recording", "disabled", "narrow", "saving", "size-menu"] {
+        for name in [
+            "below", "above", "docked", "recording", "recording-hour", "disabled", "disabled-size", "narrow", "saving",
+            "saving-reducedmotion", "size-menu",
+        ] {
             #expect(names.contains(name), "\(name)")
         }
         #expect(UIRenderer.settingsSamples.contains { $0.name == "general-control-bar" })

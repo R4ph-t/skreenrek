@@ -484,7 +484,7 @@ public struct ControlBarModel: Sendable {
     private func leading(readout: ControlBarReadout, display: DisplayInfo, compact: Bool) -> ControlBarLeading {
         switch input.activity {
         case .recording(let seconds):
-            return .timer(TimeFormat.minutesSeconds(Double(seconds)))
+            return .timer(TimeFormat.elapsed(Double(seconds)))
         case .saving:
             return .saving(spinner: !input.reduceMotion, label: compact ? readout.text : nil)
         case .idle, .starting:

@@ -31,6 +31,7 @@ enum ControlBarRenderer {
         ]
         cases += [
             ("recording", plate(activity: .recording(seconds: 12))),
+            ("recording-hour", plate(activity: .recording(seconds: 3723))),
             ("saving", plate(activity: .saving)),
             ("saving-reducedmotion", plate(activity: .saving, reduceMotion: true)),
             ("disabled", plate(permissions: ControlBarPermissions(screenRecording: .missing))),

@@ -122,6 +122,15 @@ import Testing
         #expect(TimeFormat.minutesSeconds(seconds) == expected)
     }
 
+    @Test(arguments: [
+        (0.0, "0:00"), (12.0, "0:12"), (12.9, "0:12"), (3599.0, "59:59"), (3599.9, "59:59"), (3600.0, "1:00:00"),
+        (3723.0, "1:02:03"), (36_000.0, "10:00:00"), (-3.0, "0:00"), (.nan, "0:00"), (.infinity, "0:00"),
+        (-.infinity, "0:00"),
+    ])
+    func elapsed(seconds: Double, expected: String) {
+        #expect(TimeFormat.elapsed(seconds) == expected)
+    }
+
     @Test func version() {
         #expect(SkreenrekVersion.current == "1.0.5")
     }
