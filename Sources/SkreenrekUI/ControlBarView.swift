@@ -167,9 +167,7 @@ private struct ControlBarSizeButton: View {
 
     var body: some View {
         Menu {
-            ForEach(Array(control.entries.enumerated()), id: \.offset) { _, entry in
-                PanelMenuEntry(entry: entry, onAction: onAction)
-            }
+            PanelPopupEntries(entries: control.entries, onAction: onAction)
         } label: {
             HStack(spacing: 0) {
                 Text(control.value)

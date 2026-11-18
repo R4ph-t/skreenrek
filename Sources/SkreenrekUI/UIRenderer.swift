@@ -111,6 +111,9 @@ public enum UIRenderer {
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
                           size: NSSize(width: 280, height: 56)), "picker", "label")
             try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
+            let chip = NSHostingView(rootView: PickerSizeChip(text: PixelSize(width: 800, height: 600).description))
+            chip.frame = NSRect(origin: .zero, size: chip.fittingSize)
+            try save(chip, "picker", "chip")
             for state in ["window", "keyboard", "region", "window-contrast", "region-contrast", "empty"] {
                 let canvas = PickerCanvas(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
                 canvas.increaseContrast = state.hasSuffix("contrast")
@@ -179,7 +182,10 @@ public enum UIRenderer {
             ("idle", panel(idleContent, preview: preview, clip: preview)),
             ("picked", panel(picked, preview: preview, clip: preview)),
             ("control-bar-row", panel(picked, preview: preview, clip: preview)),
-            ("clear-hover", panel(picked, preview: preview, clip: preview, clearHover: true)),
+            ("clear-hover", panel(picked, preview: preview, clip: preview, clearState: .hover)),
+            ("clear-pressed", panel(picked, preview: preview, clip: preview, clearState: .pressed)),
+            ("lastclip-hover", panel(picked, preview: preview, clip: preview, lastClipState: .hover)),
+            ("lastclip-pressed", panel(picked, preview: preview, clip: preview, lastClipState: .pressed)),
             ("recording", panel(
                 PanelModel.content(for: specRecording(), preview: readyStill), preview: preview, clip: nil)),
             ("nowindow", panel(
@@ -249,11 +255,14 @@ public enum UIRenderer {
 
     /// The panel at its content height, 300 pt wide: the live view, so the same surface and hairline. The system
     /// window shadow belongs to the window server and falls outside these bounds, so it isn't in the PNG.
-    static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?, clearHover: Bool = false) -> NSView {
+    static func panel(
+        _ content: PanelContent, preview: NSImage?, clip: NSImage?, clearState: PanelInteraction? = nil,
+        lastClipState: PanelInteraction? = nil
+    ) -> NSView {
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let root = MenuPanelView(
             content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview, clipImage: clip,
-            reduceMotion: true, showsClearHover: clearHover, onAction: { _ in })
+            reduceMotion: true, clearState: clearState, lastClipState: lastClipState, onAction: { _ in })
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true)
         let hosting = NSHostingView(rootView: root)
@@ -552,14 +561,17 @@ struct StaticPermissions: PermissionProbe {
 
 extension OnboardingModel {
     /// A sample's model for renders and layout tests: nothing reaches the system.
-    static func preview(_ sample: CaptureRenderSamples.OnboardingSample, defaults: UserDefaults) -> OnboardingModel {
+    static func preview(
+        _ sample: CaptureRenderSamples.OnboardingSample, defaults: UserDefaults,
+        install: @escaping ([AgentClient]) -> [AgentSetupResult] = { _ in [] }
+    ) -> OnboardingModel {
         defaults.set(sample.completed, forKey: completedKey)
         let model = OnboardingModel(
             permissions: StaticPermissions(
                 screenRecording: sample.screen, directCapture: sample.direct, accessibility: sample.accessibility),
             requester: PreviewPermissionRequester(), defaults: defaults,
             agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) },
-            install: { _ in [] })
+            install: install)
         for permission in sample.requested { model.request(permission) }
         model.preview(sample.step)
         return model

@@ -3,6 +3,8 @@
 Status: Done · Branch: `lane/03-cfr-recorder-pipeline` · Depends on: 01 (scaffold) · Estimate: 6–8 h agent run + 0 h Raph review (no hand test) · Risk: high
 Source: Designer's spec (Notion "Agent capture tool — design spec v1 (2026-11-17)", 2026-11-17), from CPO's brief (Notion "Fraime — Agent-controlled capture — brief — 2026-11-17"). Plan: Fraime Lead's "Skreenrek v1 implementation plan (2026-11-17)".
 
+Note: the bundle ID was `it.fraime.skreenrek` before the switch to `com.raphaelterrier.skreenrek`.
+
 ## Goal
 
 Turn a stream of captured frames into a smooth H.264 MP4 at exactly 30 or 60 fps at native resolution, with no time
@@ -181,7 +183,7 @@ events.json and the HyperFrames snippet (04), the controller and state machine (
   `MaxKeyFrameInterval` 2 × fps and `MaxKeyFrameIntervalDuration` 2 s; Rec. 709 colour properties;
   `AVVideoExpectedSourceFrameRateKey`; frame reordering off (no B-frames: lower latency, faster finalize).
   `.requireHardware` sets `RequireHardwareAcceleratedVideoEncoder`; if `canApply` or `startWriting` fails it logs
-  (`os.Logger`, subsystem `it.fraime.skreenrek`) and restarts with software. `.software` sets
+  (`os.Logger`, subsystem `com.raphaelterrier.skreenrek`) and restarts with software. `.software` sets
   `EnableHardwareAcceleratedVideoEncoder = false`. The adaptor has no source attributes (with them it allocates a
   buffer pool we never use; it moved the software encoder's lazy first-frame setup into `init`, no net gain). The
   forced-fallback path isn't unit-tested: CI can't be made to refuse the hardware request (`ClipWriterTests` prints

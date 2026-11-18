@@ -19,7 +19,7 @@ import Testing
             F.window(4, app: "Notes", bundleId: "com.apple.Notes", layer: 3),
             F.window(5, app: "Notes", bundleId: "com.apple.Notes", onScreen: false),
             F.window(6, app: "Notes", bundleId: "com.apple.Notes", frame: PointRect(x: 0, y: 0, width: 39, height: 300)),
-            F.window(7, app: "Skreenrek", bundleId: "it.fraime.skreenrek", pid: F.ownPid),
+            F.window(7, app: "Skreenrek", bundleId: "com.raphaelterrier.skreenrek", pid: F.ownPid),
             F.terminal,
             F.window(8, app: "Notes", bundleId: "com.apple.Notes", frame: PointRect(x: 0, y: 40, width: 40, height: 40)),
             F.safariGitHub,

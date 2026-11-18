@@ -67,7 +67,7 @@ public struct LastClipTracker: Sendable, Hashable {
 @MainActor
 @Observable
 public final class AppModel {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "menu")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "menu")
 
     @ObservationIgnored public let controller: SkreenrekController
     @ObservationIgnored public let settings: SettingsStore

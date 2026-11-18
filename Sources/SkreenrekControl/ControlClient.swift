@@ -75,7 +75,7 @@ public final class ControlClient: Sendable {
     public let path: URL
     public let client: ClientInfo
     private let fd: Int32
-    private let queue = DispatchQueue(label: "it.fraime.skreenrek.control.client")
+    private let queue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).control.client")
     private struct State {
         var nextID = 1
         var buffer = Data()
@@ -98,7 +98,7 @@ public final class ControlClient: Sendable {
     public static func connect(
         path: URL = ControlPaths.socketURL(), client: ClientInfo, timeout: TimeInterval = connectTimeout
     ) async throws -> ControlClient {
-        let queue = DispatchQueue(label: "it.fraime.skreenrek.control.connect")
+        let queue = DispatchQueue(label: "\(SkreenrekIdentity.bundleID).control.connect")
         let fd: Int32 = try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 do {

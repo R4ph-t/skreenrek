@@ -30,6 +30,7 @@ import Vision
             }
             expected += [
                 "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
+                "picker-chip-\(appearance)@2x.png",
                 "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
@@ -49,8 +50,9 @@ import Vision
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
             for state in [
-                "idle", "picked", "control-bar-row", "clear-hover", "recording", "nowindow", "loading",
-                "loading-slow", "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
+                "idle", "picked", "control-bar-row", "clear-hover", "clear-pressed", "lastclip-hover",
+                "lastclip-pressed", "recording", "nowindow", "loading", "loading-slow",
+                "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
             ] {
                 expected.append("panel-\(state)-\(appearance)@2x.png")
             }
@@ -98,12 +100,15 @@ import Vision
             // The heights Designer measured, at 2×.
             for (state, height) in [
                 ("nowindow", 702), ("window-closed", 702), ("picked", 1239), ("control-bar-row", 1239),
-                ("clear-hover", 1239), ("recording", 915), ("idle", 1295),
+                ("clear-hover", 1239), ("clear-pressed", 1239), ("lastclip-hover", 1239),
+                ("lastclip-pressed", 1239), ("recording", 915), ("idle", 1295),
             ] {
                 #expect(sizes["panel-\(state)-\(appearance)@2x.png"]?.1 == height, "\(state)")
             }
             #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
             #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
+            // Measured from the fitted render: the text plus 8 pt a side and 4 pt top and bottom.
+            #expect(sizes["picker-chip-\(appearance)@2x.png"] ?? (0, 0) == (186, 46))
             for state in CaptureRenderSamples.hudStates {
                 #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
             }

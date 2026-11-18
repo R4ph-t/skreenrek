@@ -8,7 +8,7 @@ import os
 /// One `SCScreenshotManager` still of a window, fitted inside the preview box. Checked for a missing capture
 /// permission before any ScreenCaptureKit call, so it never prompts. The work runs off the main thread. No stream.
 public struct ScreenshotWindowPreview: WindowPreviewSource {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "preview")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "preview")
     private let permissions: any PermissionProbe
 
     public init(permissions: any PermissionProbe = SystemPermissionProbe()) {

@@ -1,5 +1,6 @@
 import Carbon.HIToolbox
 import Foundation
+import SkreenrekCore
 import os
 
 /// The global ⌃⌘⎋ stop shortcut: a Carbon hot key (no Accessibility needed), registered only while a recording
@@ -7,7 +8,7 @@ import os
 /// the failure is logged.
 @MainActor
 final class StopHotKey {
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "hotkey")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "hotkey")
     /// `SKRK`.
     private static let signature: OSType = 0x534B_524B
 

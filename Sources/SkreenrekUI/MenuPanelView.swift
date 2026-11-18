@@ -11,8 +11,10 @@ struct MenuPanelView: View {
     var reduceMotion: Bool
     /// Bumped after Clear, to move focus to Pick Window….
     var heroFocusRequest = 0
-    /// Draws the Clear button hovered, for `render-ui`.
-    var showsClearHover = false
+    /// Draws the Clear button in this state, for `render-ui`.
+    var clearState: PanelInteraction?
+    /// Draws the first Last Clip icon button in this state, for `render-ui`.
+    var lastClipState: PanelInteraction?
     var onAction: (MenuAction) -> Void
     var onClose: () -> Void = {}
 
@@ -89,7 +91,7 @@ struct MenuPanelView: View {
             PanelToggleRow(toggle: toggle, onAction: onAction).padding(.leading, PanelMetrics.rowHighlightX)
         case .clip:
             if let clip = content.lastClip {
-                PanelClipRow(clip: clip, image: clipImage, onAction: onAction)
+                PanelClipRow(clip: clip, image: clipImage, firstActionState: lastClipState, onAction: onAction)
                     .padding(.leading, PanelMetrics.rowHighlightX)
             }
         case .separator:
@@ -295,7 +297,7 @@ struct MenuPanelView: View {
             .modifier(PanelHelp(text: caption.help))
             .overlay(alignment: .topLeading) {
                 if let clear = content.clear {
-                    PanelClearButton(button: clear, forcedHover: showsClearHover, onAction: onAction)
+                    PanelClearButton(button: clear, forcedState: clearState, onAction: onAction)
                         .offset(
                             x: PanelMetrics.clearHitX - PanelMetrics.margin,
                             y: (PanelMetrics.titleLineHeight - PanelMetrics.iconButton) / 2)
@@ -319,9 +321,7 @@ struct MenuPanelView: View {
 
     private func popup(_ submenu: SubmenuModel, value: String, width: CGFloat) -> some View {
         Menu {
-            ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
-                PanelMenuEntry(entry: entry, onAction: onAction)
-            }
+            PanelPopupEntries(entries: submenu.entries, onAction: onAction)
         } label: {
             HStack(spacing: 0) {
                 Text(submenu.title)
@@ -380,7 +380,7 @@ struct MenuPanelView: View {
                     }
                     .font(.system(size: 13, weight: .semibold))
                 }
-                .foregroundStyle(heroForeground(button))
+                .foregroundStyle(PanelSurface.heroForeground(enabled: button.enabled))
                 .padding(.horizontal, 12)
                 .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.heroHeight)
             }
@@ -408,7 +408,7 @@ struct MenuPanelView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .accessibilityHidden(true)
         default:
-            mark(pointSize: 20, color: heroForeground(button))
+            mark(pointSize: 20, color: PanelSurface.heroForeground(enabled: button.enabled))
         }
     }
 
@@ -419,10 +419,6 @@ struct MenuPanelView: View {
         case .record, .pick: return PanelSurface.accent
         default: return palette.wellFill.color
         }
-    }
-
-    private func heroForeground(_ button: PanelButton) -> Color {
-        button.enabled ? .white : PanelSurface.tertiaryText
     }
 
     /// The V1 mark in `color`: white on Record in both appearances, tertiary when Record is disabled.
@@ -447,56 +443,6 @@ struct MenuPanelView: View {
             .padding(.leading, PanelMetrics.margin)
             .padding(.top, (PanelMetrics.separator - PanelMetrics.separatorLine) / 2)
             .frame(maxHeight: .infinity, alignment: .top)
-    }
-}
-
-// MARK: - Shared with the control bar
-
-/// One row of a Size or Frame Rate pop-up.
-struct PanelMenuEntry: View {
-    var entry: MenuEntry
-    var onAction: (MenuAction) -> Void
-
-    var body: some View {
-        switch entry {
-        case .separator:
-            Divider()
-        case .item(let item):
-            Button {
-                if let action = item.action { onAction(action) }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark")
-                        .opacity(item.checked ? 1 : 0)
-                        .accessibilityHidden(true)
-                    Text(item.title)
-                    if let trailing = item.trailing {
-                        Spacer(minLength: 12)
-                        Text(trailing)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .disabled(!item.enabled)
-            .modifier(PanelHelp(text: item.toolTip))
-        default:
-            EmptyView()
-        }
-    }
-}
-
-/// The Skreenrek mark in one colour.
-struct PanelBrandMark: View {
-    var pointSize: CGFloat
-    var color: Color
-
-    var body: some View {
-        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
-            .resizable()
-            .renderingMode(.template)
-            .foregroundStyle(color)
-            .frame(width: pointSize, height: pointSize)
-            .accessibilityHidden(true)
     }
 }
 
@@ -576,6 +522,7 @@ private struct PanelToggleRow: View {
 private struct PanelClipRow: View {
     var clip: PanelLastClip
     var image: NSImage?
+    var firstActionState: PanelInteraction?
     var onAction: (MenuAction) -> Void
     @Environment(\.colorScheme) private var scheme
 
@@ -596,8 +543,9 @@ private struct PanelClipRow: View {
                     .accessibilityLabel(clip.accessibilityLabel)
             }
             HStack(spacing: 0) {
-                ForEach(Array(clip.actions.enumerated()), id: \.offset) { _, button in
-                    PanelIconButton(button: button, onAction: onAction)
+                ForEach(Array(clip.actions.enumerated()), id: \.offset) { index, button in
+                    PanelIconButton(
+                        button: button, forcedState: index == 0 ? firstActionState : nil, onAction: onAction)
                 }
             }
         }
@@ -726,29 +674,57 @@ private struct PanelHeroButtonBody: View {
     }
 }
 
-private struct PanelIconButton: View {
-    var button: PanelButton
-    var onAction: (MenuAction) -> Void
+/// The 24 pt hit area of an icon button, with the row's hover and pressed tones at the control radius.
+private struct PanelIconButtonStyle: ButtonStyle {
+    var rest: Color
+    var active: Color
+    var forcedState: PanelInteraction?
+
+    func makeBody(configuration: Configuration) -> some View {
+        PanelIconButtonBody(configuration: configuration, rest: rest, active: active, forcedState: forcedState)
+    }
+}
+
+private struct PanelIconButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let rest: Color
+    let active: Color
+    let forcedState: PanelInteraction?
     @State private var hovering = false
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        let interaction =
+            forcedState ?? PanelInteraction(enabled: isEnabled, hovering: hovering, pressed: configuration.isPressed)
+        configuration.label
+            .foregroundStyle(interaction == .rest ? rest : active)
+            .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
+            .background(
+                RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+                    .fill(PanelPalette(scheme).rowColor(interaction))
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+    }
+}
+
+private struct PanelIconButton: View {
+    var button: PanelButton
+    var forcedState: PanelInteraction?
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        let foreground = button.enabled ? PanelSurface.primaryText : PanelSurface.tertiaryText
         Button {
             onAction(button.action)
         } label: {
             Image(systemName: button.symbol ?? "circle")
                 .font(.system(size: 13))
                 .frame(width: PanelMetrics.iconGlyph, height: PanelMetrics.iconGlyph)
-                .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
-                .foregroundStyle(button.enabled ? PanelSurface.primaryText : PanelSurface.tertiaryText)
-                .background(
-                    RoundedRectangle(cornerRadius: PanelMetrics.radiusChip, style: .continuous)
-                        .fill(PanelPalette(scheme).rowColor(hovering && button.enabled ? .hover : .rest))
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PanelIconButtonStyle(rest: foreground, active: foreground, forcedState: forcedState))
         .disabled(!button.enabled)
-        .onHover { hovering = button.enabled && $0 }
         .accessibilityLabel(button.accessibilityLabel)
         .modifier(PanelHelp(text: button.title))
     }
@@ -757,12 +733,8 @@ private struct PanelIconButton: View {
 /// Clear, at the end of the title line: a 16 pt glyph in a 24 pt hit area.
 private struct PanelClearButton: View {
     var button: PanelButton
-    var forcedHover: Bool
+    var forcedState: PanelInteraction?
     var onAction: (MenuAction) -> Void
-    @State private var hovering = false
-    @Environment(\.colorScheme) private var scheme
-
-    private var highlighted: Bool { hovering || forcedHover }
 
     var body: some View {
         Button {
@@ -770,22 +742,75 @@ private struct PanelClearButton: View {
         } label: {
             Image(systemName: button.symbol ?? PanelSymbol.clearWindow)
                 .font(.system(size: PanelMetrics.iconGlyph))
-                .foregroundStyle(highlighted ? PanelSurface.primaryText : PanelSurface.secondaryText)
-                .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
-                .background(
-                    RoundedRectangle(cornerRadius: PanelMetrics.radiusChip, style: .continuous)
-                        .fill(PanelPalette(scheme).rowColor(highlighted ? .hover : .rest))
-                )
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .buttonStyle(
+            PanelIconButtonStyle(
+                rest: PanelSurface.secondaryText, active: PanelSurface.primaryText, forcedState: forcedState)
+        )
         .accessibilityLabel(button.accessibilityLabel)
         .modifier(PanelHelp(text: button.help))
     }
 }
 
 // MARK: - Chrome
+
+/// The Skreenrek mark in one colour, shared with the control bar.
+struct PanelBrandMark: View {
+    var pointSize: CGFloat
+    var color: Color
+
+    var body: some View {
+        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(color)
+            .frame(width: pointSize, height: pointSize)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The rows of a Size or Frame Rate popup, which SwiftUI turns into native menu items. A toggle gives the item its
+/// check mark. An image in the label would become the item's image and show even at zero opacity, and an `HStack`
+/// label keeps only its first text, so the trailing value goes in the title.
+struct PanelPopupEntries: View {
+    var entries: [MenuEntry]
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+            switch entry {
+            case .separator:
+                Divider()
+            case .item(let item):
+                row(item)
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    /// On when the model checks the row. Choosing the row sends its action and leaves the check to the model, so a
+    /// cancelled Custom… panel changes nothing.
+    static func selection(_ item: MenuItemModel, onAction: @escaping (MenuAction) -> Void) -> Binding<Bool> {
+        Binding(
+            get: { item.checked },
+            set: { _ in
+                if let action = item.action { onAction(action) }
+            })
+    }
+
+    private func row(_ item: MenuItemModel) -> some View {
+        Toggle(isOn: Self.selection(item, onAction: onAction)) {
+            if let trailing = item.trailing {
+                Text("\(Text(item.title))  \(Text(trailing).foregroundStyle(.secondary))")
+            } else {
+                Text(item.title)
+            }
+        }
+        .disabled(!item.enabled)
+        .modifier(PanelHelp(text: item.toolTip))
+    }
+}
 
 struct PanelHelp: ViewModifier {
     var text: String?

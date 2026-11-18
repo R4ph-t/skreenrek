@@ -8,7 +8,7 @@ Source: Designer's Notion spec, https://app.notion.com/p/41b0d0d44592815d89b9d08
 
 The chosen name is **Skreenrek**, picked by Raph on 2026-11-17. The GitHub user/org name and the Homebrew names were free when checked that day.
 
-How it is used: UI copy and the product name are Skreenrek. The CLI command, the MCP tool prefix (`skreenrek_…`) and the Application Support folder are `skreenrek`. The output folder is `~/Movies/Skreenrek/` and the bundle ID is `it.fraime.skreenrek`. The skill is `record-window`. App copy never uses "Raph" or "CTO".
+How it is used: UI copy and the product name are Skreenrek. The CLI command, the MCP tool prefix (`skreenrek_…`) and the Application Support folder are `skreenrek`. The output folder is `~/Movies/Skreenrek/` and the bundle ID is `com.raphaelterrier.skreenrek`. The skill is `record-window`. App copy never uses "Raph" or "CTO".
 
 ## What it is
 
@@ -150,7 +150,7 @@ Red appears only while recording. The icon shape carries each empty state (the v
 Borrowed from the macOS screenshot tool's window mode and CleanShot X. It is a borderless, non-activating overlay on every display, with no dimming.
 
 - The hovered window gets an accent tint at 18% opacity plus a 2 pt inside stroke in the accent colour, following the window's corner radius.
-- A centred label (HUD material, radius 10, 280 pt wide, 56 pt tall, 16 pt side padding): line 1 is `App — Window title` (13 pt semibold), line 2 is `1280 × 800 px · Click to pick` (12 pt secondary). Pixel size uses that window's display scale.
+- A centred label (the solid panel surface, radius 10, 280 pt wide, 56 pt tall, 16 pt side padding): line 1 is `App — Window title` (13 pt semibold), line 2 is `1280 × 800 px · Click to pick` (12 pt secondary). Pixel size uses that window's display scale.
 - A hint bar, bottom-centre, 44 pt tall: `viewfinder` · "Click a window, or drag to pick a region." · "Esc to cancel" (12 pt secondary) · \[Cancel\].
 - Dragging switches to region mode: crosshair cursor, a 1 pt accent rectangle, and a live size chip in px near the cursor (12 pt with monospaced digits, 8 pt horizontal and 4 pt vertical padding, radius 4, on the panel's solid surface). Regions snap to even pixel sizes.
 - Keyboard: Tab or the arrow keys move between windows front to back, Return picks, Esc cancels. VoiceOver announces "Safari, [localhost:3000](http://localhost:3000), 1280 by 800 pixels. Press Return to pick."
@@ -159,7 +159,7 @@ Borrowed from the macOS screenshot tool's window mode and CleanShot X. It is a b
 
 ### 4. Recording indicator with stop control
 
-A floating HUD in the Kap / CleanShot style, 36 pt tall, radius 10, HUD material, centred 16 pt below the recorded window. If there's no room, it goes 16 pt inside the bottom of that window's screen. It is excluded from capture through the SCContentFilter, so it never appears in the clip. For region recordings, a 1 pt system-red outline also marks the region, excluded from the clip in the same way.
+A floating HUD in the Kap / CleanShot style, 36 pt tall, radius 10, the solid panel surface with the system window shadow, centred 16 pt below the recorded window. If there's no room, it goes 16 pt inside the bottom of that window's screen. It is excluded from capture through the SCContentFilter, so it never appears in the clip. For region recordings, a 1 pt system-red outline also marks the region, excluded from the clip in the same way.
 
 | State | Content | Behaviour |
 | --- | --- | --- |
@@ -373,7 +373,7 @@ Decision: `src` always points at `assets/<clip-id>.mp4`, the HyperFrames convent
 
 - Every status symbol has a VoiceOver label carrying the full sentence (table above), and the tooltip uses the same text.
 - The HUD and picker label are single accessibility elements with named actions (Stop, Pick). The picker is fully keyboard-operable (Tab or arrows, Return, Esc).
-- Reduce Motion: no fades on the HUD (it appears and disappears instantly), and the spinner becomes a static `arrow.down.circle`. Increase Contrast: strokes go to 2 pt (picker 3 pt), and HUD borders become opaque.
+- Reduce Motion: no fades on the HUD (it appears and disappears instantly), and the spinner becomes a static `arrow.down.circle`. Increase Contrast: strokes go to 2 pt (picker 3 pt), and the HUD and panel hairlines go to 25%.
 - Contrast: all text meets 4.5:1 on its material in both appearances. Secondary text uses system secondaryLabel.
 - Dynamic system text size isn't applied in menus (macOS doesn't), but the onboarding and Settings windows grow with the content and never clip.
 - Global shortcut ⌃⌘⎋ has no digits and works on AZERTY. No other global shortcuts are added.

@@ -24,15 +24,16 @@ struct RecordingHUDView: View {
     var dismiss: () -> Void = {}
     var hover: (Bool) -> Void = { _ in }
 
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
         content
             .font(.system(size: 13))
             .fixedSize(horizontal: true, vertical: true)
             .padding(.horizontal, 12).frame(height: 36)
-            .background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(presentation.increaseContrast ? Color.primary : Color(nsColor: .separatorColor),
-                              lineWidth: presentation.increaseContrast ? 2 : 1))
+            // The HUD's panel is exactly this size, so the panel's system shadow is the one shadow.
+            .modifier(HUDSurface(shadow: .window, increaseContrast: presentation.increaseContrast))
             .onHover(perform: hover)
     }
 
@@ -53,7 +54,7 @@ struct RecordingHUDView: View {
                     Label(UIStrings.HUD.stop, systemImage: "stop.fill")
                         .labelStyle(.titleAndIcon).fixedSize()
                         .padding(.horizontal, 8).frame(height: 28)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                        .background { stopCell }
                 }.buttonStyle(.plain)
             }
             .accessibilityElement(children: .ignore)
@@ -83,6 +84,17 @@ struct RecordingHUDView: View {
             }
         }
     }
+    /// The addendum's cell: the Size and Frame Rate tone, with their hairline in light.
+    private var stopCell: some View {
+        let palette = PanelPalette(scheme)
+        let shape = RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+        return shape.fill(palette.cellFill.color).overlay {
+            if let hairline = palette.cellHairline {
+                shape.strokeBorder(hairline.color, lineWidth: PanelSurface.pixel(displayScale: displayScale))
+            }
+        }
+    }
+
     private func symbol(_ name: String) -> some View {
         Image(systemName: name).font(.system(size: 16)).frame(width: 16, height: 16)
     }
@@ -101,7 +113,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     private var model = HUDModel()
     private var placement = HUDPlacement()
     private let defaults: UserDefaults
-    private let panel = CapturePanel(frame: .zero)
+    let panel = CapturePanel(frame: .zero, carriesShadow: true)
     private var outline: CapturePanel?
     private var timer: Timer?
     private let presentation = HUDPresentation()
@@ -240,6 +252,7 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
         }
         panel.alphaValue = 1
         if !panel.isVisible { panel.orderFrontRegardless() }
+        if rebuild { panel.refreshShadow() }
     }
 
     func windowDidMove(_ notification: Notification) {
