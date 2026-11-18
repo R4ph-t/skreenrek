@@ -96,13 +96,14 @@ public final class MenuController: NSObject {
         let context = model.context
         renderIcon(model.icon, state: context.displayState)
         if panel.isVisible { refresh(opening: false) }
-        updateOutline()
+        // The outline stays up while the bar is visible, so the bar is updated first.
         updateControlBar()
+        updateOutline()
         updateTimer()
         updateHotKey()
     }
 
-    /// The on-screen outline follows the same state as the panel. A closed window counts only for the window the
+    /// The on-screen outline follows the panel and the control bar. A closed window counts only for the window the
     /// last still was taken of, so a stale result can't hide the outline of a newer pick.
     private func updateOutline() {
         let workspace = NSWorkspace.shared
@@ -110,7 +111,8 @@ public final class MenuController: NSObject {
             SelectionOutlineInput(
                 snapshot: model.snapshot, panelOpen: panel.isVisible, windowClosed: pickedWindowClosed,
                 reduceMotion: workspace.accessibilityDisplayShouldReduceMotion,
-                increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast))
+                increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast,
+                controlBarVisible: controlBar.isVisible))
     }
 
     private var pickedWindowClosed: Bool {
@@ -240,8 +242,8 @@ public final class MenuController: NSObject {
 
     private func applyPreview() {
         applyContent(model.context, opening: false)
-        updateOutline()
         updateControlBar()
+        updateOutline()
     }
 
     /// Opening never animates. While the panel is open, a change of height animates its top-anchored frame and the

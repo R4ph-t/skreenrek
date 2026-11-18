@@ -50,6 +50,13 @@ public final class AXWindowResizer: WindowResizer {
         }
     }
 
+    /// Puts the window in front of its app's other windows. The caller activates the app.
+    public func raise(_ window: WindowInfo) async throws {
+        try await withElement(for: window) { element in
+            try Self.check(AXUIElementPerformAction(element.ref, kAXRaiseAction as CFString), window, verb: "raise")
+        }
+    }
+
     /// Runs `body` on the window's element. A cached element that is gone is evicted and looked up once more.
     private func withElement<T>(for window: WindowInfo, _ body: (Element) throws -> T) async throws -> T {
         guard Self.isTrusted else { throw SkreenrekError.permissionDenied(.accessibility) }
@@ -139,7 +146,7 @@ public final class AXWindowResizer: WindowResizer {
         try Self.check(result, window)
     }
 
-    private static func check(_ result: AXError, _ window: WindowInfo) throws {
+    private static func check(_ result: AXError, _ window: WindowInfo, verb: String = "resize") throws {
         switch result {
         case .success:
             return
@@ -149,7 +156,7 @@ public final class AXWindowResizer: WindowResizer {
             throw SkreenrekError.windowNotFound(query: String(window.id.rawValue))
         default:
             throw SkreenrekError.internal(
-                message: "Couldn't resize \(window.app)'s window (Accessibility error \(result.rawValue)).")
+                message: "Couldn't \(verb) \(window.app)'s window (Accessibility error \(result.rawValue)).")
         }
     }
 }

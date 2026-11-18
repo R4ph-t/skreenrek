@@ -27,27 +27,35 @@ final class SelectionOutlineView: NSView {
     }
 }
 
+/// The outline overlay. `.transient` is omitted: it would hide the outline when focus returns to the picked
+/// window, the same bug that hid the control bar.
+final class SelectionOutlinePanel: NSPanel {
+    init() {
+        super.init(
+            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        ignoresMouseEvents = true
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        animationBehavior = .none
+        sharingType = .none
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        setAccessibilityElement(false)
+    }
+}
+
 /// The click-through overlay around the picked window. It sits directly above that window, so windows in front of
 /// the target still cover it, and it is kept out of screen capture.
 @MainActor
 final class SelectionOutlineWindow: SelectionOutlineSurface {
     private let outlineView = SelectionOutlineView()
-    private lazy var panel: NSPanel = {
-        let panel = NSPanel(
-            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.ignoresMouseEvents = true
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.animationBehavior = .none
-        panel.sharingType = .none
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        panel.setAccessibilityElement(false)
+    private let panel = SelectionOutlinePanel()
+
+    init() {
         panel.contentView = outlineView
-        return panel
-    }()
+    }
 
     func show(_ appearance: SelectionOutlineAppearance) {
         place(appearance)
@@ -70,6 +78,8 @@ final class SelectionOutlineWindow: SelectionOutlineSurface {
 
     func keepAbove(_ window: WindowID) {
         panel.order(.above, relativeTo: Int(window.rawValue))
+        // Relative order can leave a never-shown panel off screen; the control bar uses the same fallback.
+        if !panel.isVisible { panel.orderFrontRegardless() }
     }
 
     func announce(_ text: String) {

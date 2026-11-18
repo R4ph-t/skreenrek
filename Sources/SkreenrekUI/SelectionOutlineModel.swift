@@ -28,31 +28,38 @@ public struct SelectionOutlineInput: Sendable, Hashable {
     public var capturing: Bool
     public var pickerOpen: Bool
     public var panelOpen: Bool
+    /// The control bar is up around this window. The outline stays with it, except while recording.
+    public var controlBarVisible: Bool
     public var windowClosed: Bool
     public var reduceMotion: Bool
     public var increaseContrast: Bool
 
     public init(
         target: SelectionOutlineTarget?, pickCount: Int = 0, capturing: Bool = false, pickerOpen: Bool = false,
-        panelOpen: Bool = false, windowClosed: Bool = false, reduceMotion: Bool = false,
-        increaseContrast: Bool = false
+        panelOpen: Bool = false, controlBarVisible: Bool = false, windowClosed: Bool = false,
+        reduceMotion: Bool = false, increaseContrast: Bool = false
     ) {
         self.target = target
         self.pickCount = pickCount
         self.capturing = capturing
         self.pickerOpen = pickerOpen
         self.panelOpen = panelOpen
+        self.controlBarVisible = controlBarVisible
         self.windowClosed = windowClosed
         self.reduceMotion = reduceMotion
         self.increaseContrast = increaseContrast
     }
 
-    public init(snapshot: ControllerSnapshot, panelOpen: Bool, windowClosed: Bool, reduceMotion: Bool, increaseContrast: Bool) {
+    public init(
+        snapshot: ControllerSnapshot, panelOpen: Bool, windowClosed: Bool, reduceMotion: Bool,
+        increaseContrast: Bool, controlBarVisible: Bool = false
+    ) {
         let capturing = snapshot.state == .recording || snapshot.state == .writing
         self.init(
             target: snapshot.window.map(SelectionOutlineTarget.init(window:)), pickCount: snapshot.pickCount,
-            capturing: capturing, pickerOpen: snapshot.picking, panelOpen: panelOpen, windowClosed: windowClosed,
-            reduceMotion: reduceMotion, increaseContrast: increaseContrast)
+            capturing: capturing, pickerOpen: snapshot.picking, panelOpen: panelOpen,
+            controlBarVisible: controlBarVisible, windowClosed: windowClosed, reduceMotion: reduceMotion,
+            increaseContrast: increaseContrast)
     }
 }
 
@@ -108,7 +115,7 @@ public struct SelectionOutlineModel: Sendable {
     public private(set) var input = SelectionOutlineInput(target: nil)
     private var presence: WindowPresence?
     private var seenPickCount: Int?
-    /// While the panel is closed, the outline stays until this time and then fades.
+    /// While the panel and the control bar are both down, the outline stays until this time and then fades.
     private var holdUntil: TimeInterval?
 
     public init(macOSMajorVersion: Int) {
@@ -129,7 +136,7 @@ public struct SelectionOutlineModel: Sendable {
         seenPickCount = new.pickCount
         if new.target == nil {
             holdUntil = nil
-        } else if old.panelOpen, !new.panelOpen {
+        } else if Self.keptVisible(old), !Self.keptVisible(new) {
             holdUntil = max(holdUntil ?? now, now)
         }
         return picked
@@ -146,10 +153,15 @@ public struct SelectionOutlineModel: Sendable {
         input.target != nil && !input.capturing && !input.pickerOpen && !input.windowClosed
     }
 
+    /// The outline stays up for as long as the panel or the control bar is showing this window.
+    private static func keptVisible(_ input: SelectionOutlineInput) -> Bool {
+        input.panelOpen || input.controlBarVisible
+    }
+
     /// The window's position matters now, so the tracker should run.
     public func wantsTracking(at now: TimeInterval) -> Bool {
         guard eligible else { return false }
-        if input.panelOpen { return true }
+        if Self.keptVisible(input) { return true }
         guard let holdUntil else { return false }
         return now < holdUntil + fadeSeconds
     }
@@ -166,7 +178,7 @@ public struct SelectionOutlineModel: Sendable {
             windowID: target.window.id, frame: Self.outlineFrame(around: windowFrame),
             cornerRadius: Self.outlineRadius(macOSMajorVersion: macOSMajorVersion), strokeWidth: Self.strokeWidth,
             hairlineWidth: input.increaseContrast ? 1 : 0.5, hairlineOpacity: input.increaseContrast ? 0.6 : 0.3)
-        if input.panelOpen { return .shown(appearance) }
+        if Self.keptVisible(input) { return .shown(appearance) }
         guard let holdUntil else { return .hidden }
         if now < holdUntil { return .shown(appearance) }
         let fadeEnd = holdUntil + fadeSeconds
@@ -175,7 +187,7 @@ public struct SelectionOutlineModel: Sendable {
 
     /// The next time `display` changes by itself.
     public func nextDeadline(after now: TimeInterval) -> TimeInterval? {
-        guard eligible, !input.panelOpen, let holdUntil else { return nil }
+        guard eligible, !Self.keptVisible(input), let holdUntil else { return nil }
         if now < holdUntil { return holdUntil }
         let fadeEnd = holdUntil + fadeSeconds
         return now < fadeEnd ? fadeEnd : nil
