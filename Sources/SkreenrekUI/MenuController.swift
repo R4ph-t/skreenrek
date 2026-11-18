@@ -231,15 +231,19 @@ public final class MenuController: NSObject {
     private func installMonitors() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) {
             [weak self] event -> NSEvent? in
-            MainActor.assumeIsolated { () -> NSEvent? in
-                guard let self else { return event }
-                if event.type == .keyDown, event.keyCode == 53, self.panel.isVisible {
+            // NSEvent isn't Sendable, so only its values cross into the main-actor closure.
+            let isKeyDown = event.type == .keyDown
+            let keyCode = event.keyCode
+            let consumed = MainActor.assumeIsolated { () -> Bool in
+                guard let self else { return false }
+                if isKeyDown, keyCode == 53, self.panel.isVisible {
                     self.closePanel()
-                    return nil
+                    return true
                 }
-                if event.type != .keyDown { self.closeIfClickIsOutside() }
-                return event
+                if !isKeyDown { self.closeIfClickIsOutside() }
+                return false
             }
+            return consumed ? nil : event
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
             [weak self] _ in

@@ -577,7 +577,7 @@ public enum PanelModel {
     /// fix rows.
     private static func showsFixes(_ context: MenuContext, phase: PanelPreviewPhase) -> Bool {
         guard context.displayState == .error else { return false }
-        switch phase {
+        return switch phase {
         case .permissionMissing, .windowClosed: false
         default: true
         }

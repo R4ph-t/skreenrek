@@ -66,7 +66,7 @@ public final class FakeWindowPreviewSource: WindowPreviewSource, @unchecked Send
     }
 
     public func captureStill(of window: WindowInfo, fitting maxPixels: PixelSize) async throws -> WindowStill {
-        let call = Call(windowID: window.id, fitting: maxPixels, onMainThread: Thread.isMainThread)
+        let call = Call(windowID: window.id, fitting: maxPixels, onMainThread: Self.isOnMainThread())
         let waiter = state.withLock { s -> CheckedContinuation<Call, Never>? in
             s.calls.append(call)
             let waiter = s.callWaiter
@@ -88,4 +88,7 @@ public final class FakeWindowPreviewSource: WindowPreviewSource, @unchecked Send
         }
         return try state.withLock { try $0.result.get() }
     }
+
+    /// Synchronous because `Thread.isMainThread` is unavailable from async code. It reports the caller's thread.
+    private static func isOnMainThread() -> Bool { Thread.isMainThread }
 }

@@ -1,7 +1,7 @@
 import Foundation
 import SkreenrekCore
 import SkreenrekTesting
-import SkreenrekUI
+@testable import SkreenrekUI
 import Synchronization
 import Testing
 
@@ -199,7 +199,7 @@ import Testing
         #expect(clip.help == nil)
         #expect(clip.actions.count == 3)
         #expect(clip.actions.first?.enabled == false)
-        #expect(clip.actions.dropFirst().allSatisfy(\.enabled))
+        #expect(clip.actions.dropFirst().allSatisfy { $0.enabled })
     }
 
     @Test func copyAndSizeKeepThePanelOpen() {

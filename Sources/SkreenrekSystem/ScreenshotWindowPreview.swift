@@ -21,7 +21,7 @@ public struct ScreenshotWindowPreview: WindowPreviewSource {
         }
         try Task.checkCancellation()
         // A caller on the main thread (the panel opening) must not wait on the capture.
-        if Thread.isMainThread {
+        if Self.isOnMainThread() {
             let permissions = permissions
             return try await Task.detached {
                 try await ScreenshotWindowPreview(permissions: permissions).captureOffMain(window, fitting: maxPixels)
@@ -29,6 +29,9 @@ public struct ScreenshotWindowPreview: WindowPreviewSource {
         }
         return try await captureOffMain(window, fitting: maxPixels)
     }
+
+    /// Synchronous because `Thread.isMainThread` is unavailable from async code. It reports the caller's thread.
+    private static func isOnMainThread() -> Bool { Thread.isMainThread }
 
     private func captureOffMain(_ window: WindowInfo, fitting maxPixels: PixelSize) async throws -> WindowStill {
         try Task.checkCancellation()
