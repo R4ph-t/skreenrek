@@ -52,6 +52,8 @@ Decisions: no blinking or pulsing (calm, Reduce Motion-safe). The recording symb
 
 ### 2. Menu-bar panel
 
+> **1.0.5 amendment (18 Nov 2026):** Designer's [1.0.5 spec](design/1.0.5/spec.md) (§1–§4: panel states, Clear button, on-screen outline) amends this section. Where it differs, the 1.0.5 spec wins. Renders, redlines and boards are in `docs/design/1.0.5/`.
+
 Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel is SwiftUI in a non-activating `NSPanel` at `.popUpMenu` level, anchored under the status item. It closes on Esc, on a click outside, or after an action that leaves the panel (Record, Stop, Settings…, opening the clip). Copy actions, Size, Frame Rate and the toggles stay open. Width is 300 pt. Idle with a window, an update and a last clip is **619.5 pt** (the cap is 620). Recording is **485.5 pt**. No window and window-closed are **591.5 pt**. All three fit an 800 pt screen minus the menu bar; anything taller scrolls.
 
 Material is `.menu`. Corner radius 10, plus the system hairline and shadow. Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
@@ -146,6 +148,8 @@ A single 520 × 496 pt titled window with two steps. It appears on first launch,
 Decision: Accessibility is asked for up front but isn't blocking. Rationale: resize is the headline feature, but recording a window at its current size is still useful.
 
 ### 6. Settings (one pane, no tabs)
+
+> **1.0.5 amendment (18 Nov 2026):** Designer's [1.0.5 spec](design/1.0.5/spec.md) (§5: Settings window with General, Agents and Permissions tabs) amends this section. Where it differs, the 1.0.5 spec wins. Renders, redlines and boards are in `docs/design/1.0.5/`.
 
 A 480 pt wide window built from a grouped native Form. Rows:
 
