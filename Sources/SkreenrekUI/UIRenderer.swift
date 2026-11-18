@@ -108,6 +108,9 @@ public enum UIRenderer {
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
                           size: NSSize(width: 280, height: 56)), "picker", "label")
             try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
+            let chip = NSHostingView(rootView: PickerSizeChip(text: PixelSize(width: 800, height: 600).description))
+            chip.frame = NSRect(origin: .zero, size: chip.fittingSize)
+            try save(chip, "picker", "chip")
             for state in ["window", "keyboard", "region", "window-contrast", "region-contrast", "empty"] {
                 let canvas = PickerCanvas(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
                 canvas.increaseContrast = state.hasSuffix("contrast")

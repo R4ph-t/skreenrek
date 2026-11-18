@@ -30,6 +30,7 @@ import Vision
             }
             expected += [
                 "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
+                "picker-chip-\(appearance)@2x.png",
                 "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
@@ -99,6 +100,8 @@ import Vision
             }
             #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
             #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
+            // Measured from the fitted render: the text plus 8 pt a side and 4 pt top and bottom.
+            #expect(sizes["picker-chip-\(appearance)@2x.png"] ?? (0, 0) == (186, 46))
             for state in CaptureRenderSamples.hudStates {
                 #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
             }
