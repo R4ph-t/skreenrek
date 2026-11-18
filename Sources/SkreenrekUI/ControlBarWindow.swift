@@ -19,7 +19,7 @@ final class ControlBarShadowView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let isDark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let tokens = PanelPalette(isDark ? .dark : .light).shadow
+        let tokens = PanelPalette(isDark ? .dark : .light).dropShadow
         let radius = PanelMetrics.radiusPanel
         let bar = bounds.insetBy(dx: Self.margin, dy: Self.margin)
         let barPath = NSBezierPath(roundedRect: bar, xRadius: radius, yRadius: radius)

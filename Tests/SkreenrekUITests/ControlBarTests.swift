@@ -1182,8 +1182,8 @@ private final class FakeBarTracker: WindowFrameTracking {
     }
 
     @Test func theShadowTokensMatchTheAddendum() {
-        #expect(PanelPalette(.dark).shadow == PanelShadow(opacity: 0.35, blur: 24, y: 8))
-        #expect(PanelPalette(.light).shadow == PanelShadow(opacity: 0.15, blur: 20, y: 6))
+        #expect(PanelPalette(.dark).dropShadow == PanelShadow(opacity: 0.35, blur: 24, y: 8))
+        #expect(PanelPalette(.light).dropShadow == PanelShadow(opacity: 0.15, blur: 20, y: 6))
     }
 
     /// Reads the drawn pixels: the surface token, and the slot edges at x 6, 90, 210 and 294.
