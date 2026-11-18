@@ -64,7 +64,11 @@ Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel 
 
 Anything taller than the screen scrolls.
 
-Material is `.menu`. Corner radius 10, plus the system hairline and shadow. Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
+The panel is fully opaque, with no material, vibrancy or glass ([addendum of 18 Nov 2026](design/1.0.5/addendum-solid-panel-2026-11-18.md), which supersedes the `.menu` material in the 1.0.5 spec). Fill is #1E1E20 dark and #F6F6F8 light. Corner radius is 10, continuous, with the content clipped to it. A 1 px inside hairline is white 10% dark and black 10% light, 25% with Increase Contrast. The one shadow is the system window shadow. Separators are 1 px, white 10% dark and black 8% light.
+
+Size and Frame Rate cells are #2C2C2F dark and #FFFFFF light (light adds a 1 px black 8% hairline). The preview well is #2C2C2F dark and #E9E9EE light. Pick Window… and Record are solid `controlAccentColor`, and Stop Recording is solid `systemRed`, all with a white label, darkening 6% on hover and 12% when pressed. Row hover is white 8% dark and black 5% light, and pressed is white 12% dark and black 9% light. These surfaces all use radius 6. Secondary text is `secondaryLabelColor`.
+
+Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
 
 Everything shares one content edge, x 16–284: the preview, caption, cells, hero, separators, row icons and trailing content. Panel padding is 16 at the top and sides and 8 at the bottom. The row highlight is inset 8 from the panel edge (x 8–292, radius 6). A row's icon sits in a 16 pt column at x 16, and every row title starts at x 40. Switches, shortcuts and the glyphs of the Last Clip and Clear buttons end at x 284. Those buttons' 24 pt hit areas overhang the edge by 4.
 
