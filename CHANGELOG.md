@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Show Cursor and Write Click Events switches are back at the right edge of the menu.
 - Connect in onboarding no longer seems to do nothing. It replaces a leftover `~/.local/bin/skreenrek` link from an old install, finishes when at least one item connects, and shows each failure in red in a window that grows to fit.
+- The Size and Frame Rate menus check only the selected item, and Size presets show their dimensions again.
+- Custom… in the Size menu opens a panel that stays on screen when another app becomes active.
 
 ## [1.0.5] - 2026-11-18
 
