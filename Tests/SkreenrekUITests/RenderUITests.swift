@@ -35,7 +35,8 @@ import Vision
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
             ]
             for state in [
-                "default", "general", "updateavailable", "agents", "permissions", "permissions-notallowed",
+                "default", "general", "general-control-bar", "updateavailable", "agents", "permissions",
+                "permissions-notallowed",
             ] {
                 expected.append("settings-\(state)-\(appearance)@2x.png")
             }
@@ -48,10 +49,16 @@ import Vision
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
             for state in [
-                "idle", "picked", "clear-hover", "recording", "nowindow", "loading", "loading-slow",
-                "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
+                "idle", "picked", "control-bar-row", "clear-hover", "recording", "nowindow", "loading",
+                "loading-slow", "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
             ] {
                 expected.append("panel-\(state)-\(appearance)@2x.png")
+            }
+            for state in [
+                "below", "above", "docked", "narrow", "size-menu", "recording", "saving", "saving-reducedmotion",
+                "disabled", "disabled-size", "custom", "resizing", "not-exact", "refused",
+            ] {
+                expected.append("control-bar-\(state)-\(appearance)@2x.png")
             }
         }
         let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
@@ -90,8 +97,8 @@ import Vision
             }
             // The heights Designer measured, at 2×.
             for (state, height) in [
-                ("nowindow", 646), ("window-closed", 646), ("picked", 1183), ("clear-hover", 1183),
-                ("recording", 915), ("idle", 1239),
+                ("nowindow", 702), ("window-closed", 702), ("picked", 1239), ("control-bar-row", 1239),
+                ("clear-hover", 1239), ("recording", 915), ("idle", 1295),
             ] {
                 #expect(sizes["panel-\(state)-\(appearance)@2x.png"]?.1 == height, "\(state)")
             }
