@@ -439,16 +439,22 @@ private enum Bar {
         #expect(width <= room, "\(width) in \(room)")
     }
 
-    @Test func savingShowsTheSpinnerAndDisablesRecord() throws {
+    @Test func savingIsOneGroupOfSpinnerAndTextAndDisablesRecord() throws {
         let content = try content(Bar.model(Bar.input(activity: .saving)))
-        #expect(content.leading == .saving(spinner: true, label: nil))
-        #expect(content.readout?.text == "Saving clip…")
+        #expect(content.leading == .saving(spinner: true, text: "Saving clip…", showsText: true))
+        #expect(content.readout == nil)
         #expect(content.action.style == .recordBusy)
+    }
+
+    @Test func theSavingGroupHasTheSpaceLeftOfRecord() {
+        #expect(ControlBarWidth.regular.leadingAreaWidth == 192)
+        #expect(ControlBarWidth.compact.leadingAreaWidth == ControlBarMetrics.sizeSlotWidth)
+        #expect(ControlBarMetrics.labelGap == 6)
     }
 
     @Test func reduceMotionSwapsTheSpinnerAndDropsTheFades() throws {
         let model = Bar.model(Bar.input(activity: .saving, reduceMotion: true))
-        #expect(try content(model).leading == .saving(spinner: false, label: nil))
+        #expect(try content(model).leading == .saving(spinner: false, text: "Saving clip…", showsText: true))
         #expect(model.fadeSeconds == 0)
         #expect(Bar.model().fadeSeconds == 0.15)
     }
@@ -483,9 +489,13 @@ private enum Bar {
                 + "The clip will be 520 × 800 px. The window is 260 × 400 pt on screen.")
     }
 
-    @Test func theCompactBarStillSaysItIsSaving() throws {
-        let content = try content(Bar.model(Bar.input(frame: Self.narrow, activity: .saving)))
-        #expect(content.leading == .saving(spinner: true, label: "Saving clip…"))
+    /// The text stays off the compact bar. It is still the tooltip and what VoiceOver reads.
+    @Test(arguments: [false, true])
+    func theCompactBarKeepsSavingInTheTooltip(reduceMotion: Bool) throws {
+        let input = Bar.input(frame: Self.narrow, activity: .saving, reduceMotion: reduceMotion)
+        let content = try content(Bar.model(input))
+        #expect(content.leading == .saving(spinner: !reduceMotion, text: "Saving clip…", showsText: false))
+        #expect(content.readout == nil)
     }
 
     // MARK: Menu
@@ -1064,6 +1074,34 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(!isTone(211, 18, palette.fill), "Record start")
         #expect(!isTone(292, 18, palette.fill), "Record end")
         #expect(isTone(295, 18, palette.fill), "after Record")
+    }
+
+    /// Reads the drawn pixels left of Record: the indicator and the text form one centred group, 6 pt apart.
+    @Test(arguments: [false, true], [UIRenderer.Appearance.light, .dark])
+    func theSavingGroupIsCentredLeftOfRecord(reduceMotion: Bool, appearance: UIRenderer.Appearance) throws {
+        let input = Bar.input(activity: .saving, reduceMotion: reduceMotion)
+        let data = try UIRenderer.png(hosted(try content(input)), appearance: appearance, active: true)
+        let image = try #require(NSBitmapImageRep(data: data))
+        let fill = PanelPalette(appearance == .dark ? .dark : .light).fill
+        let background = [Int(fill.red), Int(fill.green), Int(fill.blue), 255]
+        // Device pixels, inside the 6...198 pt area and clear of the bar's hairline.
+        let inked = (12..<396).filter { x in
+            (4..<(image.pixelsHigh - 4)).contains { y in
+                var pixel = [Int](repeating: 0, count: 4)
+                image.getPixel(&pixel, atX: x, y: y)
+                return pixel != background
+            }
+        }
+        let first = try #require(inked.first)
+        let last = try #require(inked.last)
+        let centre = Double(first + last + 1) / 4
+        #expect(abs(centre - 102) <= 1.5, "centre \(centre) pt")
+        #expect(Double(first) / 2 > 30, "starts at \(Double(first) / 2) pt")
+        // The widest empty run in the group is the gap after the indicator, which ends at most 16 pt from the start.
+        let gaps = zip(inked, inked.dropFirst()).filter { $1 - $0 > 1 && $0 - first < 36 }
+        let gap = try #require(gaps.max { $0.1 - $0.0 < $1.1 - $1.0 })
+        let gapPoints = Double(gap.1 - gap.0 - 1) / 2
+        #expect(gapPoints >= 5 && gapPoints <= 8, "gap \(gapPoints) pt")
     }
 
     @Test func thePanelNeverTakesFocusAndStaysOutOfCapture() {

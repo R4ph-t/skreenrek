@@ -34,14 +34,7 @@ struct ControlBarView: View {
 
     var body: some View {
         HStack(spacing: ControlBarMetrics.slotGap) {
-            leading
-                .frame(
-                    width: ControlBarMetrics.sizeSlotWidth, height: ControlBarMetrics.controlHeight,
-                    alignment: .leading)
-            if let readout = content.readout {
-                readoutView(readout)
-                    .frame(width: ControlBarMetrics.readoutWidth, height: ControlBarMetrics.readoutHeight)
-            }
+            leadingArea
             ControlBarActionButton(action: content.action, onAction: onAction)
         }
         .padding(.horizontal, ControlBarMetrics.padding)
@@ -59,30 +52,61 @@ struct ControlBarView: View {
         .allowsWindowActivationEvents(true)
     }
 
+    /// Everything left of Record.
     @ViewBuilder
-    private var leading: some View {
+    private var leadingArea: some View {
         switch content.leading {
         case .size(let control):
-            ControlBarSizeButton(
-                control: control, showsMenuOpen: presentation.showsMenuOpen, onAction: onAction)
-        case .timer(let time):
-            HStack(spacing: ControlBarMetrics.statusGap) {
-                Circle()
-                    .fill(PanelSurface.stop)
-                    .frame(width: ControlBarMetrics.statusDot, height: ControlBarMetrics.statusDot)
-                Text(time)
-                    .font(.system(size: 13))
-                    .monospacedDigit()
-                    .foregroundStyle(PanelSurface.primaryText)
-                    .lineLimit(1)
+            firstSlot {
+                ControlBarSizeButton(
+                    control: control, showsMenuOpen: presentation.showsMenuOpen, onAction: onAction)
             }
-            .padding(.leading, ControlBarMetrics.slotInset)
-            .accessibilityHidden(true)
-        case .saving(let spinner, let label):
-            savingIndicator(spinner: spinner)
-                .frame(width: ControlBarMetrics.markSize, height: ControlBarMetrics.markSize)
+            readoutSlot
+        case .timer(let time):
+            firstSlot {
+                HStack(spacing: ControlBarMetrics.statusGap) {
+                    Circle()
+                        .fill(PanelSurface.stop)
+                        .frame(width: ControlBarMetrics.statusDot, height: ControlBarMetrics.statusDot)
+                    Text(time)
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                        .foregroundStyle(PanelSurface.primaryText)
+                        .lineLimit(1)
+                }
                 .padding(.leading, ControlBarMetrics.slotInset)
-                .modifier(ControlBarSavingLabel(label: label))
+                .accessibilityHidden(true)
+            }
+            readoutSlot
+        case .saving(let spinner, let text, let showsText):
+            HStack(spacing: ControlBarMetrics.labelGap) {
+                savingIndicator(spinner: spinner)
+                    .frame(width: ControlBarMetrics.markSize, height: ControlBarMetrics.markSize)
+                if showsText {
+                    Text(text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(PanelSurface.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: content.width.leadingAreaWidth, height: ControlBarMetrics.controlHeight)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+            .modifier(PanelHelp(text: showsText ? nil : text))
+        }
+    }
+
+    private func firstSlot<Content: View>(@ViewBuilder _ slot: () -> Content) -> some View {
+        slot()
+            .frame(
+                width: ControlBarMetrics.sizeSlotWidth, height: ControlBarMetrics.controlHeight, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var readoutSlot: some View {
+        if let readout = content.readout {
+            readoutView(readout)
+                .frame(width: ControlBarMetrics.readoutWidth, height: ControlBarMetrics.readoutHeight)
         }
     }
 
@@ -116,19 +140,6 @@ struct ControlBarView: View {
         .accessibilityLabel(readout.accessibilityLabel)
         .modifier(PanelHint(text: readout.warning ? readout.help : nil))
         .modifier(PanelHelp(text: readout.help))
-    }
-}
-
-/// The compact bar has no readout, so its saving indicator says what it is.
-private struct ControlBarSavingLabel: ViewModifier {
-    var label: String?
-
-    func body(content: Content) -> some View {
-        if let label {
-            content.accessibilityElement(children: .ignore).accessibilityLabel(label).help(label)
-        } else {
-            content.accessibilityHidden(true)
-        }
     }
 }
 

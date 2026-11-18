@@ -50,6 +50,11 @@ public enum ControlBarWidth: Sendable, Hashable {
     public var points: CGFloat {
         self == .regular ? ControlBarMetrics.regularWidth : ControlBarMetrics.compactWidth
     }
+
+    /// The space left of Record: Size and the readout, or Size alone on the compact bar.
+    public var leadingAreaWidth: CGFloat {
+        points - ControlBarMetrics.padding * 2 - ControlBarMetrics.slotGap - ControlBarMetrics.actionWidth
+    }
 }
 
 /// Where the bar goes for one window frame. Everything is in top-left global points.
@@ -238,15 +243,16 @@ public struct ControlBarSizeControl: Sendable, Hashable {
     public var accessibilityLabel: String
 }
 
-/// The first slot.
+/// What sits left of the readout, or for `saving` everything left of Record.
 public enum ControlBarLeading: Sendable, Hashable {
     case size(ControlBarSizeControl)
     case timer(String)
-    /// `label` carries "Saving clip…" when there is no readout to say it.
-    case saving(spinner: Bool, label: String?)
+    /// The indicator and "Saving clip…", centred together. The compact bar has no room for the text, so it draws the
+    /// indicator alone and keeps `text` for the tooltip and VoiceOver.
+    case saving(spinner: Bool, text: String, showsText: Bool)
 }
 
-/// The middle slot. The compact bar has none.
+/// The middle slot. The compact bar has none, and saving uses its space.
 public struct ControlBarReadout: Sendable, Hashable {
     public var text: String
     /// The previous size, while a resize is waiting for its read-back.
@@ -447,16 +453,11 @@ public struct ControlBarModel: Sendable {
         return ControlBarContent(
             width: layout.width, groupLabel: UIStrings.ControlBar.group(target.title),
             leading: leading(readout: readout, display: layout.display, compact: compact),
-            readout: compact ? nil : readout,
+            readout: compact || input.activity == .saving ? nil : readout,
             action: action(title: target.title, display: layout.display))
     }
 
     private func readout(window: PointRect, display: DisplayInfo, now: TimeInterval) -> ControlBarReadout {
-        if input.activity == .saving {
-            return ControlBarReadout(
-                text: UIStrings.Menu.savingClip, dimmed: false, warning: false, help: nil,
-                accessibilityLabel: UIStrings.Menu.savingClip)
-        }
         let idle = input.activity == .idle || input.activity == .starting
         if idle, permissions.accessibility != .allowed {
             return warning(clipSize(window: window, display: display), reason: UIStrings.ControlBar.accessibilityOff)
@@ -492,7 +493,7 @@ public struct ControlBarModel: Sendable {
         case .recording(let seconds):
             return .timer(TimeFormat.elapsed(Double(seconds)))
         case .saving:
-            return .saving(spinner: !input.reduceMotion, label: compact ? readout.text : nil)
+            return .saving(spinner: !input.reduceMotion, text: UIStrings.Menu.savingClip, showsText: !compact)
         case .idle, .starting:
             return .size(sizeControl(readout: readout, display: display, compact: compact))
         }
