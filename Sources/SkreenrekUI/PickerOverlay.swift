@@ -77,11 +77,15 @@ struct PickerHint: View {
 
 /// The live pixel size beside the pointer while dragging a region.
 struct PickerSizeChip: View {
+    static let horizontalPadding: CGFloat = 8
+    static let verticalPadding: CGFloat = 4
+
     let text: String
     var increaseContrast = false
     var body: some View {
-        Text(text).font(.system(size: 12))
-            .padding(4)
+        Text(text).font(.system(size: 12)).monospacedDigit()
+            .padding(.horizontal, Self.horizontalPadding)
+            .padding(.vertical, Self.verticalPadding)
             .modifier(HUDSurface(shadow: .drawn, increaseContrast: increaseContrast, radius: PanelMetrics.radiusChip))
     }
 }

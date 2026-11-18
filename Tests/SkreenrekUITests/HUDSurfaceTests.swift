@@ -74,6 +74,59 @@ import Testing
         Self.expectClose(Self.pixel(rep, x: end - 1, y: middle), edge, "\(appearance)")
     }
 
+    // MARK: Size chip
+
+    @Test func theSizeChipPaddingTokensMatchTheDesign() {
+        #expect(PickerSizeChip.horizontalPadding == 8)
+        #expect(PickerSizeChip.verticalPadding == 4)
+    }
+
+    /// Digits of different shapes take the same width, so the chip doesn't jitter while the region is dragged.
+    @Test func theSizeChipUsesMonospacedDigits() {
+        let narrow = NSHostingView(rootView: PickerSizeChip(text: "111 × 111 px")).fittingSize
+        let wide = NSHostingView(rootView: PickerSizeChip(text: "888 × 888 px")).fittingSize
+        #expect(narrow.width == wide.width, "\(narrow.width) vs \(wide.width)")
+    }
+
+    /// The chip is exactly the 12 pt monospaced-digit text plus 8 pt a side and 4 pt top and bottom.
+    @Test func theSizeChipFitsItsTextPlusThePadding() {
+        let text = "800 × 600 px"
+        let chip = NSHostingView(rootView: PickerSizeChip(text: text)).fittingSize
+        let bare = NSHostingView(rootView: Self.chipText(text, background: .clear)).fittingSize
+        #expect(chip.width == bare.width + 16, "\(chip.width) vs \(bare.width)")
+        #expect(chip.height == bare.height + 8, "\(chip.height) vs \(bare.height)")
+    }
+
+    /// Compares where the glyphs land with the same text drawn alone, so the font's side bearings and line spacing
+    /// cancel out. The surface is found from its opaque pixels, which leaves out the drawn shadow.
+    @Test(arguments: Appearance.allCases)
+    func theSizeChipInsetsItsTextOnEverySide(_ appearance: Appearance) throws {
+        let text = "800 × 600 px"
+        let fill = Self.palette(appearance).fill
+        let chip = try Self.render(Self.fitted(PickerSizeChip(text: text)), appearance)
+        let bare = try Self.render(Self.fitted(Self.chipText(text, background: fill.color)), appearance)
+
+        let (left, right) = Self.surfaceEdges(chip)
+        // Down a column inside the left padding, where no glyph can be.
+        let opaque = (0..<chip.pixelsHigh).filter { Self.pixel(chip, x: left + 8, y: $0)[3] == 255 }
+        let (top, bottom) = (try #require(opaque.first), try #require(opaque.last))
+        // Past the hairline, and past the 4 pt corners along the top and bottom.
+        let inked = try #require(Self.ink(chip, fill, x: (left + 8)...(right - 8), y: (top + 2)...(bottom - 2)))
+        let alone = try #require(
+            Self.ink(bare, fill, x: 0...(bare.pixelsWide - 1), y: 0...(bare.pixelsHigh - 1)))
+
+        let insets = [
+            ("left", inked.x.lowerBound - left - alone.x.lowerBound, 16),
+            ("right", right - inked.x.upperBound - (bare.pixelsWide - 1 - alone.x.upperBound), 16),
+            ("top", inked.y.lowerBound - top - alone.y.lowerBound, 8),
+            ("bottom", bottom - inked.y.upperBound - (bare.pixelsHigh - 1 - alone.y.upperBound), 8),
+        ]
+        // 1 pt of slack: the fitted window rounds the text's fractional width up.
+        for (side, actual, wanted) in insets {
+            #expect(abs(actual - wanted) <= 2, "\(appearance) \(side): \(actual) px, wanted \(wanted)")
+        }
+    }
+
     // MARK: One shadow
 
     @Test func theShadowTokensMatchTheAddendum() {
@@ -280,6 +333,32 @@ import Testing
     private static func surfaceEdges(_ rep: NSBitmapImageRep) -> (left: Int, right: Int) {
         let opaque = (0..<rep.pixelsWide).filter { pixel(rep, x: $0, y: rep.pixelsHigh / 2)[3] == 255 }
         return (opaque.first ?? 0, opaque.last ?? 0)
+    }
+
+    /// The chip's text as the design specifies it, with no padding or surface.
+    private static func chipText(_ text: String, background: Color) -> some View {
+        Text(text).font(.system(size: 12)).monospacedDigit()
+            .foregroundStyle(PanelSurface.primaryText)
+            .background(background)
+    }
+
+    /// The bounds of the opaque pixels clearly different from `fill`: the glyphs.
+    private static func ink(
+        _ rep: NSBitmapImageRep, _ fill: PanelTone, x xs: ClosedRange<Int>, y ys: ClosedRange<Int>
+    ) -> (x: ClosedRange<Int>, y: ClosedRange<Int>)? {
+        let base = bytes(fill)
+        var found: (minX: Int, maxX: Int, minY: Int, maxY: Int)?
+        for y in ys {
+            for x in xs {
+                let value = pixel(rep, x: x, y: y)
+                guard value[3] == 255, zip(value, base).map({ abs($0 - $1) }).reduce(0, +) > 240 else { continue }
+                found = (
+                    min(found?.minX ?? x, x), max(found?.maxX ?? x, x),
+                    min(found?.minY ?? y, y), max(found?.maxY ?? y, y)
+                )
+            }
+        }
+        return found.map { (x: $0.minX...$0.maxX, y: $0.minY...$0.maxY) }
     }
 
     private static func bytes(_ tone: PanelTone) -> [Int] {
