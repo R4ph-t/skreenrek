@@ -13,7 +13,6 @@ final class PanelStore {
     var clipImage: NSImage?
     var maxHeight: CGFloat
     var reduceMotion = false
-    var showsMaterial = true
     var heroFocusRequest = 0
 
     init(content: PanelContent, maxHeight: CGFloat) {
@@ -148,6 +147,7 @@ public final class MenuController: NSObject {
         refresh(opening: true)
         layoutPanel(anchor: true)
         panel.makeKeyAndOrderFront(nil)
+        panel.refreshShadow()
         statusItem.button?.highlight(true)
         positioned = true
         updateOutline()
@@ -278,6 +278,8 @@ public final class MenuController: NSObject {
                 context.duration = PanelMetrics.transitionSeconds
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 panel.animator().setFrame(frame, display: true)
+            } completionHandler: { [panel] in
+                MainActor.assumeIsolated { panel.refreshShadow() }
             }
         } else {
             hosting?.frame = NSRect(origin: .zero, size: size)
@@ -374,8 +376,11 @@ public final class MenuController: NSObject {
 }
 
 /// The panel under the status item. Key, so Tab and Return work, and non-activating, so the app being recorded
-/// stays frontmost.
-private final class MenuKeyPanel: NSPanel {
+/// stays frontmost. The window is clear only so the corners stay round: `MenuPanelView` draws the opaque surface. The
+/// system window shadow is the panel's one shadow, and the window server derives it from the drawn shape.
+class MenuKeyPanel: NSPanel {
+    private var shadowRefreshPending = false
+
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
@@ -393,6 +398,23 @@ private final class MenuKeyPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        let resized = frameRect.size != frame.size
+        super.setFrame(frameRect, display: flag)
+        if resized { refreshShadow() }
+    }
+
+    /// Recomputes the shadow now, and once more after SwiftUI has committed what it draws at the new size.
+    func refreshShadow() {
+        invalidateShadow()
+        guard !shadowRefreshPending else { return }
+        shadowRefreshPending = true
+        Task { @MainActor [weak self] in
+            self?.shadowRefreshPending = false
+            self?.invalidateShadow()
+        }
+    }
 }
 
 /// The panel view bound to the store, so the elapsed time can change without replacing the view.
@@ -405,7 +427,7 @@ private struct StoredMenuPanel: View {
     var body: some View {
         MenuPanelView(
             content: store.content, maxHeight: store.maxHeight, previewImage: store.previewImage,
-            clipImage: store.clipImage, reduceMotion: store.reduceMotion, showsMaterial: store.showsMaterial,
+            clipImage: store.clipImage, reduceMotion: store.reduceMotion,
             heroFocusRequest: store.heroFocusRequest, onAction: onAction, onClose: onClose)
     }
 }

@@ -243,12 +243,13 @@ public enum UIRenderer {
         return image
     }
 
-    /// The panel at its content height, 300 pt wide, opaque so the render has a background.
+    /// The panel at its content height, 300 pt wide: the live view, so the same surface and hairline. The system
+    /// window shadow belongs to the window server and falls outside these bounds, so it isn't in the PNG.
     static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?, clearHover: Bool = false) -> NSView {
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let root = MenuPanelView(
             content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview, clipImage: clip,
-            reduceMotion: true, showsMaterial: false, showsClearHover: clearHover, onAction: { _ in })
+            reduceMotion: true, showsClearHover: clearHover, onAction: { _ in })
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true)
         let hosting = NSHostingView(rootView: root)
