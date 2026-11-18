@@ -108,6 +108,7 @@ public final class AppModel {
             snapshot: snapshot, actionError: actionError, lastClipTitle: tracker.title,
             sizeChoice: settings.sizeChoice, display: snapshot.display ?? effects.mainDisplay(),
             cursor: settings.cursor, events: settings.events, showControlBar: settings.showControlBar,
+            recordingIndicator: settings.hud,
             permissionsMissing: permissions.map { !$0.canCapture || $0.accessibility != .allowed }
                 ?? false,
             updateAvailable: updateAvailable)

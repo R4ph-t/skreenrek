@@ -219,6 +219,46 @@ private enum Bar {
         #expect(Bar.model(Bar.input(activity: .saving)).display(at: 0) != nil)
     }
 
+    @Test(arguments: [ControlBarActivity.recording(seconds: 3), .saving])
+    func noRecordingChromeHidesItWhileCapturing(activity: ControlBarActivity) {
+        var input = Bar.input(activity: activity)
+        input.recordingChrome = false
+        let model = Bar.model(input)
+        #expect(model.display(at: 0) == nil)
+        #expect(!model.wantsTracking)
+    }
+
+    @Test(arguments: [ControlBarActivity.idle, .starting])
+    func noRecordingChromeLeavesThePickedWindowsBarAlone(activity: ControlBarActivity) {
+        var input = Bar.input(activity: activity)
+        input.recordingChrome = false
+        #expect(Bar.model(input).display(at: 0) != nil)
+    }
+
+    /// The HUD's rule: the setting and the recording's own option must both allow it.
+    @Test(arguments: [(true, true, true), (false, true, false), (true, false, false), (false, false, false)])
+    func theChromeFlagFollowsTheHUDsRule(setting: Bool, recordingHUD: Bool, expected: Bool) {
+        var snapshot = UIFixtures.recording(.mcp, client: "Claude Code")
+        snapshot.hud = recordingHUD
+        let context = MenuContext(snapshot: snapshot, recordingIndicator: setting)
+        let input = ControlBarInput(
+            context: context, windowClosed: false, outputWritable: true, resize: .none, recordStarting: false,
+            reduceMotion: false)
+        #expect(input.recordingChrome == expected)
+        #expect(input.target?.window.id == UIFixtures.safari.id)
+        #expect(input.activity == .recording(seconds: 12))
+    }
+
+    @Test func aRegionRecordingStillGetsNoBar() {
+        var snapshot = UIFixtures.recording(.mcp, client: "Claude Code")
+        snapshot.window = nil
+        snapshot.region = PixelRect(x: 0, y: 0, width: 640, height: 360)
+        let input = ControlBarInput(
+            context: MenuContext(snapshot: snapshot), windowClosed: false, outputWritable: true, resize: .none,
+            recordStarting: false, reduceMotion: false)
+        #expect(Bar.model(input).display(at: 0) == nil)
+    }
+
     @Test func itFollowsTheWindowAndChangesModeAtOnce() throws {
         var model = Bar.model()
         #expect(model.display(at: 0)?.placement == .below)
@@ -676,6 +716,21 @@ private final class FakeBarTracker: WindowFrameTracking {
         }
     }
 
+    @Test func theBarFadesOutWhenAnUnpickedRecordingEnds() async throws {
+        try await onMain("bar agent end") {
+            let (controller, surface, tracker) = Self.make()
+            var input = Bar.input(activity: .recording(seconds: 1))
+            controller.update(input)
+            #expect(controller.isVisible)
+            input.target = nil
+            input.activity = .idle
+            controller.update(input)
+            #expect(!controller.isVisible)
+            #expect(surface.log.last == "hide fade 0.15")
+            #expect(tracker.stops == 1)
+        }
+    }
+
     @Test func aPermissionChangeReachesTheBarOnATick() async throws {
         try await onMain("bar permissions") {
             let clock = ManualClock()
@@ -952,6 +1007,86 @@ private final class FakeBarTracker: WindowFrameTracking {
         }
     }
 
+    @Test func aRecordingFromTheBarKeepsTheWindowPicked() async throws {
+        try await onMain("bar record keeps window") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            await h.model.recordFromBar()
+            h.model.apply(await h.controller.snapshot())
+            #expect(h.model.snapshot.state == .recording)
+            await h.perform(.stop)
+            #expect(h.model.snapshot.state == .armed)
+            #expect(h.model.snapshot.window?.id == UIFixtures.safari.id)
+            #expect(h.model.snapshot.lastClip != nil)
+            #expect(Self.bar(h).display(at: 0)?.content.action.style == .record)
+        }
+    }
+
+    @MainActor
+    private static func input(_ h: MenuHarness) -> ControlBarInput {
+        ControlBarInput(
+            context: h.model.context, windowClosed: false, outputWritable: true, resize: .none,
+            recordStarting: false, reduceMotion: false)
+    }
+
+    @MainActor
+    private static func bar(_ h: MenuHarness) -> ControlBarModel { Bar.model(input(h)) }
+
+    private static func agentParams(hud: Bool? = nil) -> StartParams {
+        StartParams(windowId: UIFixtures.safari.id.rawValue, hud: hud)
+    }
+
+    @Test func anAgentsWindowRecordingShowsTheBarsRecordingStateThenHidesIt() async throws {
+        try await onMain("agent bar") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            #expect(h.model.snapshot.window == nil)
+            _ = try await h.controller.start(Self.agentParams(), startedBy: .mcp, client: "Claude Code")
+            h.model.apply(await h.controller.snapshot())
+            let content = try #require(Self.bar(h).display(at: 0)).content
+            guard case .timer = content.leading else {
+                Issue.record("Expected the timer, got \(content.leading)")
+                return
+            }
+            #expect(content.action.style == .stop)
+            _ = try await h.controller.stop()
+            h.model.apply(await h.controller.snapshot())
+            #expect(h.model.snapshot.window == nil)
+            #expect(Self.bar(h).display(at: 0) == nil)
+        }
+    }
+
+    @Test func noHUDHidesTheBarDuringAnAgentsRecording() async throws {
+        try await onMain("agent no hud") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            _ = try await h.controller.start(Self.agentParams(hud: false), startedBy: .cli)
+            h.model.apply(await h.controller.snapshot())
+            #expect(h.model.snapshot.state == .recording)
+            #expect(h.model.snapshot.window?.id == UIFixtures.safari.id)
+            #expect(Self.bar(h).display(at: 0) == nil)
+            _ = try await h.controller.stop()
+        }
+    }
+
+    @Test func theRecordingIndicatorSettingHidesTheBarUntilTheClipIsDone() async throws {
+        try await onMain("indicator off") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            h.model.settings.hud = false
+            await h.model.pushSettings()
+            await h.perform(.pickWindow)
+            #expect(Self.bar(h).display(at: 0) != nil)
+            await h.perform(.record)
+            #expect(h.model.snapshot.state == .recording)
+            #expect(Self.bar(h).display(at: 0) == nil)
+            await h.perform(.stop)
+            #expect(h.model.snapshot.window?.id == UIFixtures.safari.id)
+            #expect(Self.bar(h).display(at: 0)?.content.action.style == .record)
+        }
+    }
+
     @Test func aRecordingStartedElsewhereForgetsTheWindowAsBefore() async throws {
         try await onMain("agent recording") {
             let h = MenuHarness(frames: 31)
@@ -1117,6 +1252,23 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(!panel.isMovableByWindowBackground)
         #expect(panel.sharingType == .none)
         #expect(panel.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle])
+    }
+
+    /// `sharingType = .none` is what keeps the bar out. Listing it in `exceptingWindows` would put it back.
+    @Test func noCaptureFilterAddsWindowsBack() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var filters = 0
+        for case let file as URL in files where file.pathExtension == "swift" {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            for use in text.components(separatedBy: "exceptingWindows:").dropFirst() {
+                filters += 1
+                #expect(use.hasPrefix(" []"), "\(file.lastPathComponent)")
+            }
+        }
+        #expect(filters > 0)
     }
 
     @Test func theFirstClickActs() {

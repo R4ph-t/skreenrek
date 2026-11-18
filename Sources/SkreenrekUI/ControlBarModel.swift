@@ -191,12 +191,15 @@ public struct ControlBarInput: Sendable, Hashable {
     public var outputWritable: Bool
     public var resize: ControlBarResize
     public var reduceMotion: Bool
+    /// On-screen chrome is allowed during a recording: the HUD's rule (Settings and `--no-hud`).
+    public var recordingChrome: Bool
 
     public init(
         target: SelectionOutlineTarget?, enabled: Bool = true, menuBarApp: Bool = true, pickerOpen: Bool = false,
         windowClosed: Bool = false, activity: ControlBarActivity = .idle, sizeChoice: SizeChoice = .default,
         readback: Readback? = nil, clipSize: PixelSize? = nil, knownDisplay: DisplayInfo? = nil,
-        outputWritable: Bool = true, resize: ControlBarResize = .none, reduceMotion: Bool = false
+        outputWritable: Bool = true, resize: ControlBarResize = .none, reduceMotion: Bool = false,
+        recordingChrome: Bool = true
     ) {
         self.target = target
         self.enabled = enabled
@@ -211,8 +214,10 @@ public struct ControlBarInput: Sendable, Hashable {
         self.outputWritable = outputWritable
         self.resize = resize
         self.reduceMotion = reduceMotion
+        self.recordingChrome = recordingChrome
     }
 
+    /// While recording or saving, `snapshot.window` is the recorded window, picked first or not.
     public init(
         context: MenuContext, windowClosed: Bool, outputWritable: Bool, resize: ControlBarResize,
         recordStarting: Bool, reduceMotion: Bool
@@ -229,7 +234,7 @@ public struct ControlBarInput: Sendable, Hashable {
             pickerOpen: snapshot.picking, windowClosed: windowClosed, activity: activity,
             sizeChoice: context.sizeChoice, readback: snapshot.readback, clipSize: snapshot.size,
             knownDisplay: snapshot.display, outputWritable: outputWritable, resize: resize,
-            reduceMotion: reduceMotion)
+            reduceMotion: reduceMotion, recordingChrome: context.recordingIndicator && snapshot.hud)
     }
 }
 
@@ -355,6 +360,15 @@ public struct ControlBarModel: Sendable {
     /// Nothing about the app rules the bar out. The window itself may still be out of sight.
     private var eligible: Bool {
         input.enabled && input.menuBarApp && input.target != nil && !input.pickerOpen && !input.windowClosed
+            && !hiddenAsChrome
+    }
+
+    /// A recording that asked for no on-screen chrome gets no bar. Idle and starting aren't chrome.
+    private var hiddenAsChrome: Bool {
+        switch input.activity {
+        case .recording, .saving: !input.recordingChrome
+        case .idle, .starting: false
+        }
     }
 
     /// The tracker keeps running while the window is out of sight, so the bar comes back with it.
