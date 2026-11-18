@@ -109,7 +109,10 @@ public final class OnboardingModel {
     public var shouldShowAtLaunch: Bool { !completed || !canCapture }
 
     /// The steps this run walks through: the agents only until onboarding is completed once.
-    public var steps: [OnboardingStep] { completed ? OnboardingStep.permissions : OnboardingStep.allCases }
+    /// A partial connect completes onboarding but stays on the agents, so that step still counts.
+    public var steps: [OnboardingStep] {
+        completed && step != .agents ? OnboardingStep.permissions : OnboardingStep.allCases
+    }
     public var stepNumber: Int { (steps.firstIndex(of: step) ?? 0) + 1 }
 
     private var startingStep: OnboardingStep {
@@ -170,6 +173,29 @@ public final class OnboardingModel {
             && screenRecordingRequestedBefore
     }
 
+    /// Why this agent didn't connect on the last Connect.
+    public func connectError(for agent: AgentClient) -> String? {
+        results.first { $0.agent == agent && !$0.success }?.message
+    }
+
+    public func didConnect(_ agent: AgentClient) -> Bool {
+        results.contains { $0.agent == agent && $0.success }
+    }
+
+    /// Every agent tried on the last Connect failed, so nothing changed and onboarding isn't done.
+    public var allConnectsFailed: Bool { !results.isEmpty && !results.contains(where: \.success) }
+
+    /// What the last Connect came to, when any of it failed.
+    public var connectSummary: String? {
+        guard results.contains(where: { !$0.success }) else { return nil }
+        return allConnectsFailed ? UIStrings.Onboarding.nothingConnected : UIStrings.Onboarding.someConnected
+    }
+
+    /// "Done" once a partial connect finished onboarding, since there is nothing left to skip.
+    public var skipTitle: String {
+        step == .agents && completed ? UIStrings.Onboarding.done : UIStrings.Onboarding.skip
+    }
+
     // MARK: - Actions
 
     /// Reads the permissions again (polled while the window is open). Never prompts.
@@ -217,11 +243,14 @@ public final class OnboardingModel {
         enter()
     }
 
+    /// Tries every checked agent. All connected: done, and the window closes. Some connected: onboarding is done, but
+    /// the window stays so the failures can be read and retried. None connected: it stays and says so.
     public func connect() {
         let checked = agents.filter { $0.detected && selected.contains($0.agent) }.map(\.agent)
         // AgentInstaller's empty selection means "all detected". Never pass that for an unchecked form.
         results = checked.isEmpty ? [] : install(checked)
         if results.allSatisfy(\.success) { finish() }
+        else if results.contains(where: \.success) { markCompleted() }
     }
 
     public func skip() { finish() }
@@ -240,6 +269,10 @@ public final class OnboardingModel {
     }
 
     private func finish() {
-        completed = true; defaults.set(true, forKey: Self.completedKey); didComplete?()
+        markCompleted(); didComplete?()
+    }
+
+    private func markCompleted() {
+        completed = true; defaults.set(true, forKey: Self.completedKey)
     }
 }
