@@ -24,7 +24,7 @@ public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
     private var appended = 0
     private let makeBackend: BackendFactory
     private let timescale: CMTimeScale
-    private static let log = Logger(subsystem: "it.fraime.skreenrek", category: "recorder")
+    private static let log = Logger(subsystem: SkreenrekIdentity.bundleID, category: "recorder")
 
     /// Creates the file and starts the writer, so the first frame appends with no setup left.
     /// Throws `recording_failed` (`The output folder isn't writable.`) when the file can't be written.

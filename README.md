@@ -60,8 +60,8 @@ After each rebuild macOS no longer matches the old grants to the new ad-hoc sign
 Skreenrek and allow both again:
 
 ```sh
-tccutil reset ScreenCapture it.fraime.skreenrek
-tccutil reset Accessibility it.fraime.skreenrek
+tccutil reset ScreenCapture com.raphaelterrier.skreenrek
+tccutil reset Accessibility com.raphaelterrier.skreenrek
 ```
 
 ## Releasing

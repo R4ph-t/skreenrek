@@ -23,7 +23,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 products="$1"
 out="$2"
 
-bundle_id=it.fraime.skreenrek
+bundle_id=com.raphaelterrier.skreenrek
 plist_src="$root/packaging/Info.plist"
 # Committed; rebuild it from the brand kit with scripts/make-app-icon.sh.
 icon_src="$root/packaging/AppIcon.icns"

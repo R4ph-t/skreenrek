@@ -52,6 +52,8 @@ public final class OnboardingModel {
     /// macOS shows the Screen Recording prompt once per grant, so after one request the step offers System Settings
     /// and Quit & Reopen instead. Kept across relaunches.
     static let screenRecordingRequestedKey = "onboarding.screenRecordingRequested"
+    /// What macOS was asked or allowed for one bundle ID. These don't carry over to a new ID, which starts unasked.
+    static let permissionStateKeys: Set<String> = [screenRecordingRequestedKey, DirectCaptureApproval.key]
 
     public private(set) var step: OnboardingStep
     public private(set) var completed: Bool

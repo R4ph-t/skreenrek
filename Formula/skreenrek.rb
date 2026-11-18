@@ -30,8 +30,8 @@ class Skreenrek < Formula
       Skreenrek is ad-hoc signed, and each rebuild changes the signature, so
       macOS forgets the grants after an upgrade. Reset them, then reopen the
       app and allow both again:
-        tccutil reset ScreenCapture it.fraime.skreenrek
-        tccutil reset Accessibility it.fraime.skreenrek
+        tccutil reset ScreenCapture com.raphaelterrier.skreenrek
+        tccutil reset Accessibility com.raphaelterrier.skreenrek
     EOS
   end
 
