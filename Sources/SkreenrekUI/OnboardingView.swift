@@ -5,7 +5,8 @@ import SwiftUI
 public struct OnboardingView: View {
     @Bindable var model: OnboardingModel
     public init(model: OnboardingModel) { self.model = model }
-    /// One fixed size for every step: 24 pt margins, and the footer 24 pt below step 4's agent rows.
+    /// The size of every step: 24 pt margins, and the footer 24 pt below step 4's agent rows. Connect errors make the
+    /// window taller.
     public static let size = CGSize(width: 520, height: 400)
     static let footerGap: CGFloat = 24
     public var body: some View {
@@ -15,7 +16,14 @@ public struct OnboardingView: View {
                     .font(.system(size: 13, weight: .semibold))
                 Text(model.step == .agents ? UIStrings.Onboarding.agentsIntroduction : UIStrings.Onboarding.introduction)
                     .font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
-                if let permission = model.step.permission { permissionStep(permission) } else { agents }
+                if let permission = model.step.permission { permissionStep(permission) } else {
+                    agents
+                    if let summary = model.connectSummary {
+                        Text(summary).font(.system(size: 12))
+                            .foregroundStyle(model.allConnectsFailed ? AnyShapeStyle(Self.errorColor) : AnyShapeStyle(.secondary))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             // The footer sits 24 pt below step 4's content, the tallest step; the others keep the same window size.
             Spacer(minLength: Self.footerGap)
@@ -24,7 +32,7 @@ public struct OnboardingView: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
                 if model.step == .agents {
-                    Button(UIStrings.Onboarding.skip) { model.skip() }
+                    Button(model.skipTitle) { model.skip() }
                     Button(UIStrings.Onboarding.connect) { model.connect() }
                         .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                 } else {
@@ -100,6 +108,8 @@ public struct OnboardingView: View {
         }
     }
 
+    private static let errorColor = Color(nsColor: .systemRed)
+
     private var agents: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(model.agents) { row in
@@ -109,13 +119,14 @@ public struct OnboardingView: View {
                     })) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(row.agent.name).font(.system(size: 13))
-                            Text(row.detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                            Text(model.didConnect(row.agent) ? UIStrings.Onboarding.connected : row.detail)
+                                .font(.system(size: 12)).foregroundStyle(.secondary)
                         }
                     }.toggleStyle(.checkbox).disabled(!row.detected)
                         .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                    ForEach(Array(model.results.filter { $0.agent == row.agent && !$0.success }.enumerated()), id: \.offset) { _, result in
-                        Text(result.message).font(.system(size: 12)).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if let error = model.connectError(for: row.agent) {
+                        Text(error).font(.system(size: 12)).foregroundStyle(Self.errorColor)
+                            .fixedSize(horizontal: false, vertical: true).padding(.bottom, 8)
                     }
                 }
             }
@@ -133,17 +144,25 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         super.init()
         model.didComplete = { [weak self] in self?.window?.close() }
     }
+    /// The window follows the content's height, so connect errors never push the buttons out of it.
+    static func makeWindow(model: OnboardingModel) -> NSWindow {
+        let host = NSHostingController(rootView: OnboardingView(model: model))
+        host.sizingOptions = [.preferredContentSize]
+        let window = NSWindow(contentViewController: host)
+        window.title = UIStrings.Onboarding.title
+        window.styleMask = [.titled, .closable]
+        window.setContentSize(OnboardingView.size)
+        window.isReleasedWhenClosed = false
+        return window
+    }
+
     /// Opens on the first missing permission. A visible window only refreshes, so agent retries don't steal focus or
     /// ask macOS again.
     func show() {
         guard window?.isVisible != true else { model.refresh(); return }
         model.begin()
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView(model: model)))
-            window.title = UIStrings.Onboarding.title
-            window.styleMask = [.titled, .closable]
-            window.setContentSize(OnboardingView.size)
-            window.isReleasedWhenClosed = false
+            let window = Self.makeWindow(model: model)
             window.delegate = self
             window.center()
             self.window = window

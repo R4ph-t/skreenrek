@@ -539,14 +539,17 @@ struct StaticPermissions: PermissionProbe {
 
 extension OnboardingModel {
     /// A sample's model for renders and layout tests: nothing reaches the system.
-    static func preview(_ sample: CaptureRenderSamples.OnboardingSample, defaults: UserDefaults) -> OnboardingModel {
+    static func preview(
+        _ sample: CaptureRenderSamples.OnboardingSample, defaults: UserDefaults,
+        install: @escaping ([AgentClient]) -> [AgentSetupResult] = { _ in [] }
+    ) -> OnboardingModel {
         defaults.set(sample.completed, forKey: completedKey)
         let model = OnboardingModel(
             permissions: StaticPermissions(
                 screenRecording: sample.screen, directCapture: sample.direct, accessibility: sample.accessibility),
             requester: PreviewPermissionRequester(), defaults: defaults,
             agents: AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) },
-            install: { _ in [] })
+            install: install)
         for permission in sample.requested { model.request(permission) }
         model.preview(sample.step)
         return model
