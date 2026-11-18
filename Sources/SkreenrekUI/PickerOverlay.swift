@@ -3,46 +3,57 @@ import Carbon.HIToolbox
 import SkreenrekCore
 import SwiftUI
 
-/// Panels deliberately never take key or main status away from the recorded app.
-final class CapturePanel: NSPanel {
+/// Panels deliberately never take key or main status away from the recorded app. A panel the size of its content can
+/// carry the system shadow; a full-screen one can't, because its shape is the whole screen.
+class CapturePanel: NSPanel {
+    private var shadowRefreshPending = false
+
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    init(frame: CGRect, level: NSWindow.Level = .floating) {
+    init(frame: CGRect, level: NSWindow.Level = .floating, carriesShadow: Bool = false) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         self.level = level
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        hasShadow = carriesShadow
         hidesOnDeactivate = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
     }
-}
 
-struct HUDMaterial: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        let resized = frameRect.size != frame.size
+        super.setFrame(frameRect, display: flag)
+        if resized { refreshShadow() }
     }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+
+    /// Recomputes the shadow now, and once more after SwiftUI has committed what it draws.
+    func refreshShadow() {
+        guard hasShadow else { return }
+        invalidateShadow()
+        guard !shadowRefreshPending else { return }
+        shadowRefreshPending = true
+        Task { @MainActor [weak self] in
+            self?.shadowRefreshPending = false
+            self?.invalidateShadow()
+        }
+    }
 }
 
 struct PickerLabel: View {
     let title: String
     let detail: String
     var voiceOver: String = ""
+    var increaseContrast = false
     var pick: () -> Void = {}
     var body: some View {
         VStack(spacing: 4) {
             Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-            Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(detail).font(.system(size: 12)).foregroundStyle(PanelSurface.secondaryText)
         }
         .padding(.horizontal, 16).frame(width: 280, height: 56)
-        .background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 10))
+        .modifier(HUDSurface(shadow: .drawn, increaseContrast: increaseContrast))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(voiceOver.isEmpty ? title + ", " + detail : voiceOver)
         .accessibilityAction(named: UIStrings.Picker.pick, pick)
@@ -50,16 +61,28 @@ struct PickerLabel: View {
 }
 
 struct PickerHint: View {
+    var increaseContrast = false
     var cancel: () -> Void = {}
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: "viewfinder").font(.system(size: 16)).frame(width: 16)
             Text(UIStrings.Picker.hint).font(.system(size: 13))
-            Text(UIStrings.Picker.escape).font(.system(size: 12)).foregroundStyle(.secondary)
+            Text(UIStrings.Picker.escape).font(.system(size: 12)).foregroundStyle(PanelSurface.secondaryText)
             Button(UIStrings.Picker.cancel, action: cancel)
         }
         .padding(.horizontal, 16).frame(height: 44)
-        .background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 10))
+        .modifier(HUDSurface(shadow: .drawn, increaseContrast: increaseContrast))
+    }
+}
+
+/// The live pixel size beside the pointer while dragging a region.
+struct PickerSizeChip: View {
+    let text: String
+    var increaseContrast = false
+    var body: some View {
+        Text(text).font(.system(size: 12))
+            .padding(4)
+            .modifier(HUDSurface(shadow: .drawn, increaseContrast: increaseContrast, radius: PanelMetrics.radiusChip))
     }
 }
 
@@ -177,6 +200,10 @@ final class PickerCanvas: NSView {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { false }
 
+    private var usesIncreasedContrast: Bool {
+        increaseContrast ?? NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
         guard bounds.contains(local) else { return nil }
@@ -202,7 +229,9 @@ final class PickerCanvas: NSView {
         self.model = model
         label?.removeFromSuperview(); chip?.removeFromSuperview()
         if hint == nil {
-            let view = NSHostingView(rootView: PickerHint { [weak self] in self?.overlay?.finish(.cancelled) })
+            let view = NSHostingView(rootView: PickerHint(increaseContrast: usesIncreasedContrast) { [weak self] in
+                self?.overlay?.finish(.cancelled)
+            })
             let size = view.fittingSize
             view.frame = NSRect(x: (bounds.width - size.width) / 2, y: bounds.height - 44 - 16, width: size.width, height: 44)
             addSubview(view); hint = view
@@ -210,6 +239,7 @@ final class PickerCanvas: NSView {
         if let window = model.hovered, window.frame.cgRect.intersects(display.visibleFrame.cgRect) {
             let rect = local(window.frame).intersection(bounds)
             let view = NSHostingView(rootView: PickerLabel(title: model.title, detail: model.detail, voiceOver: model.voiceOver,
+                increaseContrast: usesIncreasedContrast,
                 pick: { [weak self] in self?.overlay?.finish(model.selection) }))
             view.frame = NSRect(x: max(0, min(bounds.width - 280, rect.midX - 140)),
                                 y: max(0, min(bounds.height - 56, rect.midY - 28)), width: 280, height: 56)
@@ -221,8 +251,8 @@ final class PickerCanvas: NSView {
             }
         }
         if let region = model.region, model.regionDisplay?.id == display.id {
-            let view = NSHostingView(rootView: Text(region.size.description).font(.system(size: 12))
-                .padding(4).background(HUDMaterial()).clipShape(RoundedRectangle(cornerRadius: 4)))
+            let view = NSHostingView(rootView: PickerSizeChip(
+                text: region.size.description, increaseContrast: usesIncreasedContrast))
             let size = view.fittingSize
             view.frame = NSRect(x: min(bounds.width - size.width, pointer.x - display.visibleFrame.x + 16),
                                 y: min(bounds.height - size.height, pointer.y - display.visibleFrame.y + 16),
@@ -239,8 +269,7 @@ final class PickerCanvas: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let model, let rect = model.regionFrame ?? model.hovered?.frame else { return }
         let region = model.region != nil
-        let contrast = increaseContrast ?? NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let width: CGFloat = contrast ? (region ? 2 : 3) : (region ? 1 : 2)
+        let width: CGFloat = usesIncreasedContrast ? (region ? 2 : 3) : (region ? 1 : 2)
         let path = NSBezierPath(roundedRect: local(rect).insetBy(dx: width / 2, dy: width / 2),
                                 xRadius: region ? 0 : 10, yRadius: region ? 0 : 10)
         if !region { NSColor.controlAccentColor.withAlphaComponent(0.18).setFill(); path.fill() }

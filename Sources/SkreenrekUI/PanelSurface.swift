@@ -28,6 +28,16 @@ struct PanelTone: Hashable, Sendable {
     }
 }
 
+/// A black drop shadow from the addendum. `blur` is the design value, and SwiftUI's radius is half of it.
+struct PanelShadow: Hashable, Sendable {
+    var opacity: Double
+    var blur: CGFloat
+    var y: CGFloat
+
+    var radius: CGFloat { blur / 2 }
+    var color: Color { PanelTone.black(opacity).color }
+}
+
 /// What the pointer is doing to a control. Pressed wins over hover.
 enum PanelInteraction: Hashable, Sendable {
     case rest
@@ -59,6 +69,9 @@ struct PanelPalette: Hashable, Sendable {
     /// Light cells only: a dark cell already stands out from the panel.
     var cellHairline: PanelTone? { isDark ? nil : .black(0.08) }
     var wellFill: PanelTone { .hex(isDark ? 0x2C2C2F : 0xE9E9EE) }
+    var dropShadow: PanelShadow {
+        isDark ? PanelShadow(opacity: 0.35, blur: 24, y: 8) : PanelShadow(opacity: 0.15, blur: 20, y: 6)
+    }
 
     func hairline(increaseContrast: Bool) -> PanelTone {
         let opacity = increaseContrast ? 0.25 : 0.10
@@ -87,6 +100,11 @@ enum PanelSurface {
     static let accent = Color(nsColor: .controlAccentColor)
     static let stop = Color(nsColor: .systemRed)
 
+    /// The label on a hero button: white on its solid fill, tertiary when disabled.
+    static func heroForeground(enabled: Bool) -> Color {
+        enabled ? .white : tertiaryText
+    }
+
     /// How much black goes over a solid hero button.
     static func heroDarkening(_ interaction: PanelInteraction) -> Double {
         switch interaction {
@@ -99,5 +117,47 @@ enum PanelSurface {
     /// One device pixel, in points.
     static func pixel(displayScale: CGFloat) -> CGFloat {
         1 / max(displayScale, 1)
+    }
+}
+
+/// Who draws a floating surface's one shadow.
+enum HUDShadowSource {
+    /// The surface fills its own window, and the window server shadows it.
+    case window
+    /// The surface sits inside a larger window, so SwiftUI draws the shadow.
+    case drawn
+}
+
+/// The panel's solid surface on the picker and recording HUDs: fill, clipped content, inside hairline, one shadow.
+struct HUDSurface: ViewModifier {
+    var shadow: HUDShadowSource
+    var increaseContrast: Bool
+    var radius = PanelMetrics.radiusPanel
+
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
+
+    func body(content: Content) -> some View {
+        let palette = PanelPalette(scheme)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .foregroundStyle(PanelSurface.primaryText)
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(
+                    palette.hairline(increaseContrast: increaseContrast).color,
+                    lineWidth: PanelSurface.pixel(displayScale: displayScale)
+                )
+                .allowsHitTesting(false)
+            }
+            .background {
+                switch shadow {
+                case .window:
+                    shape.fill(palette.fill.color)
+                case .drawn:
+                    let drop = palette.dropShadow
+                    shape.fill(palette.fill.color).shadow(color: drop.color, radius: drop.radius, y: drop.y)
+                }
+            }
     }
 }

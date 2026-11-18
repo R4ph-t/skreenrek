@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings is now a standard window with General, Agents, and Permissions tabs.
 - Everything in the menu lines up on one left and one right edge, and the button labels are centered.
 - The menu-bar panel now has a solid background instead of see-through glass.
+- The window picker's labels and the recording indicator are solid too, matching the menu.
 
 ### Fixed
 
