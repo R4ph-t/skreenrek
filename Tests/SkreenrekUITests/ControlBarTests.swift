@@ -817,6 +817,52 @@ private final class FakeBarTracker: WindowFrameTracking {
         }
     }
 
+    @Test func recordFromTheBarWithoutAccessibilityRecordsTheWindowAsItIs() async throws {
+        try await onMain("bar record without accessibility") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            h.permissions.accessibility = .missing
+            await h.perform(.pickWindow)
+            h.model.settings.sizeChoice = .size(Bar.p720)
+            await h.model.recordFromBar()
+            h.model.apply(await h.controller.snapshot())
+            #expect(h.model.snapshot.state == .recording)
+            #expect(h.model.snapshot.size == UIFixtures.size)
+            #expect(h.resizer.calls.isEmpty)
+            #expect(h.model.actionError == nil)
+            #expect(h.model.snapshot.error == nil)
+            await h.perform(.stop)
+        }
+    }
+
+    @Test func recordFromTheBarWithAccessibilityStillResizesFirst() async throws {
+        try await onMain("bar record with accessibility") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            h.model.settings.sizeChoice = .size(Bar.p720)
+            await h.model.recordFromBar()
+            h.model.apply(await h.controller.snapshot())
+            #expect(h.model.snapshot.state == .recording)
+            #expect(h.model.snapshot.size == Bar.p720)
+            #expect(h.resizer.calls.count == 1)
+            await h.perform(.stop)
+        }
+    }
+
+    @Test func thePanelsRecordStillNeedsAccessibilityForAPreset() async throws {
+        try await onMain("panel record without accessibility") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            h.permissions.accessibility = .missing
+            await h.perform(.pickWindow)
+            h.model.settings.sizeChoice = .size(Bar.p720)
+            await h.perform(.record)
+            #expect(h.model.snapshot.state != .recording)
+            #expect(h.model.actionError == .permissionDenied(.accessibility))
+        }
+    }
+
     @Test func aRecordingFromTheMenuKeepsTheWindowPicked() async throws {
         try await onMain("bar keeps window") {
             let h = MenuHarness(frames: 31)

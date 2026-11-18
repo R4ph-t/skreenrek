@@ -296,11 +296,20 @@ public final class AppModel {
         onChange?()
     }
 
+    /// Record on the control bar. Without Accessibility the window can't be resized, so it records as it is, which is
+    /// the size the bar's readout shows.
+    public func recordFromBar() async {
+        await clearErrors()
+        await record(resizing: (permissions?.accessibility ?? .allowed) == .allowed)
+    }
+
     /// Records the picked window, resizing it first to the chosen size unless it already has that read-back. With the
     /// control bar on, the window stays picked afterwards, so the bar goes back to Record.
-    private func record() async {
+    private func record(resizing: Bool = true) async {
         var params = StartParams()
-        if snapshot.window != nil, let size = settings.sizeChoice.pixelSize, snapshot.readback?.requested != size {
+        if resizing, snapshot.window != nil, let size = settings.sizeChoice.pixelSize,
+            snapshot.readback?.requested != size
+        {
             params.width = size.width
             params.height = size.height
         }

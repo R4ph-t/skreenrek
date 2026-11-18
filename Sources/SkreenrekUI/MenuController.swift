@@ -129,12 +129,16 @@ public final class MenuController: NSObject {
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion))
     }
 
-    /// Record and Stop go the panel's way. A preset goes through the bar's own resize, which reports back to it.
+    /// Stop goes the panel's way. Record and a preset have their own paths on the model.
     private func actOnControlBar(_ action: MenuAction) {
-        if case .chooseSize(.size(let size)) = action {
+        switch action {
+        case .chooseSize(.size(let size)):
             let frame = controlBar.windowFrame
             Task { await model.chooseBarSize(size, currentFrame: frame) }
-        } else {
+        case .record:
+            closePanel()
+            Task { await model.recordFromBar() }
+        default:
             act(action)
         }
     }
