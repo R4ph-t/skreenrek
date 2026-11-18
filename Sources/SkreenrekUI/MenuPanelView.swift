@@ -324,9 +324,7 @@ struct MenuPanelView: View {
 
     private func popup(_ submenu: SubmenuModel, value: String, width: CGFloat) -> some View {
         Menu {
-            ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
-                menuEntry(entry)
-            }
+            PanelPopupEntries(entries: submenu.entries, onAction: onAction)
         } label: {
             HStack(spacing: 0) {
                 Text(submenu.title)
@@ -357,34 +355,6 @@ struct MenuPanelView: View {
         .menuIndicator(.hidden)
         .frame(width: width, height: PanelMetrics.cellHeight)
         .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
-    }
-
-    @ViewBuilder
-    private func menuEntry(_ entry: MenuEntry) -> some View {
-        switch entry {
-        case .separator:
-            Divider()
-        case .item(let item):
-            Button {
-                if let action = item.action { onAction(action) }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark")
-                        .opacity(item.checked ? 1 : 0)
-                        .accessibilityHidden(true)
-                    Text(item.title)
-                    if let trailing = item.trailing {
-                        Spacer(minLength: 12)
-                        Text(trailing)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .disabled(!item.enabled)
-            .modifier(PanelHelp(text: item.toolTip))
-        default:
-            EmptyView()
-        }
     }
 
     @ViewBuilder
@@ -755,6 +725,49 @@ private struct MenuPanelMaterial: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
+/// The rows of a Size or Frame Rate popup, which SwiftUI turns into native menu items. A toggle gives the item its
+/// check mark. An image in the label would become the item's image and show even at zero opacity, and an `HStack`
+/// label keeps only its first text, so the trailing value goes in the title.
+struct PanelPopupEntries: View {
+    var entries: [MenuEntry]
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+            switch entry {
+            case .separator:
+                Divider()
+            case .item(let item):
+                row(item)
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    /// On when the model checks the row. Choosing the row sends its action and leaves the check to the model, so a
+    /// cancelled Custom… panel changes nothing.
+    static func selection(_ item: MenuItemModel, onAction: @escaping (MenuAction) -> Void) -> Binding<Bool> {
+        Binding(
+            get: { item.checked },
+            set: { _ in
+                if let action = item.action { onAction(action) }
+            })
+    }
+
+    private func row(_ item: MenuItemModel) -> some View {
+        Toggle(isOn: Self.selection(item, onAction: onAction)) {
+            if let trailing = item.trailing {
+                Text("\(Text(item.title))  \(Text(trailing).foregroundStyle(.secondary))")
+            } else {
+                Text(item.title)
+            }
+        }
+        .disabled(!item.enabled)
+        .modifier(PanelHelp(text: item.toolTip))
+    }
 }
 
 private struct PanelHelp: ViewModifier {

@@ -112,8 +112,18 @@ public final class SystemEffects: UIEffects {
     }
 }
 
-/// A borderless panel that still takes the keyboard (for the Custom Size fields).
-private final class KeyPanel: NSPanel {
+/// A borderless panel that still takes the keyboard (for the Custom Size fields). The app is an accessory, so another
+/// app can become active as the menu closes. The panel has to stay up, and above that app's windows, when that happens.
+final class KeyPanel: NSPanel {
+    override init(
+        contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        hidesOnDeactivate = false
+        level = .floating
+    }
+
     override var canBecomeKey: Bool { true }
 }
 
