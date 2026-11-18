@@ -59,7 +59,7 @@ import Testing
 
     @Test func parsesTheReleaseBody() throws {
         let body = Data(
-            #"{"tag_name":"v1.2.0","html_url":"https://github.com/R4ph-t/skreenrek/releases/tag/v1.2.0","body":"### Fixed\n\n- The pill"}"#
+            ####"{"tag_name":"v1.2.0","html_url":"https://github.com/R4ph-t/skreenrek/releases/tag/v1.2.0","body":"### Fixed\n\n- The pill"}"####
                 .utf8)
         let release = try GitHubReleases.parse(body)
         #expect(release.version == (try v("1.2.0")))

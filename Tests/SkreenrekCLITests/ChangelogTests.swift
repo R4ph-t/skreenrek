@@ -62,7 +62,7 @@ import Testing
         let file = try Self.writeFixture()
         defer { try? FileManager.default.removeItem(at: file) }
         let three = try await Self.notes("1.0.3", file: file)
-        #expect(three.status == 0, three.stderr)
+        #expect(three.status == 0, "\(three.stderr)")
         #expect(three.stdout.hasPrefix("## [1.0.3] - 2026-11-17\n"))
         #expect(three.stdout.contains("- three"))
         #expect(!three.stdout.contains("- ten"))
@@ -70,7 +70,7 @@ import Testing
         #expect(!three.stdout.contains("not yet"))
         // `1.0.1` must not take the `1.0.10` section.
         let ten = try await Self.notes("1.0.10", file: file)
-        #expect(ten.status == 0, ten.stderr)
+        #expect(ten.status == 0, "\(ten.stderr)")
         #expect(ten.stdout.contains("- ten"))
         #expect(!ten.stdout.contains("- one"))
         #expect(!ten.stdout.contains("- three"))
@@ -81,7 +81,7 @@ import Testing
         let file = try Self.writeFixture()
         defer { try? FileManager.default.removeItem(at: file) }
         let one = try await Self.notes("1.0.1", file: file)
-        #expect(one.status == 0, one.stderr)
+        #expect(one.status == 0, "\(one.stderr)")
         #expect(one.stdout.hasPrefix("## [1.0.1] - 2026-11-17\n"))
         #expect(one.stdout.contains("- one"))
         #expect(one.stdout.contains("- end of changelog"))
@@ -108,7 +108,7 @@ import Testing
     /// The version the app reports has its own section, and that section stops before the next heading.
     @Test func changelogHasASectionForTheCurrentVersion() async throws {
         let current = try await Self.notes(SkreenrekVersion.current)
-        #expect(current.status == 0, current.stderr)
+        #expect(current.status == 0, "\(current.stderr)")
         #expect(current.stdout.hasPrefix("## [\(SkreenrekVersion.current)]"))
         #expect(!current.stdout.contains("## [Unreleased]"))
         let body = current.stdout.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n")
@@ -118,19 +118,19 @@ import Testing
     /// The backfilled releases stay in their own sections: each one has its own lines and not the neighbours'.
     @Test func backfilledReleasesStayInTheirOwnSections() async throws {
         let newest = try await Self.notes("1.0.3")
-        #expect(newest.status == 0, newest.stderr)
+        #expect(newest.status == 0, "\(newest.stderr)")
         #expect(newest.stdout.contains("Show in Finder"))
         #expect(newest.stdout.contains("Quit & Reopen"))
         #expect(!newest.stdout.contains("What's new"))
         #expect(!newest.stdout.contains("Developer ID"))
         #expect(!newest.stdout.contains("new mark"))
         let middle = try await Self.notes("1.0.2")
-        #expect(middle.status == 0, middle.stderr)
+        #expect(middle.status == 0, "\(middle.stderr)")
         #expect(middle.stdout.contains("new mark"))
         #expect(middle.stdout.contains("deprecated"))
         #expect(!middle.stdout.contains("Show in Finder"))
         let first = try await Self.notes("1.0.1")
-        #expect(first.status == 0, first.stderr)
+        #expect(first.status == 0, "\(first.stderr)")
         #expect(first.stdout.contains("Developer ID"))
         #expect(first.stdout.contains("Permissions needed"))
         #expect(!first.stdout.contains("new mark"))
