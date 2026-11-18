@@ -30,6 +30,7 @@ import Vision
             }
             expected += [
                 "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
+                "picker-chip-\(appearance)@2x.png",
                 "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
@@ -48,7 +49,8 @@ import Vision
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
             for state in [
-                "idle", "picked", "clear-hover", "recording", "nowindow", "loading", "loading-slow",
+                "idle", "picked", "clear-hover", "clear-pressed", "lastclip-hover", "lastclip-pressed", "recording",
+                "nowindow", "loading", "loading-slow",
                 "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
             ] {
                 expected.append("panel-\(state)-\(appearance)@2x.png")
@@ -91,12 +93,15 @@ import Vision
             // The heights Designer measured, at 2×.
             for (state, height) in [
                 ("nowindow", 646), ("window-closed", 646), ("picked", 1183), ("clear-hover", 1183),
+                ("clear-pressed", 1183), ("lastclip-hover", 1183), ("lastclip-pressed", 1183),
                 ("recording", 915), ("idle", 1239),
             ] {
                 #expect(sizes["panel-\(state)-\(appearance)@2x.png"]?.1 == height, "\(state)")
             }
             #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
             #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
+            // Measured from the fitted render: the text plus 8 pt a side and 4 pt top and bottom.
+            #expect(sizes["picker-chip-\(appearance)@2x.png"] ?? (0, 0) == (186, 46))
             for state in CaptureRenderSamples.hudStates {
                 #expect(sizes["hud-\(state.name)-\(appearance)@2x.png"]?.1 == 72)
             }
@@ -138,7 +143,8 @@ import Vision
             let data = try Data(contentsOf: folder.appendingPathComponent(name))
             let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
             let size = try Self.recognizedText(in: try #require(rep.cgImage?.cropping(to: sizeCell), "\(name)"))
-            #expect(size.contains("1080p"), "\(name) drew: \(size)")
+            // Only the digits: on the white light cell, Vision reads the p as a Cyrillic letter.
+            #expect(size.contains("1080"), "\(name) drew: \(size)")
             let frameRate = try Self.recognizedText(
                 in: try #require(rep.cgImage?.cropping(to: frameRateCell), "\(name)"))
             #expect(frameRate.contains("Frame Rate"), "\(name) drew: \(frameRate)")
@@ -184,6 +190,34 @@ import Vision
         let window = try #require(outline.colorAt(x: 100, y: 400)?.usingColorSpace(.deviceRGB))
         #expect(stroke.blueComponent - stroke.redComponent > 0.5, "\(stroke)")
         #expect(window.redComponent > 0.9, "\(window)")
+    }
+
+    /// Reads the drawn pixels: the surface is the addendum's solid colour right up to its hairline, and the corners
+    /// outside the 10 pt radius stay empty, so no SwiftUI shadow or grey halo is drawn on top of the window's shadow.
+    @Test func panelsDrawAnOpaqueSurfaceWithCleanCorners() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-surface-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try await Self.run(["debug", "render-ui", "--out", folder.path]) == 0)
+
+        for (appearance, red, blue) in [("light", 0xF6, 0xF8), ("dark", 0x1E, 0x20)] {
+            for state in ["idle", "picked", "recording", "nowindow"] {
+                let name = "panel-\(state)-\(appearance)@2x.png"
+                let data = try Data(contentsOf: folder.appendingPathComponent(name))
+                let rep = try #require(NSBitmapImageRep(data: data), "\(name)")
+                let (right, bottom) = (rep.pixelsWide - 1, rep.pixelsHigh - 1)
+                for (x, y) in [(0, 0), (right, 0), (0, bottom), (right, bottom)] {
+                    #expect(rep.colorAt(x: x, y: y)?.alphaComponent == 0, "\(name) corner \(x), \(y)")
+                }
+                // In the left margin, clear of every control.
+                // Raw bytes: the PNG is tagged sRGB, and `colorAt` would convert them again.
+                var surface = [Int](repeating: 0, count: 4)
+                rep.getPixel(&surface, atX: 12, y: rep.pixelsHigh / 2)
+                #expect(surface == [red, red, blue, 255], "\(name)")
+                // The hairline sits on the fill, so the edge is opaque too.
+                #expect(rep.colorAt(x: 0, y: rep.pixelsHigh / 2)?.alphaComponent == 1, "\(name) edge")
+            }
+        }
     }
 
     private static func recognizedText(in image: CGImage) throws -> String {

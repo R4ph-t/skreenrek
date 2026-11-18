@@ -64,7 +64,11 @@ Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel 
 
 Anything taller than the screen scrolls.
 
-Material is `.menu`. Corner radius 10, plus the system hairline and shadow. Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
+The panel is fully opaque, with no material, vibrancy or glass ([addendum of 18 Nov 2026](design/1.0.5/addendum-solid-panel-2026-11-18.md), which supersedes the `.menu` material in the 1.0.5 spec). Fill is #1E1E20 dark and #F6F6F8 light. Corner radius is 10, continuous, with the content clipped to it. A 1 px inside hairline is white 10% dark and black 10% light, 25% with Increase Contrast. The one shadow is the system window shadow. Separators are 1 px, white 10% dark and black 8% light.
+
+Size and Frame Rate cells are #2C2C2F dark and #FFFFFF light (light adds a 1 px black 8% hairline). The preview well is #2C2C2F dark and #E9E9EE light. Pick Window… and Record are solid `controlAccentColor`, and Stop Recording is solid `systemRed`, all with a white label, darkening 6% on hover and 12% when pressed. Row hover is white 8% dark and black 5% light, and pressed is white 12% dark and black 9% light. These surfaces all use radius 6. Secondary text is `secondaryLabelColor`.
+
+Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
 
 Everything shares one content edge, x 16–284: the preview, caption, cells, hero, separators, row icons and trailing content. Panel padding is 16 at the top and sides and 8 at the bottom. The row highlight is inset 8 from the panel edge (x 8–292, radius 6). A row's icon sits in a 16 pt column at x 16, and every row title starts at x 40. Switches, shortcuts and the glyphs of the Last Clip and Clear buttons end at x 284. Those buttons' 24 pt hit areas overhang the edge by 4.
 
@@ -144,16 +148,16 @@ Red appears only while recording. The icon shape carries each empty state (the v
 Borrowed from the macOS screenshot tool's window mode and CleanShot X. It is a borderless, non-activating overlay on every display, with no dimming.
 
 - The hovered window gets an accent tint at 18% opacity plus a 2 pt inside stroke in the accent colour, following the window's corner radius.
-- A centred label (HUD material, radius 10, 280 pt wide, 56 pt tall, 16 pt side padding): line 1 is `App — Window title` (13 pt semibold), line 2 is `1280 × 800 px · Click to pick` (12 pt secondary). Pixel size uses that window's display scale.
+- A centred label (the solid panel surface, radius 10, 280 pt wide, 56 pt tall, 16 pt side padding): line 1 is `App — Window title` (13 pt semibold), line 2 is `1280 × 800 px · Click to pick` (12 pt secondary). Pixel size uses that window's display scale.
 - A hint bar, bottom-centre, 44 pt tall: `viewfinder` · "Click a window, or drag to pick a region." · "Esc to cancel" (12 pt secondary) · \[Cancel\].
-- Dragging switches to region mode: crosshair cursor, a 1 pt accent rectangle, and a live size chip in px near the cursor (12 pt, radius 4). Regions snap to even pixel sizes.
+- Dragging switches to region mode: crosshair cursor, a 1 pt accent rectangle, and a live size chip in px near the cursor (12 pt, radius 4, the solid panel surface). Regions snap to even pixel sizes.
 - Keyboard: Tab or the arrow keys move between windows front to back, Return picks, Esc cancels. VoiceOver announces "Safari, [localhost:3000](http://localhost:3000), 1280 by 800 pixels. Press Return to pick."
 - Picking closes the overlay and arms that window. It does not start recording; "Record Window" does that. Rationale: one action per click, and picking never records by surprise.
 - The overlay never shows our own windows, the menu bar or the Dock as candidates.
 
 ### 4. Recording indicator with stop control
 
-A floating HUD in the Kap / CleanShot style, 36 pt tall, radius 10, HUD material, centred 16 pt below the recorded window. If there's no room, it goes 16 pt inside the bottom of that window's screen. It is excluded from capture through the SCContentFilter, so it never appears in the clip. For region recordings, a 1 pt system-red outline also marks the region, excluded from the clip in the same way.
+A floating HUD in the Kap / CleanShot style, 36 pt tall, radius 10, the solid panel surface with the system window shadow, centred 16 pt below the recorded window. If there's no room, it goes 16 pt inside the bottom of that window's screen. It is excluded from capture through the SCContentFilter, so it never appears in the clip. For region recordings, a 1 pt system-red outline also marks the region, excluded from the clip in the same way.
 
 | State | Content | Behaviour |
 | --- | --- | --- |
@@ -367,7 +371,7 @@ Decision: `src` always points at `assets/<clip-id>.mp4`, the HyperFrames convent
 
 - Every status symbol has a VoiceOver label carrying the full sentence (table above), and the tooltip uses the same text.
 - The HUD and picker label are single accessibility elements with named actions (Stop, Pick). The picker is fully keyboard-operable (Tab or arrows, Return, Esc).
-- Reduce Motion: no fades on the HUD (it appears and disappears instantly), and the spinner becomes a static `arrow.down.circle`. Increase Contrast: strokes go to 2 pt (picker 3 pt), and HUD borders become opaque.
+- Reduce Motion: no fades on the HUD (it appears and disappears instantly), and the spinner becomes a static `arrow.down.circle`. Increase Contrast: strokes go to 2 pt (picker 3 pt), and the HUD and panel hairlines go to 25%.
 - Contrast: all text meets 4.5:1 on its material in both appearances. Secondary text uses system secondaryLabel.
 - Dynamic system text size isn't applied in menus (macOS doesn't), but the onboarding and Settings windows grow with the content and never clip.
 - Global shortcut ⌃⌘⎋ has no digits and works on AZERTY. No other global shortcuts are added.
