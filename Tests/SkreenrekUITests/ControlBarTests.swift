@@ -370,13 +370,46 @@ private enum Bar {
         #expect(content.action.style == .recordBlocked(.outputFolder))
     }
 
-    @Test func withoutAccessibilitySizeIsDisabledAndTheReadoutIsTheWindow() throws {
-        let content = try content(Bar.model(permissions: ControlBarPermissions(accessibility: .missing)))
+    private static let noAccessibility = ControlBarPermissions(accessibility: .missing)
+    private static let accessibilityOff =
+        "Skreenrek can't resize windows without Accessibility. Recording at the current size."
+
+    @Test func withoutAccessibilitySizeIsDisabledAndTheReadoutWarnsAtTheWindowsSize() throws {
+        let content = try content(Bar.model(permissions: Self.noAccessibility))
         let size = try #require(Bar.size(content))
         #expect(!size.enabled)
-        #expect(size.help == "Allow Skreenrek in Accessibility settings to set exact sizes.")
-        #expect(content.readout?.text == "1600 × 1000 px")
+        #expect(size.help == Self.accessibilityOff)
+        let readout = try #require(content.readout)
+        #expect(readout.text == "1600 × 1000")
+        #expect(readout.warning)
+        #expect(!readout.dimmed)
+        #expect(readout.help == Self.accessibilityOff)
+        #expect(readout.accessibilityLabel == "1600 by 1000 pixels")
         #expect(content.action.style == .record)
+        #expect(content.action.action == .record)
+    }
+
+    /// The preset is never applied here, and Size is disabled, so it must not be able to block Record.
+    @Test func withoutAccessibilityAPresetThatDoesNotFitLeavesRecordAvailable() throws {
+        let input = Bar.input(choice: .size(SizePreset.uhd4k.size))
+        let content = try content(Bar.model(input, permissions: Self.noAccessibility))
+        #expect(content.action.style == .record)
+        #expect(content.readout?.text == "1600 × 1000")
+    }
+
+    @Test func theAccessibilityWarningEndsWhenRecordingStarts() throws {
+        let input = Bar.input(activity: .recording(seconds: 3))
+        let readout = try #require(try content(Bar.model(input, permissions: Self.noAccessibility)).readout)
+        #expect(!readout.warning)
+        #expect(readout.text == "1920 × 1080 px")
+    }
+
+    @Test func theCompactBarSaysItOnceInTheTooltip() throws {
+        let input = Bar.input(frame: Self.narrow, choice: .keepCurrent)
+        let content = try content(Bar.model(input, permissions: Self.noAccessibility))
+        let size = try #require(Bar.size(content))
+        #expect(size.help == Self.accessibilityOff)
+        #expect(size.accessibilityLabel == "Size, Custom, 520 by 800 pixels")
     }
 
     @Test func recordingShowsTheTimerThePixelsAndStop() throws {
@@ -961,6 +994,7 @@ private final class FakeBarTracker: WindowFrameTracking {
             "Show Control Bar", "Show control bar", "Record this window.",
             "Clip size. Skreenrek resizes the window to fit.",
             "The output folder isn't writable. Choose another folder in Settings.",
+            "Skreenrek can't resize windows without Accessibility. Recording at the current size.",
         ] {
             #expect(UIStrings.allFixed.contains(text), "\(text)")
         }

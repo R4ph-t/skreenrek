@@ -182,6 +182,7 @@ private struct ControlBarSizeButton: View {
         .disabled(!control.enabled)
         .frame(width: ControlBarMetrics.sizeSlotWidth, height: ControlBarMetrics.controlHeight)
         .accessibilityLabel(control.accessibilityLabel)
+        .modifier(PanelHint(text: control.enabled ? nil : control.help))
         .modifier(PanelHelp(text: control.enabled ? control.help : nil))
         .modifier(ControlBarDisabledHelp(text: control.enabled ? nil : control.help))
     }

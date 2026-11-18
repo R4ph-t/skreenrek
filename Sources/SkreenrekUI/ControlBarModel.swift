@@ -386,13 +386,16 @@ public struct ControlBarModel: Sendable {
         return until
     }
 
-    /// The first reason Record can't run, in the spec's order.
+    /// The first reason Record can't run, in the spec's order. Without Accessibility the preset isn't applied, so it
+    /// can't stand in the way: the window records at its current size.
     public static func block(
         permissions: ControlBarPermissions, sizeChoice: SizeChoice, display: DisplayInfo, outputWritable: Bool
     ) -> ControlBarBlock? {
         if permissions.screenRecording != .allowed { return .screenRecording }
         if permissions.directCapture != .allowed { return .directCapture }
-        if let size = sizeChoice.pixelSize, case .failure(let failure) = WindowFit.plan(clip: size, on: display) {
+        if permissions.accessibility == .allowed, let size = sizeChoice.pixelSize,
+            case .failure(let failure) = WindowFit.plan(clip: size, on: display)
+        {
             return .presetDoesNotFit(tooltip: failure.tooltip)
         }
         return outputWritable ? nil : .outputFolder
@@ -455,6 +458,9 @@ public struct ControlBarModel: Sendable {
                 accessibilityLabel: UIStrings.Menu.savingClip)
         }
         let idle = input.activity == .idle || input.activity == .starting
+        if idle, permissions.accessibility != .allowed {
+            return warning(clipSize(window: window, display: display), reason: UIStrings.ControlBar.accessibilityOff)
+        }
         if idle, let refusal = activeRefusal(at: now) {
             return warning(refusal.size, reason: refusal.reason)
         }
@@ -497,11 +503,11 @@ public struct ControlBarModel: Sendable {
     ) -> ControlBarSizeControl {
         let value = PanelModel.sizeName(input.sizeChoice)
         let enabled = permissions.accessibility == .allowed
-        var help = enabled ? UIStrings.ControlBar.sizeHelp : UIStrings.Errors.cantResizeDetail
+        var help = enabled ? UIStrings.ControlBar.sizeHelp : UIStrings.ControlBar.accessibilityOff
         var label = UIStrings.Panel.popupLabel(title: UIStrings.Menu.size, value: value)
         if compact {
-            // No readout here, so the pop-up carries the size.
-            if let detail = readout.help { help += " " + detail }
+            // No readout here, so the pop-up carries the size. Disabled, its tooltip already says the same thing.
+            if enabled, let detail = readout.help { help += " " + detail }
             label += ", " + readout.accessibilityLabel
         }
         return ControlBarSizeControl(

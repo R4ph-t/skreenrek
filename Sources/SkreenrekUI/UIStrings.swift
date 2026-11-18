@@ -197,6 +197,8 @@ public enum UIStrings {
         public static let recordHelp = "Record this window."
         public static let outputFolderNotWritable =
             "The output folder isn't writable. Choose another folder in Settings."
+        public static let accessibilityOff =
+            "Skreenrek can't resize windows without Accessibility. Recording at the current size."
         public static var directCaptureBlocked: String {
             "\(Errors.directCaptureOff). \(Errors.directCaptureDetail)"
         }
@@ -512,6 +514,6 @@ public enum UIStrings {
         Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
         Updates.menuAvailable, Updates.whatsNew,
         Menu.showControlBar, Settings.showControlBar, ControlBar.sizeHelp, ControlBar.recordHelp,
-        ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked,
+        ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked, ControlBar.accessibilityOff,
     ]
 }
