@@ -854,6 +854,39 @@ private final class FakeBarTracker: WindowFrameTracking {
 // MARK: - App state
 
 @Suite struct ControlBarAppModelTests {
+    /// Pick → armed and idle → the bar is on with Record, through the same input MenuController builds.
+    @Test func pickingAWindowShowsTheBarIdleWithRecordEnabled() async throws {
+        try await onMain("bar on pick") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            let surface = FakeBarSurface()
+            let tracker = FakeBarTracker()
+            let controller = ControlBarController(
+                surface: surface, tracker: tracker, clock: ManualClock(), permissions: h.permissions,
+                displays: { [MenuHarness.display] })
+            #expect(!controller.isVisible)
+
+            await h.perform(.pickWindow)
+            #expect(h.model.snapshot.state == .armed)
+            #expect(h.model.context.isArmed)
+            #expect(!h.model.snapshot.picking)
+            #expect(h.model.snapshot.window?.id == UIFixtures.safari.id)
+            #expect(!h.model.recordStarting)
+
+            let context = h.model.context
+            #expect(context.snapshot.window != nil && context.isArmed)
+            controller.update(
+                ControlBarInput(
+                    context: context, windowClosed: false, outputWritable: true, resize: .none,
+                    recordStarting: h.model.recordStarting, reduceMotion: true))
+
+            #expect(controller.isVisible)
+            #expect(tracker.started == [UIFixtures.safari.id])
+            #expect(surface.last?.content.action.style == .record)
+            #expect(surface.last?.content.action.action == .record)
+        }
+    }
+
     @Test func theSwitchDefaultsOnAndIsSharedByThePanelAndSettings() async throws {
         try await onMain("control bar switch") {
             let (defaults, name) = SettingsStoreTests.suite()
@@ -1239,6 +1272,7 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(gapPoints >= 5 && gapPoints <= 8, "gap \(gapPoints) pt")
     }
 
+    /// `.transient` is omitted: it would hide the bar when focus returns to the picked window.
     @Test func thePanelNeverTakesFocusAndStaysOutOfCapture() {
         let panel = ControlBarPanel()
         #expect(panel.styleMask.contains(.borderless))
@@ -1251,7 +1285,8 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(!panel.isMovable)
         #expect(!panel.isMovableByWindowBackground)
         #expect(panel.sharingType == .none)
-        #expect(panel.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle])
+        #expect(!panel.collectionBehavior.contains(.transient))
+        #expect(panel.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle])
     }
 
     /// `sharingType = .none` is what keeps the bar out. Listing it in `exceptingWindows` would put it back.
