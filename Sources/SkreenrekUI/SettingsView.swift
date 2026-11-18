@@ -373,9 +373,9 @@ private struct WhatsNewNotes: View {
     private var notesText: Text {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
         if let attributed = try? AttributedString(markdown: markdown, options: options) {
-            Text(attributed)
+            return Text(attributed)
         } else {
-            Text(markdown)
+            return Text(markdown)
         }
     }
 }
