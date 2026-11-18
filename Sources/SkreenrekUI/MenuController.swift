@@ -14,6 +14,7 @@ final class PanelStore {
     var maxHeight: CGFloat
     var reduceMotion = false
     var showsMaterial = true
+    var heroFocusRequest = 0
 
     init(content: PanelContent, maxHeight: CGFloat) {
         self.content = content
@@ -31,6 +32,7 @@ public final class MenuController: NSObject {
     private let previews: WindowPreviewModel
     private let store: PanelStore
     private let panel: MenuKeyPanel
+    private let outline: SelectionOutlineController
     private var hosting: NSHostingView<StoredMenuPanel>?
     private var accessibilityKey: String?
     private var iconKey: String?
@@ -39,6 +41,10 @@ public final class MenuController: NSObject {
     private var globalMonitor: Any?
     private var closedAt: TimeInterval = 0
     private var positioned = false
+    /// Clear was clicked. Focus and the announcement wait for the panel to reach its compact layout.
+    private var clearPending = false
+    /// The frame the panel is on, or animating to.
+    private var targetFrame: NSRect?
 
     public init(model: AppModel, previews: any WindowPreviewSource, permissions: any PermissionProbe) {
         self.model = model
@@ -48,6 +54,9 @@ public final class MenuController: NSObject {
         let content = PanelModel.content(for: model.context, preview: .noWindow)
         store = PanelStore(content: content, maxHeight: PanelMetrics.availableHeight())
         panel = MenuKeyPanel(contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.width, height: contentHeight(content)))
+        outline = SelectionOutlineController(
+            surface: SelectionOutlineWindow(), tracker: LiveWindowFrameTracker(permissions: permissions),
+            clock: HostTimeClock())
         super.init()
         hotKey.onPress = { [weak model] in
             guard let model else { return }
@@ -69,8 +78,23 @@ public final class MenuController: NSObject {
         let context = model.context
         renderIcon(model.icon, state: context.displayState)
         if panel.isVisible { refresh(opening: false) }
+        updateOutline()
         updateTimer()
         updateHotKey()
+    }
+
+    /// The on-screen outline follows the same state as the panel. A closed window counts only for the window the
+    /// last still was taken of, so a stale result can't hide the outline of a newer pick.
+    private func updateOutline() {
+        let snapshot = model.snapshot
+        var closed = false
+        if case .windowClosed = previews.phase, previews.requestedWindow == snapshot.window?.id { closed = true }
+        let workspace = NSWorkspace.shared
+        outline.update(
+            SelectionOutlineInput(
+                snapshot: snapshot, panelOpen: panel.isVisible, windowClosed: closed,
+                reduceMotion: workspace.accessibilityDisplayShouldReduceMotion,
+                increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast))
     }
 
     /// The V1 menu-bar glyph for the state: a template image (mono), or while recording the bichrome glyph with the
@@ -126,6 +150,7 @@ public final class MenuController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         statusItem.button?.highlight(true)
         positioned = true
+        updateOutline()
     }
 
     private func closePanel() {
@@ -134,7 +159,10 @@ public final class MenuController: NSObject {
         statusItem.button?.highlight(false)
         closedAt = ProcessInfo.processInfo.systemUptime
         positioned = false
+        targetFrame = nil
+        clearPending = false
         previews.cancel()
+        updateOutline()
         Task { await model.menuDidClose() }
     }
 
@@ -160,26 +188,41 @@ public final class MenuController: NSObject {
         }
         store.reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         store.maxHeight = screenBudget()
-        applyContent(context)
-        if positioned { layoutPanel(anchor: false) }
+        applyContent(context, opening: opening)
     }
 
     private func applyPreview() {
-        applyContent(model.context)
-        if panel.isVisible { layoutPanel(anchor: false) }
+        applyContent(model.context, opening: false)
+        updateOutline()
     }
 
-    private func applyContent(_ context: MenuContext) {
+    /// Opening never animates. While the panel is open, a change of height animates its top-anchored frame and the
+    /// content together.
+    private func applyContent(_ context: MenuContext, opening: Bool) {
         let exists = context.snapshot.lastClip.map { FileManager.default.fileExists(atPath: $0.files.clip) } ?? true
         let closed = previews.lastTitle
             ?? context.snapshot.lastClip?.readback.map {
                 UIStrings.Menu.windowTitle(app: $0.window.app, title: $0.window.title)
             }
-        store.content = PanelModel.content(
+        let content = PanelModel.content(
             for: context, preview: previews.phase, showSpinner: previews.showSpinner, clipFileExists: exists,
             closedTitle: closed)
+        let animated = PanelMetrics.animatesChange(
+            from: store.content, to: content, panelOpen: !opening && panel.isVisible,
+            reduceMotion: store.reduceMotion)
+        if animated {
+            withAnimation(.easeInOut(duration: PanelMetrics.transitionSeconds)) { store.content = content }
+        } else {
+            store.content = content
+        }
         store.previewImage = previews.phase.still.flatMap { NSImage(data: $0.png) }
         refreshClipImage()
+        if clearPending, content.isCompact {
+            clearPending = false
+            store.heroFocusRequest += 1
+            VoiceOverAnnouncement.post(UIStrings.Menu.noWindowPicked)
+        }
+        if positioned { layoutPanel(anchor: false, animated: animated) }
     }
 
     private func refreshClipImage() {
@@ -192,6 +235,7 @@ public final class MenuController: NSObject {
 
     private func act(_ action: MenuAction) {
         if !PanelModel.keepsPanelOpen(action) { closePanel() }
+        if action == .clearWindow { clearPending = true }
         Task { await model.perform(action) }
     }
 
@@ -202,11 +246,11 @@ public final class MenuController: NSObject {
     }
 
     /// Puts the panel under the status item, or keeps its top edge there when the content gets shorter.
-    private func layoutPanel(anchor: Bool) {
+    private func layoutPanel(anchor: Bool, animated: Bool = false) {
         let height = min(PanelMetrics.contentHeight(store.content), store.maxHeight)
         let size = NSSize(width: PanelMetrics.width, height: height)
-        hosting?.frame = NSRect(origin: .zero, size: size)
         guard let button = statusItem.button, let window = button.window else {
+            hosting?.frame = NSRect(origin: .zero, size: size)
             panel.setContentSize(size)
             return
         }
@@ -216,8 +260,9 @@ public final class MenuController: NSObject {
             frame.origin.x = buttonRect.midX - size.width / 2
             frame.origin.y = buttonRect.minY - size.height - 4
         } else {
-            frame.origin.x = panel.frame.origin.x
-            frame.origin.y = panel.frame.maxY - size.height
+            let current = targetFrame ?? panel.frame
+            frame.origin.x = current.origin.x
+            frame.origin.y = current.maxY - size.height
         }
         if let screen = window.screen ?? NSScreen.main {
             let visible = screen.visibleFrame
@@ -225,7 +270,19 @@ public final class MenuController: NSObject {
             if frame.minY < visible.minY { frame.origin.y = visible.minY + 4 }
             if frame.maxY > visible.maxY { frame.origin.y = visible.maxY - size.height - 4 }
         }
-        panel.setFrame(frame, display: true)
+        // A timer tick lands here too. Leave the frame alone so it can't cut a running animation short.
+        guard frame != targetFrame else { return }
+        targetFrame = frame
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = PanelMetrics.transitionSeconds
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            hosting?.frame = NSRect(origin: .zero, size: size)
+            panel.setFrame(frame, display: true)
+        }
     }
 
     private func installMonitors() {
@@ -266,7 +323,11 @@ public final class MenuController: NSObject {
             let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
             if rect.contains(point) { return }
         }
-        if NSApp.windows.contains(where: { $0 !== panel && $0.isVisible && $0.frame.contains(point) }) { return }
+        // The outline overlay covers the picked window but takes no clicks, so a click there is still outside.
+        let ownWindowClicked = NSApp.windows.contains {
+            $0 !== panel && $0.isVisible && !$0.ignoresMouseEvents && $0.frame.contains(point)
+        }
+        if ownWindowClicked { return }
         closePanel()
     }
 
@@ -345,7 +406,7 @@ private struct StoredMenuPanel: View {
         MenuPanelView(
             content: store.content, maxHeight: store.maxHeight, previewImage: store.previewImage,
             clipImage: store.clipImage, reduceMotion: store.reduceMotion, showsMaterial: store.showsMaterial,
-            onAction: onAction, onClose: onClose)
+            heroFocusRequest: store.heroFocusRequest, onAction: onAction, onClose: onClose)
     }
 }
 

@@ -393,16 +393,3 @@ struct KitMarkTile: View {
             .accessibilityHidden(true)
     }
 }
-
-/// The Settings hero icon: `icon-dark`.
-struct KitAppIcon: View {
-    var size: CGFloat
-
-    var body: some View {
-        Image(nsImage: BrandIcon.appIcon(size: size))
-            .resizable()
-            .interpolation(.high)
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
-    }
-}

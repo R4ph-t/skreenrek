@@ -63,6 +63,7 @@ final class RecordingEffects: UIEffects {
     var openedClips: [URL] = []
     var copied: [String] = []
     var settingsOpened = 0
+    var updatesShown = 0
     var discardAnswer = false
     var discardAsked = 0
     var folderAnswer: URL?
@@ -77,6 +78,7 @@ final class RecordingEffects: UIEffects {
     func openClip(at url: URL) { openedClips.append(url) }
     func copy(_ text: String) { copied.append(text) }
     func openSettings() { settingsOpened += 1 }
+    func showUpdates() { updatesShown += 1 }
     func confirmDiscard() async -> Bool {
         discardAsked += 1
         return discardAnswer

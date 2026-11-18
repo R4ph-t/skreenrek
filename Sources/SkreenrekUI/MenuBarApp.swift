@@ -4,13 +4,76 @@ import SkreenrekCore
 import SwiftUI
 import os
 
-/// The Settings window: one pane hosting `SettingsView`.
+/// The three toolbar tabs. The window title follows the selected tab, and the window fits that tab's content. This is
+/// what a SwiftUI `Settings` scene builds, which isn't available to an app with an AppKit delegate and no `App`.
+final class SettingsTabsController: NSTabViewController {
+    private let store: SettingsStore
+
+    init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions) {
+        self.store = store
+        super.init(nibName: nil, bundle: nil)
+        tabStyle = .toolbar
+        transitionOptions = []
+        for tab in SettingsTab.allCases {
+            let hosting = NSHostingController(
+                rootView: SettingsView(tab: tab, store: store, panel: panel, actions: actions))
+            hosting.sizingOptions = [.preferredContentSize]
+            hosting.title = tab.title
+            let item = NSTabViewItem(viewController: hosting)
+            item.label = tab.title
+            item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: nil)
+            addTabViewItem(item)
+        }
+        selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: store.settingsTab) ?? 0
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    func select(_ tab: SettingsTab) {
+        selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: tab) ?? 0
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: tabViewItem)
+        store.settingsTab = SettingsTab.allCases[selectedTabViewItemIndex]
+        fitWindow()
+    }
+
+    override func preferredContentSizeDidChange(for viewController: NSViewController) {
+        super.preferredContentSizeDidChange(for: viewController)
+        if viewController === tabViewItems[selectedTabViewItemIndex].viewController { fitWindow() }
+    }
+
+    /// Resizes to the selected tab, keeping the title bar where it is.
+    func fitWindow(animated: Bool = true) {
+        guard let window = view.window,
+            let content = tabViewItems[selectedTabViewItemIndex].viewController?.preferredContentSize,
+            content.height > 0
+        else { return }
+        // Measured against the area under the toolbar, which `frameRect(forContentRect:)` doesn't know about. A window
+        // that isn't on screen yet only reports that area correctly after its first resize, so it gets a second pass.
+        let animate = animated && window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        for _ in 0..<(window.isVisible ? 1 : 2) {
+            var frame = window.frame
+            frame.size.width = content.width
+            frame.size.height += content.height - window.contentLayoutRect.height
+            frame.origin.y = window.frame.maxY - frame.height
+            window.setFrame(frame, display: true, animate: animate)
+            window.layoutIfNeeded()
+            window.contentView?.layoutSubtreeIfNeeded()
+        }
+    }
+}
+
+/// The Settings window.
 @MainActor
 final class SettingsWindowController {
     private let store: SettingsStore
     private let panel: SettingsPanelState
     private let actions: SettingsActions
     private var window: NSWindow?
+    private var tabs: SettingsTabsController?
     private var observer: (any NSObjectProtocol)?
 
     init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions) {
@@ -25,21 +88,31 @@ final class SettingsWindowController {
         }
     }
 
-    func show() {
+    /// Opens on `tab`, or on the tab used last.
+    func show(tab: SettingsTab? = nil) {
         panel.refresh()
+        let opening = window == nil
         if window == nil {
-            let hosting = NSHostingController(
-                rootView: SettingsView(
-                    store: store, panel: panel, actions: actions, version: SkreenrekVersion.current))
-            let window = NSWindow(contentViewController: hosting)
-            window.title = UIStrings.Settings.windowTitle
+            let tabs = SettingsTabsController(store: store, panel: panel, actions: actions)
+            let window = NSWindow(contentViewController: tabs)
             window.styleMask = [.titled, .closable]
+            window.toolbarStyle = .preference
             window.isReleasedWhenClosed = false
-            window.center()
+            self.tabs = tabs
             self.window = window
+            if let tab { tabs.select(tab) }
+            tabs.fitWindow()
+            window.center()
+        } else if let tab {
+            tabs?.select(tab)
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+        // The toolbar's height is only final on screen. This lands before the window first draws.
+        if opening {
+            tabs?.fitWindow(animated: false)
+            window?.center()
+        }
     }
 }
 
@@ -105,6 +178,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                     Task { await model.pushSettings() }
                 }))
         effects.showSettings = { [weak settingsWindow] in settingsWindow?.show() }
+        effects.showSettingsUpdates = { [weak settingsWindow] in settingsWindow?.show(tab: .general) }
         effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
         self.settingsWindow = settingsWindow

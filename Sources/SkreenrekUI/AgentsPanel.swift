@@ -22,43 +22,39 @@ public final class AgentsPanelState {
         results = installer.run(agents: [agent], remove: remove)
         refresh()
     }
-}
 
-/// The Agents section: one row per agent with a `terminal.fill` tile, its status and Connect or Remove.
-struct AgentsSection: View {
-    @Bindable var panel: AgentsPanelState
-
-    var body: some View {
-        Section {
-            ForEach(panel.connections) { connection in
-                SettingsRow(symbol: "terminal.fill") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(connection.agent.name).font(.system(size: 13))
-                                Text(connection.status).font(.system(size: 12)).foregroundStyle(.secondary)
-                            }
-                            Spacer(minLength: 8)
-                            Button(connection.connected ? UIStrings.Agents.remove : UIStrings.Agents.connect) {
-                                panel.change(connection.agent, remove: connection.connected)
-                            }
-                        }
-                        .disabled(!connection.detected && !connection.connected)
-                        if let result = panel.results.first(where: { $0.agent == connection.agent }) {
-                            if !result.success { detail(result.message) }
-                            ForEach(result.warnings, id: \.self) { detail($0) }
-                        }
-                    }
-                }
-                .accessibilityElement(children: .contain)
-            }
-        } header: {
-            SettingsSectionHeader(title: UIStrings.Agents.title)
+    public var rows: [AgentRowModel] {
+        connections.map { connection in
+            AgentRowModel(connection, result: results.first { $0.agent == connection.agent })
         }
     }
+}
 
-    private func detail(_ text: String) -> some View {
-        Text(text).font(.system(size: 12)).foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+/// One row of the Agents tab. A setup failure or warning takes over the status line, so the row stays one height.
+public struct AgentRowModel: Sendable, Hashable, Identifiable {
+    public var agent: AgentClient
+    public var title: String
+    public var status: String
+    /// The full status text, when it may not fit on the line.
+    public var statusHelp: String?
+    public var buttonTitle: String
+    public var removes: Bool
+    public var enabled: Bool
+    /// Why the button is disabled.
+    public var buttonHelp: String?
+
+    public var id: AgentClient { agent }
+
+    public init(_ connection: AgentConnection, result: AgentSetupResult?) {
+        agent = connection.agent
+        title = connection.agent.name
+        removes = connection.connected
+        buttonTitle = connection.connected ? UIStrings.Agents.remove : UIStrings.Agents.connect
+        enabled = connection.detected || connection.connected
+        buttonHelp = enabled ? nil : UIStrings.Agents.installFirst(connection.agent.name)
+        var notes = result?.warnings ?? []
+        if let result, !result.success { notes.insert(result.message, at: 0) }
+        status = notes.first ?? connection.status
+        statusHelp = notes.isEmpty ? nil : notes.joined(separator: "\n")
     }
 }

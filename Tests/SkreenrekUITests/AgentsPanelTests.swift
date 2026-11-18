@@ -1,9 +1,44 @@
 import Foundation
-import SkreenrekCore
+@testable import SkreenrekCore
 import SkreenrekUI
 import Testing
 
 @Suite struct AgentsPanelTests {
+    private static func connection(
+        _ agent: AgentClient, detected: Bool = true, connected: Bool = false
+    ) -> AgentConnection {
+        AgentConnection(agent: agent, detected: detected, connected: connected, broken: false)
+    }
+
+    @Test func aConnectedAgentOffersRemove() {
+        let row = AgentRowModel(Self.connection(.codex, connected: true), result: nil)
+        #expect(row.title == "Codex")
+        #expect(row.status == "Connected")
+        #expect(row.buttonTitle == "Remove")
+        #expect(row.removes)
+        #expect(row.enabled)
+        #expect(row.buttonHelp == nil)
+    }
+
+    @Test func anAgentThatIsNotInstalledSaysToInstallItFirst() {
+        let row = AgentRowModel(Self.connection(.cursor, detected: false), result: nil)
+        #expect(row.status == "Not installed")
+        #expect(row.buttonTitle == "Connect")
+        #expect(!row.enabled)
+        #expect(row.buttonHelp == "Install Cursor first.")
+    }
+
+    @Test func aSetupProblemTakesOverTheStatusLine() {
+        let failed = AgentSetupResult(agent: .codex, success: false, message: "Couldn't write.", warnings: ["Later."])
+        let row = AgentRowModel(Self.connection(.codex), result: failed)
+        #expect(row.status == "Couldn't write.")
+        #expect(row.statusHelp == "Couldn't write.\nLater.")
+        let warned = AgentSetupResult(agent: .codex, success: true, message: "Done.", warnings: ["Restart it."])
+        #expect(AgentRowModel(Self.connection(.codex), result: warned).status == "Restart it.")
+        let clean = AgentSetupResult(agent: .codex, success: true, message: "Done.", warnings: [])
+        #expect(AgentRowModel(Self.connection(.codex), result: clean).status == "Found ~/.codex")
+    }
+
     @Test func statusesAndButtonsUseTheSharedInstaller() async throws {
         try await onMain("agent Settings rows") {
             let home = FileManager.default.temporaryDirectory.appendingPathComponent("skreenrek-agents-ui-\(UUID().uuidString)")

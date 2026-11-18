@@ -11,22 +11,27 @@ import Testing
 
     // MARK: - Heights
 
-    @Test func idleWithAWindowIsWithinTheCap() {
+    @Test func aPickedWindowHasEveryHeightTheSpecMeasured() {
+        #expect(PanelMetrics.contentHeight(Self.armed(clip: false, update: false)) == 530.5)
+        #expect(PanelMetrics.contentHeight(Self.armed(update: false)) == 591.5)
         let content = Self.armed()
+        #expect(PanelMetrics.contentHeight(content) == 619.5)
         #expect(PanelMetrics.contentHeight(content) == PanelMetrics.idleHeight)
         #expect(PanelMetrics.contentHeight(content) <= PanelMetrics.idleBudget)
+        #expect(!content.isCompact)
         #expect(content.showsCells)
         #expect(content.showsPicker)
         #expect(content.showsToggles)
         #expect(content.showsLastClip)
-        #expect(content.hero?.buttons.count == 1)
-        #expect(content.hero?.buttons.first?.enabled == true)
-        #expect(content.hero?.buttons.first?.tint == .accent)
-        #expect(!content.preview.framed)
+        #expect(content.hero?.action == .record)
+        #expect(content.hero?.enabled == true)
+        #expect(content.hero?.tint == .accent)
     }
 
-    @Test func recordingIsWithinItsCapAndHidesThePicker() throws {
+    @Test func recordingHasBothHeightsAndHidesThePicker() throws {
+        #expect(PanelMetrics.contentHeight(try Self.recording(update: false)) == 457.5)
         let content = try Self.recording()
+        #expect(PanelMetrics.contentHeight(content) == 485.5)
         #expect(PanelMetrics.contentHeight(content) == PanelMetrics.recordingHeight)
         #expect(PanelMetrics.contentHeight(content) <= PanelMetrics.recordingBudget)
         #expect(!content.showsCells)
@@ -35,41 +40,68 @@ import Testing
         #expect(!content.showsLastClip)
         #expect(content.discard != nil)
         #expect(content.origin != nil)
-        #expect(content.hero?.buttons.first?.role == .stop)
-        #expect(content.hero?.buttons.first?.tint == .red)
-        #expect(content.preview.framed)
+        #expect(content.hero?.role == .stop)
+        #expect(content.hero?.tint == .red)
     }
 
-    @Test func noWindowIsTheCompactHeightAndRecordIsDisabled() {
-        let content = Self.noWindow()
+    @Test(arguments: [(false, false, 323.0), (true, false, 384.0), (false, true, 351.0), (true, true, 412.0)])
+    func theCompactPanelHasEveryHeightTheSpecMeasured(clip: Bool, update: Bool, height: CGFloat) {
+        #expect(PanelMetrics.contentHeight(Self.noWindow(clip: clip, update: update)) == height)
+        #expect(PanelMetrics.contentHeight(Self.windowClosed(clip: clip, update: update)) == height)
+    }
+
+    @Test func noWindowHasAHeaderAndPickButNoPreviewOrRecord() {
+        let content = Self.noWindow(clip: false, update: false)
         #expect(PanelMetrics.contentHeight(content) == PanelMetrics.compactHeight)
+        #expect(content.isCompact)
+        #expect(content.preview == nil)
+        #expect(content.caption == nil)
+        #expect(content.clear == nil)
+        #expect(!PanelMetrics.blocks(for: content).contains(.preview))
+        #expect(content.header?.icon == .noWindow)
+        #expect(content.header?.title == "No window")
+        #expect(content.header?.detail == "Pick a window to record")
+        #expect(content.header?.accessibilityLabel == "No window picked. Pick a window to record.")
+        #expect(content.hero?.title == "Pick Window…")
+        #expect(content.hero?.symbol == "viewfinder")
+        #expect(content.hero?.tint == .accent)
+        #expect(content.hero?.isDefault == true)
         #expect(!content.showsPicker)
         #expect(content.showsCells)
         #expect(content.showsToggles)
-        #expect(content.showsLastClip)
-        let buttons = content.hero?.buttons ?? []
-        #expect(buttons.count == 2)
-        #expect(buttons.first?.title == UIStrings.Menu.pickWindow)
-        #expect(buttons.first?.enabled == true)
-        #expect(buttons.last?.action == .record)
-        #expect(buttons.last?.enabled == false)
-        #expect(buttons.last?.help == UIStrings.Panel.pickAWindowFirst)
-        #expect(content.hero?.trailingWidth == PanelMetrics.recordWidth)
     }
 
-    @Test func windowClosedIsTheCompactHeight() {
-        let content = Self.windowClosed()
-        #expect(PanelMetrics.contentHeight(content) == PanelMetrics.compactHeight)
+    @Test func aClosedWindowUsesTheCompactLayout() {
+        let content = Self.windowClosed(clip: false, update: false)
+        #expect(content.isCompact)
+        #expect(content.preview == nil)
+        #expect(content.clear == nil)
+        #expect(content.header?.icon == .windowClosed)
+        #expect(content.header?.title == UIStrings.Panel.windowClosed)
+        #expect(content.header?.detail == "Safari — localhost:3000")
+        #expect(content.hero?.title == UIStrings.Menu.pickWindow)
         #expect(!content.showsPicker)
-        #expect(content.caption.title == "Safari — localhost:3000")
-        #expect(content.caption.detail == UIStrings.Panel.windowClosed)
-        #expect(content.hero?.buttons.count == 1)
-        #expect(content.hero?.buttons.first?.title == UIStrings.Menu.pickAnotherWindow)
-        #expect(content.hero?.buttons.contains { $0.action == .record } == false)
         #expect(content.rows.contains { if case .showInFinder = $0.action { true } else { false } } == false)
     }
 
-    @Test func loadingCaptureFailedAndPermissionKeepTheIdleHeight() {
+    @Test func aRecordingThatLostItsWindowReadsAsWindowClosed() {
+        var context = RenderSamples.idle.context
+        context.snapshot.error = .recordingFailed(.windowClosed(at: 31))
+        let content = PanelModel.content(for: context, preview: .noWindow, closedTitle: "Safari — localhost:3000")
+        #expect(content.header?.icon == .windowClosed)
+        #expect(content.rows.isEmpty)
+    }
+
+    @Test func aMissingPermissionWithNoWindowStaysCompactAndOffersTheRow() {
+        var context = RenderSamples.idle.context
+        context.permissionsMissing = true
+        let content = PanelModel.content(for: context, preview: .permissionMissing(.screenRecording))
+        #expect(content.isCompact)
+        #expect(content.hero?.action == .pickWindow)
+        #expect(content.rows.map(\.action) == [.showPermissions])
+    }
+
+    @Test func loadingCaptureFailedAndPermissionKeepTheIdleHeight() throws {
         let loading = Self.armed(phase: .loading)
         let slow = Self.armed(phase: .loading, spinner: true)
         let failed = Self.armed(phase: .failed)
@@ -78,16 +110,16 @@ import Testing
         #expect(PanelMetrics.contentHeight(slow) == PanelMetrics.idleHeight)
         #expect(PanelMetrics.contentHeight(failed) == PanelMetrics.idleHeight)
         #expect(PanelMetrics.contentHeight(missing) == PanelMetrics.idleHeight)
-        #expect(!loading.preview.showsSpinner)
-        #expect(slow.preview.showsSpinner)
-        #expect(failed.hero?.buttons.first?.enabled == true)
-        #expect(failed.preview.message == UIStrings.Panel.previewUnavailable)
-        #expect(failed.preview.messageHelp == UIStrings.Panel.previewFailedHelp)
-        #expect(missing.hero?.buttons.first?.enabled == false)
-        #expect(missing.preview.message == UIStrings.Errors.screenRecordingOff)
-        #expect(missing.preview.messageHelp == UIStrings.Errors.screenRecordingDetail)
-        #expect(missing.preview.settings?.action == .openPrivacySettings(.screenRecording))
-        #expect(missing.preview.settings?.title == UIStrings.Panel.openSettings)
+        #expect(loading.preview?.showsSpinner == false)
+        #expect(slow.preview?.showsSpinner == true)
+        #expect(failed.hero?.enabled == true)
+        #expect(failed.preview?.message == UIStrings.Panel.previewUnavailable)
+        #expect(failed.preview?.messageHelp == UIStrings.Panel.previewFailedHelp)
+        #expect(missing.hero?.enabled == false)
+        #expect(missing.preview?.message == UIStrings.Errors.screenRecordingOff)
+        #expect(missing.preview?.messageHelp == UIStrings.Errors.screenRecordingDetail)
+        #expect(missing.preview?.settings?.action == .openPrivacySettings(.screenRecording))
+        #expect(missing.preview?.settings?.title == UIStrings.Panel.openSettings)
         #expect(!missing.rows.contains { $0.action == .showPermissions })
     }
 
@@ -104,13 +136,122 @@ import Testing
         #expect(PanelMetrics.scrolls(Self.armed(), screenHeight: 400))
     }
 
-    @Test func theRowIconSitsOnTheWindowBlock() {
+    // MARK: - Geometry
+
+    @Test func everythingSharesTheContentEdges() {
         #expect(PanelMetrics.margin == 16)
         #expect(PanelMetrics.blockWidth == 268)
-        #expect(PanelMetrics.iconX == 24)
-        #expect(PanelMetrics.textX == 48)
-        #expect(PanelMetrics.contentEndX == 276)
+        #expect(PanelMetrics.contentEndX == 284)
+        #expect(PanelMetrics.iconX == 16)
+        #expect(PanelMetrics.iconColumn == 16)
+        #expect(PanelMetrics.textX == 40)
+        #expect(PanelMetrics.rowHighlightX == 8)
+        #expect(PanelMetrics.rowHighlightX + PanelMetrics.rowHighlightWidth == 292)
+        #expect(PanelMetrics.rowHighlightX + PanelMetrics.rowHighlightWidth - PanelMetrics.rowPadding == 284)
+        #expect(PanelMetrics.top == 16)
+        #expect(PanelMetrics.bottom == 8)
         #expect(PanelMetrics.capturePixels(scale: 2) == PixelSize(width: 536, height: 335))
+    }
+
+    @Test func iconButtonGlyphsEndOnTheContentEdgeAndTheirHitAreasOverhangIt() {
+        #expect(PanelMetrics.iconButton == 24)
+        #expect(PanelMetrics.iconGlyph == 16)
+        #expect(PanelMetrics.clearHitX == 264)
+        #expect(PanelMetrics.clearHitX + PanelMetrics.iconButton == 288)
+        #expect(PanelMetrics.clearGlyphEndX == 284)
+        #expect(PanelMetrics.clearTitleWidth == 236)
+    }
+
+    // MARK: - Clear
+
+    @Test func clearShowsOnlyWhileAPickedWindowCanBeForgotten() throws {
+        for phase in [PanelPreviewPhase.ready(Self.still), .loading, .failed, .permissionMissing(.screenRecording)] {
+            let clear = try #require(Self.armed(phase: phase).clear, "\(phase)")
+            #expect(clear.action == .clearWindow)
+            #expect(clear.symbol == "xmark.circle.fill")
+            #expect(clear.help == "Clear Window")
+            #expect(clear.accessibilityLabel == "Clear picked window")
+        }
+        #expect(try Self.recording().clear == nil)
+        #expect(Self.writing().clear == nil)
+        #expect(Self.noWindow().clear == nil)
+        #expect(Self.windowClosed().clear == nil)
+        #expect(Self.armed(phase: .windowClosed(nil)).clear == nil)
+        #expect(Self.armed(phase: .windowClosed(nil)).isCompact)
+    }
+
+    @Test func clearKeepsThePanelOpen() {
+        #expect(PanelModel.keepsPanelOpen(.clearWindow))
+    }
+
+    @Test func pickAnotherStaysBesideClear() {
+        #expect(Self.armed().rows.first?.title == UIStrings.Menu.pickAnotherWindow)
+    }
+
+    @Test func clearForgetsTheWindowAndKeepsTheSizeAndRate() async throws {
+        try await onMain("clear") {
+            let harness = MenuHarness()
+            defer { harness.cleanUp() }
+            harness.model.settings.sizeChoice = .size(SizePreset.p1080.size)
+            harness.model.settings.fps = .fps30
+            await harness.controller.updateSettings(harness.model.settings.controllerSettings)
+            _ = try await harness.controller.pick()
+            harness.model.apply(await harness.controller.snapshot())
+            #expect(harness.model.snapshot.window != nil)
+            let resizes = harness.resizer.calls.count
+            await harness.perform(.clearWindow)
+            harness.model.apply(await harness.controller.snapshot())
+            #expect(harness.model.snapshot.window == nil)
+            #expect(harness.model.snapshot.state == .idle)
+            #expect(harness.model.settings.sizeChoice == .size(SizePreset.p1080.size))
+            #expect(harness.model.settings.fps == .fps30)
+            #expect(harness.resizer.calls.count == resizes)
+            #expect(PanelModel.content(for: harness.model.context, preview: .noWindow).isCompact)
+        }
+    }
+
+    // MARK: - Selected stroke
+
+    @Test func thePreviewStrokeFollowsTheState() throws {
+        for phase in [PanelPreviewPhase.ready(Self.still), .loading, .failed, .permissionMissing(.screenRecording)] {
+            #expect(Self.armed(phase: phase).preview?.stroke == .selected, "\(phase)")
+        }
+        #expect(try Self.recording().preview?.stroke == .recording)
+        #expect(Self.writing().preview?.stroke == .selected)
+        var region = RenderSamples.idle.context
+        region.snapshot.state = .armed
+        region.snapshot.region = PixelRect(x: 0, y: 0, width: 200, height: 100)
+        #expect(PanelModel.content(for: region, preview: .region).preview?.stroke == .hairline)
+        #expect(PanelModel.content(for: region, preview: .region).clear == nil)
+    }
+
+    // MARK: - Hero and transitions
+
+    @Test func stopRecordingCarriesItsTimerBesideTheLabel() throws {
+        let hero = try #require(try Self.recording().hero)
+        #expect(hero.title == "Stop Recording")
+        #expect(hero.trailing == "0:12")
+        #expect(PanelMetrics.heroTimerGap == 4)
+    }
+
+    @Test func onlyAHeightChangeInAnOpenPanelAnimates() {
+        let picked = Self.armed()
+        let compact = Self.noWindow()
+        #expect(PanelMetrics.transitionSeconds == 0.2)
+        #expect(PanelMetrics.animatesChange(from: picked, to: compact, panelOpen: true, reduceMotion: false))
+        #expect(!PanelMetrics.animatesChange(from: picked, to: compact, panelOpen: true, reduceMotion: true))
+        #expect(!PanelMetrics.animatesChange(from: picked, to: compact, panelOpen: false, reduceMotion: false))
+        #expect(!PanelMetrics.animatesChange(from: picked, to: picked, panelOpen: true, reduceMotion: false))
+    }
+
+    @Test func blocksKeepTheirIdentityAcrossAStateChange() {
+        let picked = Set(PanelMetrics.placedBlocks(for: Self.armed()).map(\.id))
+        let compact = Set(PanelMetrics.placedBlocks(for: Self.noWindow()).map(\.id))
+        #expect(picked.count == PanelMetrics.blocks(for: Self.armed()).count)
+        #expect(picked.contains("preview#0") && !compact.contains("preview#0"))
+        #expect(compact.contains("header#0") && !picked.contains("header#0"))
+        #expect(picked.contains("hero#0") && compact.contains("hero#0"))
+        #expect(picked.contains("toggle:Show Cursor#0") && compact.contains("toggle:Show Cursor#0"))
     }
 
     // MARK: - Letterbox
@@ -165,7 +306,7 @@ import Testing
         #expect(PanelModel.sizeName(.keepCurrent) == UIStrings.Panel.custom)
         let content = Self.armed()
         #expect(content.choices?.sizeValue == "1080p")
-        #expect(content.caption.detail.contains("px"))
+        #expect(content.caption?.detail.contains("px") == true)
     }
 
     @Test func lastClipMainAreaOpensTheClipAndTheIconsDoNot() throws {
@@ -348,37 +489,47 @@ import Testing
 
     // MARK: - Fixtures
 
-    /// Armed, 1080p, with the update row and a last clip: the 619.5 pt panel.
+    /// Armed at 1080p. By default with the update row and a last clip: the 619.5 pt panel.
     private static func armed(
-        phase: PanelPreviewPhase = .ready(still), spinner: Bool = false, fileExists: Bool = true
+        phase: PanelPreviewPhase = .ready(still), spinner: Bool = false, fileExists: Bool = true, clip: Bool = true,
+        update: Bool = true
     ) -> PanelContent {
         var context = RenderSamples.armed.context
-        context.updateAvailable = "1.0.4"
+        context.updateAvailable = update ? "1.0.4" : nil
         context.sizeChoice = .size(SizePreset.p1080.size)
+        if !clip { context.snapshot.lastClip = nil }
         return PanelModel.content(
             for: context, preview: phase, showSpinner: spinner, clipFileExists: fileExists)
     }
 
-    private static func noWindow() -> PanelContent {
+    private static func idle(clip: Bool, update: Bool) -> MenuContext {
         var context = RenderSamples.idle.context
-        context.updateAvailable = "1.0.4"
-        context.snapshot.lastClip = RenderSamples.clip()
-        context.lastClipTitle = "Safari — localhost:3000"
-        return PanelModel.content(for: context, preview: .noWindow)
+        context.updateAvailable = update ? "1.0.4" : nil
+        if clip {
+            context.snapshot.lastClip = RenderSamples.clip()
+            context.lastClipTitle = "Safari — localhost:3000"
+        }
+        return context
     }
 
-    private static func windowClosed() -> PanelContent {
-        var context = RenderSamples.idle.context
-        context.updateAvailable = "1.0.4"
-        context.snapshot.lastClip = RenderSamples.clip()
-        context.lastClipTitle = "Safari — localhost:3000"
-        return PanelModel.content(
-            for: context, preview: .windowClosed(nil), closedTitle: "Safari — localhost:3000")
+    private static func noWindow(clip: Bool = true, update: Bool = true) -> PanelContent {
+        PanelModel.content(for: idle(clip: clip, update: update), preview: .noWindow)
     }
 
-    private static func recording() throws -> PanelContent {
+    private static func windowClosed(clip: Bool = true, update: Bool = true) -> PanelContent {
+        PanelModel.content(
+            for: idle(clip: clip, update: update), preview: .windowClosed(nil),
+            closedTitle: "Safari — localhost:3000")
+    }
+
+    private static func recording(update: Bool = true) throws -> PanelContent {
         var context = try #require(RenderSamples.states.first { $0.name == "recording" }).context
-        context.updateAvailable = "1.0.4"
+        context.updateAvailable = update ? "1.0.4" : nil
+        return PanelModel.content(for: context, preview: .ready(still))
+    }
+
+    private static func writing() -> PanelContent {
+        let context = RenderSamples.states.first { $0.name == "writing" }!.context
         return PanelModel.content(for: context, preview: .ready(still))
     }
 

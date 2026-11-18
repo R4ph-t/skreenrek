@@ -155,13 +155,24 @@ public enum UIStrings {
         public static let clipMissingLabel = "Last clip, moved or deleted"
         /// Tooltip on the Last Clip main area.
         public static let openClip = "Open Clip"
-        /// The disabled Record button before a window is picked.
-        public static let pickAWindowFirst = "Pick a window first."
+        /// The compact header when nothing is picked.
+        public static let noWindow = "No window"
+        public static let pickWindowToRecord = "Pick a window to record"
+        /// The Clear button's tooltip.
+        public static let clearWindow = "Clear Window"
+        /// The Clear button for VoiceOver.
+        public static let clearPickedWindow = "Clear picked window"
         /// Tooltip and VoiceOver on the failed preview. Recording still works.
         public static let previewFailedHelp =
             "Skreenrek couldn't take a preview of this window. Recording still works."
         /// The Stop button's tooltip. ⌃⌘⎋ stays the global stop.
         public static let stopHelp = "Stop Recording (⌃⌘⎋)"
+
+        /// The compact header for VoiceOver.
+        public static var noWindowLabel: String { "\(Menu.noWindowPicked). \(pickWindowToRecord)." }
+
+        /// `Picked Safari — localhost:3000`: VoiceOver, after a pick.
+        public static func picked(_ title: String) -> String { "Picked \(title)" }
 
         /// `Open last clip, Safari — localhost:3000, 42 seconds`.
         public static func openLastClip(title: String, seconds: Int) -> String {
@@ -312,10 +323,13 @@ public enum UIStrings {
         public static let title = "Agents"
         public static let connect = "Connect"
         public static let remove = "Remove"
+        public static let footer = "Connect adds the Skreenrek MCP server and the record-window skill."
+
+        /// `Install Cursor first.`
+        public static func installFirst(_ agent: String) -> String { "Install \(agent) first." }
     }
 
     public enum Settings {
-        public static let windowTitle = "Skreenrek Settings"
         public static let outputFolder = "Output folder"
         public static let choose = "Choose…"
         public static let defaultFrameRate = "Default frame rate"
@@ -335,9 +349,26 @@ public enum UIStrings {
         public static let loginItemOnFailed = "Skreenrek couldn't be added to your login items."
         public static let loginItemOffFailed = "Skreenrek couldn't be removed from your login items."
         public static let chooseFolderPrompt = "Choose"
+        public static let general = "General"
+        public static let recording = "Recording"
+        public static let about = "About"
+        public static let viewOnGitHub = "View on GitHub"
+        public static let screenRecordingNotAllowed = "Screen Recording isn't allowed. Skreenrek can't record until you allow it."
+        public static let accessibilityNotAllowed =
+            "Accessibility isn't allowed. Skreenrek can record, but windows keep their current size."
 
-        /// `Skreenrek 0.1.0`.
-        public static func version(_ version: String) -> String { "Skreenrek \(version)" }
+        /// `Updates, Skreenrek 1.0.5 is up to date.`
+        public static func updatesLabel(_ detail: String) -> String { "\(Updates.title), \(detail)" }
+        /// `Screen Recording, allowed.`
+        public static func permissionAllowedLabel(_ title: String) -> String { "\(title), allowed." }
+        /// `Accessibility, required for exact window sizes, not allowed, Open System Settings…`. VoiceOver adds
+        /// "button".
+        public static func permissionMissingLabel(_ title: String, detail: String) -> String {
+            var requirement = detail.replacingOccurrences(of: "Required. ", with: "")
+            requirement = requirement.replacingOccurrences(of: "Required for", with: "required for")
+            while requirement.hasSuffix(".") { requirement.removeLast() }
+            return "\(title), \(requirement), not allowed, \(openSystemSettings)"
+        }
     }
 
     // MARK: - Updates
@@ -373,11 +404,10 @@ public enum UIStrings {
         }
     }
 
-    // MARK: - Dropdown header, Last Clip row and Settings hero
+    // MARK: - Dropdown header, Last Clip row and the project link
 
     /// Copy the branded dropdown and Settings add. The menu and Settings copy above is reused unchanged.
     public enum Brand {
-        public static let repoLink = "github.com/R4ph-t/skreenrek"
         public static let repoURL = "https://github.com/R4ph-t/skreenrek"
         public static let repoHelp = "Open the Skreenrek project on GitHub."
         public static let thumbnailLabel = "The first frame of the last clip."
@@ -423,7 +453,7 @@ public enum UIStrings {
         Onboarding.explanation(.directCapture),
         Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
         Onboarding.cliDetail, Onboarding.notInstalled,
-        Agents.title, Agents.connect, Agents.remove,
+        Agents.title, Agents.connect, Agents.remove, Agents.footer,
         productName, Icon.idle, Icon.writing, Icon.regionTarget,
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,
         Menu.showCursor, Menu.writeClickEvents, Menu.recordWindow, Menu.lastClip, Menu.showInFinder,
@@ -440,14 +470,17 @@ public enum UIStrings {
         CustomSize.title, CustomSize.width, CustomSize.height, CustomSize.px, CustomSize.times, CustomSize.setSize,
         CustomSize.cancel,
         CustomSize.enterSize, CustomSize.tooLarge,
-        Settings.windowTitle, Settings.outputFolder, Settings.choose, Settings.defaultFrameRate, Settings.showCursor,
+        Settings.outputFolder, Settings.choose, Settings.defaultFrameRate, Settings.showCursor,
         Settings.writeClickEvents, Settings.showRecordingIndicator, Settings.openAtLogin, Settings.stopShortcut,
         Settings.stopShortcutKeys, Settings.permissions, Settings.screenRecording, Settings.screenRecordingDetail,
         Settings.accessibility, Settings.accessibilityDetail, Settings.allowed, Settings.openSystemSettings,
-        Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
-        Brand.repoLink, Brand.repoHelp, Brand.thumbnailLabel, Brand.record, Brand.stop,
+        Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt, Settings.general,
+        Settings.recording, Settings.about, Settings.viewOnGitHub,
+        Settings.screenRecordingNotAllowed, Settings.accessibilityNotAllowed,
+        Brand.repoHelp, Brand.thumbnailLabel, Brand.record, Brand.stop,
         Panel.custom, Panel.previewUnavailable, Panel.openSettings, Panel.windowClosed, Panel.clipMissing,
-        Panel.clipMissingLabel, Panel.openClip, Panel.pickAWindowFirst, Panel.previewFailedHelp, Panel.stopHelp,
+        Panel.clipMissingLabel, Panel.openClip, Panel.previewFailedHelp, Panel.stopHelp, Panel.noWindow,
+        Panel.pickWindowToRecord, Panel.clearWindow, Panel.clearPickedWindow, Panel.noWindowLabel,
         Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
         Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
         Updates.menuAvailable, Updates.whatsNew,

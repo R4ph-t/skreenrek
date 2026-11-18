@@ -91,250 +91,410 @@ public struct SettingsActions {
     public static let none = SettingsActions(chooseOutputFolder: {}, openPrivacyPane: { _ in }, settingsChanged: {})
 }
 
-/// The one Settings pane: a 480 pt grouped form, no tabs. An 88 pt hero (the V1 app icon, the name, the version and
-/// the project link), then rows with monochrome icon tiles and trailing switches. The only colour in the window is
-/// the accent on the switches, the selected frame rate and the link.
-public struct SettingsView: View {
-    public static let width: CGFloat = 480
+/// The Settings window's tabs, in toolbar order.
+public enum SettingsTab: String, CaseIterable, Sendable {
+    case general
+    case agents
+    case permissions
 
+    public var title: String {
+        switch self {
+        case .general: UIStrings.Settings.general
+        case .agents: UIStrings.Agents.title
+        case .permissions: UIStrings.Settings.permissions
+        }
+    }
+
+    public var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .agents: "terminal"
+        case .permissions: "hand.raised"
+        }
+    }
+}
+
+/// The Settings layout. Groups run x 16–464, labels start at x 28, and trailing controls end at x 452.
+public enum SettingsMetrics {
+    public static let width: CGFloat = 480
+    public static let rowHeight: CGFloat = 44
+    public static let labelX: CGFloat = 28
+    public static let trailingX: CGFloat = 452
+    /// The least room between a label and its trailing control.
+    public static let labelGap: CGFloat = 12
+    public static let buttonMinWidth: CGFloat = 80
+    /// Every Agents button, so they line up as one column.
+    public static let agentButtonWidth: CGFloat = 88
+
+    /// A grouped `Form` puts its own space around rows, and has no setting for it. It keeps 20 pt around each group,
+    /// 10 inside it, 10.5 above and below a row, and 32 above a section header. These turn that into the design's 16,
+    /// 12, 44 and 16.
+    static let formMarginAdjustment: CGFloat = -4
+    static let rowInsetAdjustment: CGFloat = 2
+    static let formRowVerticalInset: CGFloat = 10.5
+    static let sectionHeaderAdjustment: CGFloat = -16
+}
+
+/// One permission's row. The shape of the status icon carries the state, so colour is never the only cue.
+public struct PermissionRowModel: Sendable, Hashable {
+    public var permission: Permission
+    public var title: String
+    public var detail: String
+    public var allowed: Bool
+    public var symbol: String
+    /// The sentence on the warning triangle. Nil when allowed.
+    public var warning: String?
+    public var accessibilityLabel: String
+
+    public init(_ permission: Permission, status: PermissionStatus) {
+        self.permission = permission
+        switch permission {
+        case .accessibility:
+            title = UIStrings.Settings.accessibility
+            detail = UIStrings.Settings.accessibilityDetail
+        case .screenRecording, .directCapture:
+            title = UIStrings.Settings.screenRecording
+            detail = UIStrings.Settings.screenRecordingDetail
+        }
+        allowed = status == .allowed
+        symbol = allowed ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+        if allowed {
+            warning = nil
+            accessibilityLabel = UIStrings.Settings.permissionAllowedLabel(title)
+        } else {
+            warning = permission == .accessibility
+                ? UIStrings.Settings.accessibilityNotAllowed : UIStrings.Settings.screenRecordingNotAllowed
+            accessibilityLabel = UIStrings.Settings.permissionMissingLabel(title, detail: detail)
+        }
+    }
+}
+
+/// The content of one Settings tab: a grouped form, as tall as its rows, with no scrolling.
+public struct SettingsView: View {
+    let tab: SettingsTab
     @Bindable var store: SettingsStore
     @Bindable var panel: SettingsPanelState
     let actions: SettingsActions
-    let version: String
-    public init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions, version: String) {
+
+    public init(tab: SettingsTab, store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions) {
+        self.tab = tab
         self.store = store
         self.panel = panel
         self.actions = actions
-        self.version = version
     }
 
     public var body: some View {
         Form {
-            Section { hero }
-            Section {
-                SettingsRow(symbol: "folder.fill") {
-                    LabeledContent {
-                        HStack(spacing: 8) {
-                            Text(store.outputFolderDisplayPath)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .help(store.outputFolder.path)
-                            Button(UIStrings.Settings.choose) { actions.chooseOutputFolder() }
-                        }
-                    } label: {
-                        Text(UIStrings.Settings.outputFolder)
-                    }
-                }
-                SettingsRow(symbol: "speedometer") {
-                    LabeledContent {
-                        FrameRateSegments(selection: $store.fps)
-                    } label: {
-                        Text(UIStrings.Settings.defaultFrameRate)
-                    }
-                }
-                switchRow(UIStrings.Settings.showCursor, symbol: "cursorarrow", isOn: $store.cursor)
-                switchRow(UIStrings.Settings.writeClickEvents, symbol: "cursorarrow.click", isOn: $store.events)
-                switchRow(UIStrings.Settings.showRecordingIndicator, symbol: "record.circle", isOn: $store.hud)
-                SettingsRow(symbol: "power") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle(
-                            UIStrings.Settings.openAtLogin,
-                            isOn: Binding(get: { panel.openAtLogin }, set: { panel.setOpenAtLogin($0) })
-                        )
-                        .modifier(SettingsSwitch())
-                        if let error = panel.loginError {
-                            Text(error)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                SettingsRow(symbol: "keyboard") {
-                    LabeledContent {
-                        Text(UIStrings.Settings.stopShortcutKeys).foregroundStyle(.secondary)
-                    } label: {
-                        Text(UIStrings.Settings.stopShortcut)
-                    }
-                }
-            }
-            if let agents = panel.agents { AgentsSection(panel: agents) }
-            Section {
-                SettingsRow(symbol: "rectangle.dashed.badge.record") {
-                    PermissionRow(
-                        title: UIStrings.Settings.screenRecording, detail: UIStrings.Settings.screenRecordingDetail,
-                        status: panel.screenRecording
-                    ) { actions.openPrivacyPane(.screenRecording) }
-                }
-                SettingsRow(symbol: "accessibility") {
-                    PermissionRow(
-                        title: UIStrings.Settings.accessibility, detail: UIStrings.Settings.accessibilityDetail,
-                        status: panel.accessibility
-                    ) { actions.openPrivacyPane(.accessibility) }
-                }
-            } header: {
-                SettingsSectionHeader(title: UIStrings.Settings.permissions)
-            }
-            if let updates = panel.updates {
-                Section {
-                    SettingsRow(symbol: "arrow.down.circle") { UpdatesRow(checker: updates) }
-                }
+            switch tab {
+            case .general: general
+            case .agents: agents
+            case .permissions: permissions
             }
         }
         .formStyle(.grouped)
-        .frame(width: Self.width)
+        .contentMargins(SettingsMetrics.formMarginAdjustment, for: .scrollContent)
+        .scrollDisabled(true)
+        .frame(width: SettingsMetrics.width)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: store.controllerSettings) { actions.settingsChanged() }
     }
 
-    private func switchRow(_ title: String, symbol: String, isOn: Binding<Bool>) -> some View {
-        SettingsRow(symbol: symbol) {
-            Toggle(title, isOn: isOn).modifier(SettingsSwitch())
+    // MARK: - General
+
+    @ViewBuilder
+    private var general: some View {
+        Section {
+            SettingsRow {
+                SettingsRowText(
+                    title: UIStrings.Settings.outputFolder, detail: store.outputFolderDisplayPath,
+                    detailHelp: store.outputFolder.path, truncation: .middle)
+            } trailing: {
+                SettingsButton(title: UIStrings.Settings.choose) { actions.chooseOutputFolder() }
+            }
+            SettingsRow {
+                SettingsRowText(
+                    title: UIStrings.Settings.openAtLogin, detail: panel.loginError, detailHelp: panel.loginError)
+            } trailing: {
+                TrailingSwitch(
+                    title: UIStrings.Settings.openAtLogin,
+                    isOn: Binding(get: { panel.openAtLogin }, set: { panel.setOpenAtLogin($0) }))
+            }
+        }
+        Section {
+            SettingsRow {
+                SettingsRowText(title: UIStrings.Settings.defaultFrameRate)
+            } trailing: {
+                FrameRateSegments(selection: $store.fps)
+            }
+            switchRow(UIStrings.Settings.showCursor, isOn: $store.cursor)
+            switchRow(UIStrings.Settings.writeClickEvents, isOn: $store.events)
+            switchRow(UIStrings.Settings.showRecordingIndicator, isOn: $store.hud)
+            SettingsRow {
+                SettingsRowText(title: UIStrings.Settings.stopShortcut)
+            } trailing: {
+                Text(UIStrings.Settings.stopShortcutKeys).foregroundStyle(.secondary)
+            }
+        } header: {
+            SettingsSectionHeader(title: UIStrings.Settings.recording)
+        }
+        Section {
+            if let updates = panel.updates { UpdatesRows(checker: updates) }
+            GitHubRow()
+        } header: {
+            SettingsSectionHeader(title: UIStrings.Settings.about)
         }
     }
 
-    /// The V1 app icon (icon-dark) at 56, the name at 20 semibold (SF Pro, the system stand-in for the wordmark's
-    /// Inter SemiBold) over the version, and the project link on the right, 88 pt tall.
-    private var hero: some View {
-        HStack(alignment: .center, spacing: 14) {
-            KitAppIcon(size: 56)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(UIStrings.productName).font(.system(size: 20, weight: .semibold))
-                Text(version).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(UIStrings.Settings.version(version))
-            Spacer(minLength: 8)
-            if let url = URL(string: UIStrings.Brand.repoURL) {
-                Link(UIStrings.Brand.repoLink, destination: url)
+    private func switchRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        SettingsRow {
+            SettingsRowText(title: title)
+        } trailing: {
+            TrailingSwitch(title: title, isOn: isOn)
+        }
+    }
+
+    // MARK: - Agents
+
+    @ViewBuilder
+    private var agents: some View {
+        if let agents = panel.agents {
+            Section {
+                ForEach(agents.rows) { row in
+                    SettingsRow {
+                        SettingsRowText(title: row.title, detail: row.status, detailHelp: row.statusHelp)
+                    } trailing: {
+                        SettingsButton(title: row.buttonTitle, width: SettingsMetrics.agentButtonWidth) {
+                            agents.change(row.agent, remove: row.removes)
+                        }
+                        .disabled(!row.enabled)
+                        .help(row.buttonHelp ?? "")
+                    }
+                }
+            } footer: {
+                Text(UIStrings.Agents.footer)
                     .font(.system(size: 12))
-                    .help(UIStrings.Brand.repoHelp)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 6)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, SettingsMetrics.rowInsetAdjustment)
             }
         }
-        .frame(height: 88)
+    }
+
+    // MARK: - Permissions
+
+    private var permissions: some View {
+        Section {
+            SettingsPermissionRow(model: PermissionRowModel(.screenRecording, status: panel.screenRecording)) {
+                actions.openPrivacyPane(.screenRecording)
+            }
+            SettingsPermissionRow(model: PermissionRowModel(.accessibility, status: panel.accessibility)) {
+                actions.openPrivacyPane(.accessibility)
+            }
+        }
     }
 }
 
-/// A Settings row: the 22 pt icon tile, 10 pt, then the row's content; at least 44 pt tall.
-struct SettingsRow<Tile: View, Content: View>: View {
-    let tile: Tile
-    @ViewBuilder let content: Content
+// MARK: - Rows
+
+/// A 44 pt form row: the label column, then a trailing control that always keeps its own size.
+struct SettingsRow<Label: View, Trailing: View>: View {
+    @ViewBuilder let label: Label
+    @ViewBuilder let trailing: Trailing
 
     var body: some View {
-        HStack(spacing: 10) {
-            tile
-            content
+        HStack(spacing: SettingsMetrics.labelGap) {
+            label.frame(maxWidth: .infinity, alignment: .leading)
+            trailing.fixedSize()
         }
-        .frame(minHeight: 44)
+        .modifier(SettingsRowLayout())
     }
 }
 
-extension SettingsRow where Tile == SettingsIconTile {
-    init(symbol: String, @ViewBuilder content: () -> Content) {
-        self.init(tile: SettingsIconTile(symbol: symbol), content: content)
+/// Puts a row's content on the design's edges, inside the space the form adds around it.
+struct SettingsRowLayout: ViewModifier {
+    @Environment(\.settingsRowProbe) private var probe
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxHeight: .infinity)
+            .background {
+                if let probe {
+                    GeometryReader { proxy in
+                        let frame = proxy.frame(in: .global)
+                        Color.clear
+                            .onAppear { probe(frame) }
+                            .onChange(of: frame) { probe(frame) }
+                    }
+                }
+            }
+            .padding(.horizontal, SettingsMetrics.rowInsetAdjustment)
+            .frame(height: SettingsMetrics.rowHeight)
+            .padding(.vertical, -SettingsMetrics.formRowVerticalInset)
     }
 }
 
-/// A section header at 13 semibold.
+extension EnvironmentValues {
+    /// Set by the layout tests, to read where each row landed.
+    @Entry var settingsRowProbe: (@MainActor (CGRect) -> Void)?
+}
+
+/// A row's title, with the optional 12 pt secondary line. It truncates so the trailing control never has to.
+struct SettingsRowText: View {
+    let title: String
+    var detail: String?
+    var detailHelp: String?
+    var truncation: Text.TruncationMode = .tail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 13))
+                .lineLimit(1)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(truncation)
+                    .help(detailHelp ?? "")
+            }
+        }
+    }
+}
+
+/// A push button, at least 80 pt wide, or exactly `width`.
+struct SettingsButton: View {
+    let title: String
+    var width: CGFloat?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).frame(maxWidth: .infinity)
+        }
+        .frame(minWidth: width ?? SettingsMetrics.buttonMinWidth, maxWidth: width)
+    }
+}
+
+/// A section header at 13 semibold, on the labels' edge.
 struct SettingsSectionHeader: View {
     let title: String
 
     var body: some View {
-        Text(title).font(.system(size: 13, weight: .semibold))
+        Text(title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.primary)
+            .padding(.leading, SettingsMetrics.rowInsetAdjustment)
+            .padding(.top, SettingsMetrics.sectionHeaderAdjustment)
     }
 }
 
-/// Screen Recording or Accessibility, with its status: Allowed (green check) or Open System Settings….
-struct PermissionRow: View {
-    let title: String
-    let detail: String
-    let status: PermissionStatus
+/// Screen Recording or Accessibility: a green check and Allowed, or a warning triangle and Open System Settings….
+struct SettingsPermissionRow: View {
+    let model: PermissionRowModel
     let open: () -> Void
 
     var body: some View {
-        // One 12 pt minimum gap between the text and the status. The text column takes the room up to the trailing
-        // status first, and the status keeps its own size.
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13))
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .layoutPriority(1)
-            Spacer(minLength: 12)
-            if status == .allowed {
+        SettingsRow {
+            // Not allowed, the button's label reads the whole row.
+            SettingsRowText(title: model.title, detail: model.detail, detailHelp: model.detail)
+                .accessibilityHidden(!model.allowed)
+        } trailing: {
+            if model.allowed {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).frame(width: 16)
+                    Image(systemName: model.symbol)
+                        .font(.system(size: 16))
                         .foregroundStyle(Color(nsColor: .systemGreen))
-                    Text(UIStrings.Settings.allowed).foregroundStyle(.secondary)
+                    Text(UIStrings.Settings.allowed)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                 }
-                .fixedSize()
-                .accessibilityElement(children: .combine)
             } else {
                 HStack(spacing: 8) {
-                    Image(systemName: "circle.dashed").font(.system(size: 16)).frame(width: 16)
-                        .foregroundStyle(.secondary).accessibilityHidden(true)
+                    Image(systemName: model.symbol)
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(nsColor: .systemOrange))
+                        .help(model.warning ?? "")
+                        .accessibilityLabel(model.warning ?? "")
                     Button(UIStrings.Settings.openSystemSettings, action: open)
+                        .accessibilityLabel(model.accessibilityLabel)
                 }
-                .fixedSize()
             }
         }
-        .accessibilityElement(children: .contain)
+        .modifier(PermissionRowAccessibility(model: model))
     }
 }
 
-/// Updates: the title over the state's line, then a spinner while busy and the state's button (Check for Updates,
-/// Update, Retry, Relaunch or Open Release Page). While a newer release is waiting and it has notes, What's new
-/// shows them under the row.
-struct UpdatesRow: View {
+/// An allowed row is one element. A row that isn't keeps its triangle and button separate.
+private struct PermissionRowAccessibility: ViewModifier {
+    let model: PermissionRowModel
+
+    func body(content: Content) -> some View {
+        if model.allowed {
+            content.accessibilityElement(children: .ignore).accessibilityLabel(model.accessibilityLabel)
+        } else {
+            content.accessibilityElement(children: .contain)
+        }
+    }
+}
+
+/// Updates: the state's line and button, then What's new while a newer release with notes is waiting. The version and
+/// the app name are carried by the line.
+struct UpdatesRows: View {
     let checker: UpdateChecker
 
     var body: some View {
         let row = UpdateRowModel(state: checker.state, current: checker.current, method: checker.method)
-        if let notes = row.notes {
-            VStack(alignment: .leading, spacing: 6) {
-                summary(row)
-                WhatsNewNotes(markdown: notes)
-            }
-        } else {
-            summary(row)
-        }
-    }
-
-    private func summary(_ row: UpdateRowModel) -> some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(UIStrings.Updates.title).font(.system(size: 13))
-                Text(row.detail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(row.quiet ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .monospacedDigit()
-                    .help(row.detail)
-            }
-            .layoutPriority(1)
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 12)
+        SettingsRow {
+            SettingsRowText(title: UIStrings.Updates.title, detail: row.detail, detailHelp: row.detail)
+                .monospacedDigit()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(UIStrings.Settings.updatesLabel(row.detail))
+        } trailing: {
             HStack(spacing: 8) {
                 if row.busy { ProgressView().controlSize(.small).accessibilityHidden(true) }
                 button(row.button)
             }
-            .fixedSize()
+        }
+        if let notes = row.notes {
+            WhatsNewNotes(markdown: notes)
+                .padding(.horizontal, SettingsMetrics.rowInsetAdjustment)
         }
     }
 
     @ViewBuilder
     private func button(_ model: UpdateRowModel.Button) -> some View {
-        let button = Button(model.title) { Task { await checker.perform(model.action) } }.disabled(!model.enabled)
+        let button = SettingsButton(title: model.title) { Task { await checker.perform(model.action) } }
+            .disabled(!model.enabled)
         if model.prominent {
             button.buttonStyle(.borderedProminent)
         } else {
             button
         }
+    }
+}
+
+/// The project link: the whole row is the button.
+struct GitHubRow: View {
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        Button {
+            if let url = URL(string: UIStrings.Brand.repoURL) { openURL(url) }
+        } label: {
+            SettingsRow {
+                SettingsRowText(title: UIStrings.Settings.viewOnGitHub)
+            } trailing: {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(UIStrings.Brand.repoHelp)
+        .accessibilityLabel(UIStrings.Settings.viewOnGitHub)
+        .accessibilityAddTraits(.isLink)
     }
 }
 
