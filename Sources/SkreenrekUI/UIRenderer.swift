@@ -175,7 +175,10 @@ public enum UIRenderer {
         return [
             ("idle", panel(idleContent, preview: preview, clip: preview)),
             ("picked", panel(picked, preview: preview, clip: preview)),
-            ("clear-hover", panel(picked, preview: preview, clip: preview, clearHover: true)),
+            ("clear-hover", panel(picked, preview: preview, clip: preview, clearState: .hover)),
+            ("clear-pressed", panel(picked, preview: preview, clip: preview, clearState: .pressed)),
+            ("lastclip-hover", panel(picked, preview: preview, clip: preview, lastClipState: .hover)),
+            ("lastclip-pressed", panel(picked, preview: preview, clip: preview, lastClipState: .pressed)),
             ("recording", panel(
                 PanelModel.content(for: specRecording(), preview: readyStill), preview: preview, clip: nil)),
             ("nowindow", panel(
@@ -245,11 +248,14 @@ public enum UIRenderer {
 
     /// The panel at its content height, 300 pt wide: the live view, so the same surface and hairline. The system
     /// window shadow belongs to the window server and falls outside these bounds, so it isn't in the PNG.
-    static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?, clearHover: Bool = false) -> NSView {
+    static func panel(
+        _ content: PanelContent, preview: NSImage?, clip: NSImage?, clearState: PanelInteraction? = nil,
+        lastClipState: PanelInteraction? = nil
+    ) -> NSView {
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let root = MenuPanelView(
             content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview, clipImage: clip,
-            reduceMotion: true, showsClearHover: clearHover, onAction: { _ in })
+            reduceMotion: true, clearState: clearState, lastClipState: lastClipState, onAction: { _ in })
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true)
         let hosting = NSHostingView(rootView: root)

@@ -48,7 +48,8 @@ import Vision
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
             for state in [
-                "idle", "picked", "clear-hover", "recording", "nowindow", "loading", "loading-slow",
+                "idle", "picked", "clear-hover", "clear-pressed", "lastclip-hover", "lastclip-pressed", "recording",
+                "nowindow", "loading", "loading-slow",
                 "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
             ] {
                 expected.append("panel-\(state)-\(appearance)@2x.png")
@@ -91,6 +92,7 @@ import Vision
             // The heights Designer measured, at 2×.
             for (state, height) in [
                 ("nowindow", 646), ("window-closed", 646), ("picked", 1183), ("clear-hover", 1183),
+                ("clear-pressed", 1183), ("lastclip-hover", 1183), ("lastclip-pressed", 1183),
                 ("recording", 915), ("idle", 1239),
             ] {
                 #expect(sizes["panel-\(state)-\(appearance)@2x.png"]?.1 == height, "\(state)")
