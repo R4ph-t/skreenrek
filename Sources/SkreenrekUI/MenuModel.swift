@@ -19,6 +19,8 @@ public enum MenuAction: Sendable, Hashable {
     case showInFinder(path: String)
     case copyFilePath(path: String)
     case copySnippet(String)
+    /// Opens `clip.mp4` in the default player. The Last Clip row (thumbnail and title); the icon buttons stay beside it.
+    case openClip(path: String)
     case copyErrorDetails(String)
     case openPrivacySettings(Permission)
     case chooseOutputFolder

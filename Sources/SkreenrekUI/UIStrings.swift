@@ -143,6 +143,42 @@ public enum UIStrings {
         public static let separator = " · "
     }
 
+    /// Copy the menu panel adds. Everything else is reused from the menu strings above.
+    public enum Panel {
+        /// A size that isn't a spec 13 preset. The exact px stays on the caption line.
+        public static let custom = "Custom"
+        public static let previewUnavailable = "Preview unavailable"
+        public static let openSettings = "Open Settings…"
+        public static let windowClosed = "Window closed"
+        public static let clipMissing = "Clip moved or deleted"
+        /// VoiceOver when the clip file is gone.
+        public static let clipMissingLabel = "Last clip, moved or deleted"
+        /// Tooltip on the Last Clip main area.
+        public static let openClip = "Open Clip"
+        /// The disabled Record button before a window is picked.
+        public static let pickAWindowFirst = "Pick a window first."
+        /// Tooltip and VoiceOver on the failed preview. Recording still works.
+        public static let previewFailedHelp =
+            "Skreenrek couldn't take a preview of this window. Recording still works."
+        /// The Stop button's tooltip. ⌃⌘⎋ stays the global stop.
+        public static let stopHelp = "Stop Recording (⌃⌘⎋)"
+
+        /// `Open last clip, Safari — localhost:3000, 42 seconds`.
+        public static func openLastClip(title: String, seconds: Int) -> String {
+            "Open last clip, \(title), \(Icon.spokenDuration(seconds))"
+        }
+
+        /// `Safari — localhost:3000, 1920 by 1080 pixels, 60 frames per second`.
+        public static func spokenCaption(title: String, size: PixelSize, fps: FrameRate) -> String {
+            "\(title), \(size.width) by \(size.height) pixels, \(fps.framesPerSecond) frames per second"
+        }
+
+        /// `Size, 1080p`. VoiceOver adds "pop-up button".
+        public static func popupLabel(title: String, value: String) -> String {
+            "\(title), \(value)"
+        }
+    }
+
     // MARK: - Error rows (the design spec's error-copy table)
 
     public enum Errors {
@@ -410,6 +446,8 @@ public enum UIStrings {
         Settings.accessibility, Settings.accessibilityDetail, Settings.allowed, Settings.openSystemSettings,
         Settings.loginItemOnFailed, Settings.loginItemOffFailed, Settings.chooseFolderPrompt,
         Brand.repoLink, Brand.repoHelp, Brand.thumbnailLabel, Brand.record, Brand.stop,
+        Panel.custom, Panel.previewUnavailable, Panel.openSettings, Panel.windowClosed, Panel.clipMissing,
+        Panel.clipMissingLabel, Panel.openClip, Panel.pickAWindowFirst, Panel.previewFailedHelp, Panel.stopHelp,
         Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
         Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
         Updates.menuAvailable, Updates.whatsNew,

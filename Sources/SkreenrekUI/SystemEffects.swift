@@ -22,6 +22,10 @@ public final class SystemEffects: UIEffects {
         NSWorkspace.shared.open(url)
     }
 
+    public func openClip(at url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
     public func copy(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

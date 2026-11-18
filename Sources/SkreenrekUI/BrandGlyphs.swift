@@ -380,12 +380,13 @@ enum BrandIcon {
     }
 }
 
-/// The dropdown header's tile: the kit mark on graphite (0.16 light, 0.22 dark), radius 10.
+/// The dropdown header's tile: the kit mark on graphite (0.16 light, 0.22 dark).
 struct KitMarkTile: View {
     var size: CGFloat = 40
+    var radius: CGFloat = 10
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
             .fill(BrandTheme.graphite)
             .overlay(Image(nsImage: BrandIcon.tileMark(size: size)).resizable().interpolation(.high))
             .frame(width: size, height: size)

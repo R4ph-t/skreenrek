@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - When a newer version is available, Settings shows What's new, with that release's notes.
+- The menu-bar menu is now a panel with a preview of the picked window, Size and Frame Rate pickers, and a large Record button.
 
 ## [1.0.3] - 2026-11-17
 

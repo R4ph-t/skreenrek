@@ -51,6 +51,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private let host: HeadlessHost
     private let permissions: any PermissionProbe
     private let requester: any PermissionRequester
+    private let previews: any WindowPreviewSource
     private let defaults: UserDefaults
     private var model: AppModel?
     private var menuController: MenuController?
@@ -60,11 +61,14 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private var updates: UpdateChecker?
     private var updateTimer: Timer?
 
-    public init(host: HeadlessHost, permissions: any PermissionProbe, requester: any PermissionRequester,
-                defaults: UserDefaults = .standard) {
+    public init(
+        host: HeadlessHost, permissions: any PermissionProbe, requester: any PermissionRequester,
+        previews: any WindowPreviewSource, defaults: UserDefaults = .standard
+    ) {
         self.host = host
         self.permissions = permissions
         self.requester = requester
+        self.previews = previews
         self.defaults = defaults
     }
 
@@ -104,7 +108,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
         self.settingsWindow = settingsWindow
-        let menu = MenuController(model: model)
+        let menu = MenuController(model: model, previews: previews, permissions: permissions)
         menuController = menu
         let hud = RecordingHUD(defaults: defaults)
         self.hud = hud
@@ -179,7 +183,9 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 /// Runs Skreenrek as a menu-bar app (LSUIElement-style): controller, control server and menu bar.
 @MainActor
 public enum MenuBarApp {
-    public static func run(seams: ControllerSeams, requester: any PermissionRequester) -> Never {
+    public static func run(
+        seams: ControllerSeams, requester: any PermissionRequester, previews: any WindowPreviewSource
+    ) -> Never {
         let host = HeadlessHost(seams: seams, settings: SettingsStore().controllerSettings)
         do {
             try host.start()
@@ -189,7 +195,8 @@ public enum MenuBarApp {
         }
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
-        let delegate = MenuBarAppDelegate(host: host, permissions: seams.permissions, requester: requester)
+        let delegate = MenuBarAppDelegate(
+            host: host, permissions: seams.permissions, requester: requester, previews: previews)
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
         exit(0)
