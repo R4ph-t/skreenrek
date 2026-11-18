@@ -1,0 +1,694 @@
+{
+ "bar-idle-below-light": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-recording-light": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-rec",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn stop",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-above-light": {
+  "bar": [
+   350,
+   146,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   190,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": -404,
+  "gapAbove": 8,
+  "dockInset": 368,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-docked-light": {
+  "bar": [
+   350,
+   522,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   24,
+   640,
+   546
+  ],
+  "centreDelta": 0,
+  "gapBelow": -48,
+  "gapAbove": -534,
+  "dockInset": 12,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-disabled-light": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn dis",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-narrow-light": {
+  "bar": [
+   404,
+   488,
+   192,
+   36
+  ],
+  "win": [
+   370,
+   80,
+   260,
+   400
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -444,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-btn",
+    "x": 102,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-size-menu-light": {
+  "bar": [
+   350,
+   378,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   50,
+   640,
+   320
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -364,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop open",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "panel-row-light": {
+  "panel": [
+   50,
+   30,
+   300,
+   558.5
+  ],
+  "rows": [
+   [
+    "Pick Another Window\u2026",
+    337.5,
+    28,
+    16,
+    40,
+    null
+   ],
+   [
+    "Show Cursor",
+    365.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Write Click Events",
+    393.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Show Control Bar",
+    421.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Open Output Folder",
+    466.5,
+    28,
+    16,
+    40,
+    null
+   ],
+   [
+    "Settings\u2026\u2318,",
+    494.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Quit Skreenrek\u2318Q",
+    522.5,
+    28,
+    16,
+    40,
+    284
+   ]
+  ]
+ },
+ "bar-idle-below-dark": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-recording-dark": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-rec",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn stop",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-above-dark": {
+  "bar": [
+   350,
+   146,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   190,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": -404,
+  "gapAbove": 8,
+  "dockInset": 368,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-docked-dark": {
+  "bar": [
+   350,
+   522,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   24,
+   640,
+   546
+  ],
+  "centreDelta": 0,
+  "gapBelow": -48,
+  "gapAbove": -534,
+  "dockInset": 12,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-disabled-dark": {
+  "bar": [
+   350,
+   448,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   80,
+   640,
+   360
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -404,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn dis",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-narrow-dark": {
+  "bar": [
+   404,
+   488,
+   192,
+   36
+  ],
+  "win": [
+   370,
+   80,
+   260,
+   400
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -444,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-btn",
+    "x": 102,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "bar-size-menu-dark": {
+  "bar": [
+   350,
+   378,
+   300,
+   36
+  ],
+  "win": [
+   180,
+   50,
+   640,
+   320
+  ],
+  "centreDelta": 0,
+  "gapBelow": 8,
+  "gapAbove": -364,
+  "dockInset": -44,
+  "kids": [
+   {
+    "cls": "cb-pop open",
+    "x": 6,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   },
+   {
+    "cls": "cb-read",
+    "x": 102,
+    "w": 96,
+    "h": 15,
+    "y": 10.5
+   },
+   {
+    "cls": "cb-btn",
+    "x": 210,
+    "w": 84,
+    "h": 24,
+    "y": 6
+   }
+  ]
+ },
+ "panel-row-dark": {
+  "panel": [
+   50,
+   30,
+   300,
+   558.5
+  ],
+  "rows": [
+   [
+    "Pick Another Window\u2026",
+    337.5,
+    28,
+    16,
+    40,
+    null
+   ],
+   [
+    "Show Cursor",
+    365.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Write Click Events",
+    393.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Show Control Bar",
+    421.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Open Output Folder",
+    466.5,
+    28,
+    16,
+    40,
+    null
+   ],
+   [
+    "Settings\u2026\u2318,",
+    494.5,
+    28,
+    16,
+    40,
+    284
+   ],
+   [
+    "Quit Skreenrek\u2318Q",
+    522.5,
+    28,
+    16,
+    40,
+    284
+   ]
+  ]
+ }
+}
