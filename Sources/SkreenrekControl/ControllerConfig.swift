@@ -11,6 +11,8 @@ public struct ControllerSeams: Sendable {
     public var permissions: any PermissionProbe
     public var disk: any DiskSpaceProbe
     public var picker: any WindowPicker
+    /// Brings a just-picked window to the front. The app wires `SystemWindowFront`; tests use `FakeWindowFront`.
+    public var front: any WindowFront
     /// Skreenrek's own pid: its windows are never listed.
     public var ownPid: Int32
     /// `.requireHardware` in the app; `.software` in tests on the CI virtual machine.
@@ -23,7 +25,8 @@ public struct ControllerSeams: Sendable {
     public init(
         catalog: any WindowCatalog, resizer: any WindowResizer, frameSource: any FrameSource,
         mouse: any MouseEventSource, clock: any HostClock, permissions: any PermissionProbe, disk: any DiskSpaceProbe,
-        picker: any WindowPicker = UnavailableWindowPicker(), ownPid: Int32 = ProcessInfo.processInfo.processIdentifier,
+        picker: any WindowPicker = UnavailableWindowPicker(), front: any WindowFront = NoOpWindowFront(),
+        ownPid: Int32 = ProcessInfo.processInfo.processIdentifier,
         encoder: EncoderPolicy = .requireHardware, realTimeWriter: Bool = true,
         makeSink: RecordingSession.SinkFactory? = nil
     ) {
@@ -35,6 +38,7 @@ public struct ControllerSeams: Sendable {
         self.permissions = permissions
         self.disk = disk
         self.picker = picker
+        self.front = front
         self.ownPid = ownPid
         self.encoder = encoder
         self.realTimeWriter = realTimeWriter

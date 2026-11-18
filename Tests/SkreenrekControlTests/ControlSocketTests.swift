@@ -401,6 +401,35 @@ import Testing
         _ = try await other.call(.recordDiscard, as: DiscardBody.self)
     }
 
+    @Test func pickingAWindowBringsItToTheFront() async throws {
+        let h = try Harness(picker: FakeWindowPicker(result: .window(WindowID(5001)))).start()
+        defer { h.stop() }
+        guard case .window(let entry) = try await h.controller.pick() else {
+            Issue.record("not a window")
+            return
+        }
+        #expect(entry.id == WindowID(5001))
+        #expect(h.front.windows.map(\.id) == [WindowID(5001)])
+    }
+
+    @Test func aCancelledOrRegionPickDoesNotBringAWindowForward() async throws {
+        let cancelled = try Harness(picker: FakeWindowPicker(result: .cancelled)).start()
+        defer { cancelled.stop() }
+        #expect(try await cancelled.controller.pick() == .cancelled)
+        #expect(cancelled.front.windows.isEmpty)
+
+        let region = PixelRect(x: 10, y: 20, width: 300, height: 200)
+        let h = try Harness(
+            picker: FakeWindowPicker(result: .region(region, displayId: ControlFixtures.retina.id))
+        ).start()
+        defer { h.stop() }
+        guard case .region = try await h.controller.pick() else {
+            Issue.record("not a region")
+            return
+        }
+        #expect(h.front.windows.isEmpty)
+    }
+
     @Test func aCancelledPickChangesNothingAndStartWithNothingPickedIsUsage() async throws {
         let h = try Harness(picker: FakeWindowPicker(result: .cancelled)).start()
         defer { h.stop() }

@@ -75,9 +75,11 @@ enum AppSeams {
     static func real() -> ControllerSeams {
         let clock = HostTimeClock()
         let catalog = SCWindowCatalog()
+        let resizer = AXWindowResizer(catalog: catalog)
         return ControllerSeams(
-            catalog: catalog, resizer: AXWindowResizer(catalog: catalog), frameSource: SCStreamFrameSource(),
+            catalog: catalog, resizer: resizer, frameSource: SCStreamFrameSource(),
             mouse: NSEventMouseSource(clock: clock), clock: clock, permissions: SystemPermissionProbe(),
-            disk: VolumeDiskSpaceProbe(), picker: PickerOverlay(catalog: catalog), encoder: .requireHardware)
+            disk: VolumeDiskSpaceProbe(), picker: PickerOverlay(catalog: catalog),
+            front: SystemWindowFront(resizer: resizer), encoder: .requireHardware)
     }
 }

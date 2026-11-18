@@ -259,6 +259,9 @@ public actor SkreenrekController {
             try ensureNotBusy()
             phase = .armed(.window(resolved, readback: nil))
             pickCount += 1
+            // The chosen window should come forward so you can size and record it from the control bar. The bar
+            // and outline then order themselves above it.
+            await seams.front.bringToFront(resolved.window)
             publish()
             return .window(WindowEntry(resolved))
         case .region(let rect, let displayId):

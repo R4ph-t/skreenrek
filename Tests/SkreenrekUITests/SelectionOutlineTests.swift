@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import SkreenrekControl
@@ -16,12 +17,13 @@ import Testing
     }()
 
     private static func input(
-        picks: Int = 0, capturing: Bool = false, picker: Bool = false, panel: Bool = false, closed: Bool = false,
-        reduceMotion: Bool = false, contrast: Bool = false, target: SelectionOutlineTarget? = target
+        picks: Int = 0, capturing: Bool = false, picker: Bool = false, panel: Bool = false, bar: Bool = false,
+        closed: Bool = false, reduceMotion: Bool = false, contrast: Bool = false,
+        target: SelectionOutlineTarget? = target
     ) -> SelectionOutlineInput {
         SelectionOutlineInput(
             target: target, pickCount: picks, capturing: capturing, pickerOpen: picker, panelOpen: panel,
-            windowClosed: closed, reduceMotion: reduceMotion, increaseContrast: contrast)
+            controlBarVisible: bar, windowClosed: closed, reduceMotion: reduceMotion, increaseContrast: contrast)
     }
 
     private static func model(_ first: SelectionOutlineInput = input(), macOS: Int = 26) -> SelectionOutlineModel {
@@ -67,6 +69,40 @@ import Testing
     @Test func itShowsWhileThePanelIsOpen() {
         #expect(isShown(Self.model(Self.input(panel: true)).display(at: 1000)))
         #expect(Self.model(Self.input()).display(at: 0) == .hidden)
+    }
+
+    @Test func itStaysWhileTheControlBarIsVisible() {
+        var model = Self.model()
+        model.update(Self.input(picks: 1, bar: true), now: 0)
+        #expect(isShown(model.display(at: 1000)))
+        #expect(model.wantsTracking(at: 1000))
+        #expect(model.nextDeadline(after: 1000) == nil)
+    }
+
+    @Test func itStillHidesWhileRecordingEvenIfTheBarIsVisible() {
+        var model = Self.model()
+        model.update(Self.input(picks: 1, capturing: true, bar: true), now: 0)
+        #expect(model.display(at: 0) == .hidden)
+        #expect(!model.wantsTracking(at: 0))
+    }
+
+    @Test func closingThePanelWhileTheBarIsVisibleKeepsTheOutline() {
+        var model = Self.model(Self.input(panel: true, bar: true))
+        model.update(Self.input(picks: 1, panel: true, bar: true), now: 0)
+        model.update(Self.input(picks: 1, bar: true), now: 1)
+        #expect(isShown(model.display(at: 10)))
+        #expect(model.nextDeadline(after: 10) == nil)
+    }
+
+    @Test func turningTheBarOffFadesTheOutline() {
+        var model = Self.model(Self.input(picks: 1, bar: true))
+        model.update(Self.input(picks: 1), now: 10)
+        guard case .fading(_, let remaining) = model.display(at: 10) else {
+            Issue.record("Expected the fade")
+            return
+        }
+        #expect(abs(remaining - 0.3) < 0.0001)
+        #expect(model.display(at: 10.31) == .hidden)
     }
 
     @Test(arguments: [
@@ -285,5 +321,22 @@ import Testing
             #expect(surface.log.last == "hide")
             #expect(tracker.stops == 1)
         }
+    }
+}
+
+
+/// The overlay window itself: it must stay up after Skreenrek deactivates.
+@MainActor
+@Suite struct SelectionOutlineWindowTests {
+    @Test func thePanelStaysUpWhenTheAppDeactivatesAndStaysOutOfCapture() {
+        let panel = SelectionOutlinePanel()
+        #expect(panel.styleMask.contains(.borderless))
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(panel.ignoresMouseEvents)
+        #expect(!panel.hidesOnDeactivate)
+        #expect(!panel.hasShadow)
+        #expect(panel.sharingType == .none)
+        #expect(!panel.collectionBehavior.contains(.transient))
+        #expect(panel.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle])
     }
 }

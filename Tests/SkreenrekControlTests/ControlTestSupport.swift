@@ -160,6 +160,7 @@ final class Harness: Sendable {
     let permissions = FakePermissionProbe()
     let disk = FakeDiskSpaceProbe()
     let picker: FakeWindowPicker
+    let front = FakeWindowFront()
     let sinks = SinkLog()
     let host: HeadlessHost
 
@@ -180,8 +181,9 @@ final class Harness: Sendable {
         self.resizeGate = GatedWindowResizer(resizer)
         let seams = ControllerSeams(
             catalog: catalog, resizer: resizeGate, frameSource: source, mouse: mouse, clock: clock,
-            permissions: permissions, disk: disk, picker: picker, ownPid: 99, encoder: .software,
-            realTimeWriter: realTime, makeSink: sinks.factory(clock: clock, encode: encode || realTime))
+            permissions: permissions, disk: disk, picker: picker, front: front, ownPid: 99,
+            encoder: .software, realTimeWriter: realTime,
+            makeSink: sinks.factory(clock: clock, encode: encode || realTime))
         host = HeadlessHost(
             seams: seams, settings: ControllerSettings(outputFolder: temp.output, fps: .fps30), socketPath: temp.socket)
     }
