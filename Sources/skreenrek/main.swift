@@ -28,7 +28,7 @@ case .app:
     MainActor.assumeIsolated {
         MenuBarApp.run(
             seams: AppSeams.real(), requester: SystemPermissionRequester(),
-            previews: ScreenshotWindowPreview())
+            previews: ScreenshotWindowPreview(), displays: { AppKitDisplays.current() })
     }
 case .help:
     runCLI(["--help"])

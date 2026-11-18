@@ -12,10 +12,10 @@ import Testing
     // MARK: - Heights
 
     @Test func aPickedWindowHasEveryHeightTheSpecMeasured() {
-        #expect(PanelMetrics.contentHeight(Self.armed(clip: false, update: false)) == 530.5)
-        #expect(PanelMetrics.contentHeight(Self.armed(update: false)) == 591.5)
+        #expect(PanelMetrics.contentHeight(Self.armed(clip: false, update: false)) == 558.5)
+        #expect(PanelMetrics.contentHeight(Self.armed(update: false)) == 619.5)
         let content = Self.armed()
-        #expect(PanelMetrics.contentHeight(content) == 619.5)
+        #expect(PanelMetrics.contentHeight(content) == 647.5)
         #expect(PanelMetrics.contentHeight(content) == PanelMetrics.idleHeight)
         #expect(PanelMetrics.contentHeight(content) <= PanelMetrics.idleBudget)
         #expect(!content.isCompact)
@@ -44,7 +44,7 @@ import Testing
         #expect(content.hero?.tint == .red)
     }
 
-    @Test(arguments: [(false, false, 323.0), (true, false, 384.0), (false, true, 351.0), (true, true, 412.0)])
+    @Test(arguments: [(false, false, 351.0), (true, false, 412.0), (false, true, 379.0), (true, true, 440.0)])
     func theCompactPanelHasEveryHeightTheSpecMeasured(clip: Bool, update: Bool, height: CGFloat) {
         #expect(PanelMetrics.contentHeight(Self.noWindow(clip: clip, update: update)) == height)
         #expect(PanelMetrics.contentHeight(Self.windowClosed(clip: clip, update: update)) == height)
@@ -489,7 +489,7 @@ import Testing
 
     // MARK: - Fixtures
 
-    /// Armed at 1080p. By default with the update row and a last clip: the 619.5 pt panel.
+    /// Armed at 1080p. By default with the update row and a last clip: the 647.5 pt panel.
     private static func armed(
         phase: PanelPreviewPhase = .ready(still), spinner: Bool = false, fileExists: Bool = true, clip: Bool = true,
         update: Bool = true

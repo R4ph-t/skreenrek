@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
 - The picked window gets an outline on screen while the menu is open, and for a moment right after you pick it. The outline never appears in a recording.
+- A control bar under the picked window sets its size and starts or stops the recording without opening the menu. It never appears in a recording, and Show Control Bar turns it off.
 
 ### Changed
 
+- While the control bar is on, a window you record from the menu or the bar stays picked after the clip is saved.
 - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
 - The preview has an accent outline while a window is picked, and a red one while recording.
 - Settings is now a standard window with General, Agents, and Permissions tabs.

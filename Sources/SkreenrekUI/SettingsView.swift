@@ -197,6 +197,7 @@ public struct SettingsView: View {
         .frame(width: SettingsMetrics.width)
         .fixedSize(horizontal: false, vertical: true)
         .onChange(of: store.controllerSettings) { actions.settingsChanged() }
+        .onChange(of: store.showControlBar) { actions.settingsChanged() }
     }
 
     // MARK: - General
@@ -229,6 +230,7 @@ public struct SettingsView: View {
             switchRow(UIStrings.Settings.showCursor, isOn: $store.cursor)
             switchRow(UIStrings.Settings.writeClickEvents, isOn: $store.events)
             switchRow(UIStrings.Settings.showRecordingIndicator, isOn: $store.hud)
+            switchRow(UIStrings.Settings.showControlBar, isOn: $store.showControlBar)
             SettingsRow {
                 SettingsRowText(title: UIStrings.Settings.stopShortcut)
             } trailing: {

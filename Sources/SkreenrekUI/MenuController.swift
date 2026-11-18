@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import SkreenrekControl
 import SkreenrekCore
 import SwiftUI
 
@@ -32,6 +33,8 @@ public final class MenuController: NSObject {
     private let store: PanelStore
     private let panel: MenuKeyPanel
     private let outline: SelectionOutlineController
+    private let controlBar: ControlBarController
+    private let controlBarWindow = ControlBarWindow()
     private var hosting: NSHostingView<StoredMenuPanel>?
     private var accessibilityKey: String?
     private var iconKey: String?
@@ -45,7 +48,19 @@ public final class MenuController: NSObject {
     /// The frame the panel is on, or animating to.
     private var targetFrame: NSRect?
 
-    public init(model: AppModel, previews: any WindowPreviewSource, permissions: any PermissionProbe) {
+    /// Called when the control bar appears or goes away.
+    var onControlBarVisibilityChange: (() -> Void)? {
+        get { controlBar.onVisibilityChange }
+        set { controlBar.onVisibilityChange = newValue }
+    }
+
+    /// While the bar is up it has the timer and Stop, so the HUD stands down.
+    var controlBarVisible: Bool { controlBar.isVisible }
+
+    public init(
+        model: AppModel, previews: any WindowPreviewSource, permissions: any PermissionProbe,
+        displays: @escaping @MainActor () -> [DisplayInfo]
+    ) {
         self.model = model
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         hotKey = StopHotKey()
@@ -53,10 +68,14 @@ public final class MenuController: NSObject {
         let content = PanelModel.content(for: model.context, preview: .noWindow)
         store = PanelStore(content: content, maxHeight: PanelMetrics.availableHeight())
         panel = MenuKeyPanel(contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.width, height: contentHeight(content)))
+        let tracker = SharedWindowFrameTracker(source: LiveWindowFrameTracker(permissions: permissions))
         outline = SelectionOutlineController(
-            surface: SelectionOutlineWindow(), tracker: LiveWindowFrameTracker(permissions: permissions),
-            clock: HostTimeClock())
+            surface: SelectionOutlineWindow(), tracker: tracker.makeClient(), clock: HostTimeClock())
+        controlBar = ControlBarController(
+            surface: controlBarWindow, tracker: tracker.makeClient(), clock: HostTimeClock(),
+            permissions: permissions, displays: displays)
         super.init()
+        controlBarWindow.onAction = { [weak self] in self?.actOnControlBar($0) }
         hotKey.onPress = { [weak model] in
             guard let model else { return }
             Task { await model.perform(.stop) }
@@ -78,6 +97,7 @@ public final class MenuController: NSObject {
         renderIcon(model.icon, state: context.displayState)
         if panel.isVisible { refresh(opening: false) }
         updateOutline()
+        updateControlBar()
         updateTimer()
         updateHotKey()
     }
@@ -85,15 +105,38 @@ public final class MenuController: NSObject {
     /// The on-screen outline follows the same state as the panel. A closed window counts only for the window the
     /// last still was taken of, so a stale result can't hide the outline of a newer pick.
     private func updateOutline() {
-        let snapshot = model.snapshot
-        var closed = false
-        if case .windowClosed = previews.phase, previews.requestedWindow == snapshot.window?.id { closed = true }
         let workspace = NSWorkspace.shared
         outline.update(
             SelectionOutlineInput(
-                snapshot: snapshot, panelOpen: panel.isVisible, windowClosed: closed,
+                snapshot: model.snapshot, panelOpen: panel.isVisible, windowClosed: pickedWindowClosed,
                 reduceMotion: workspace.accessibilityDisplayShouldReduceMotion,
                 increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast))
+    }
+
+    private var pickedWindowClosed: Bool {
+        if case .windowClosed = previews.phase, previews.requestedWindow == model.snapshot.window?.id { return true }
+        return false
+    }
+
+    private func updateControlBar() {
+        let context = model.context
+        let idleWithWindow = context.snapshot.window != nil && context.isArmed
+        controlBar.update(
+            ControlBarInput(
+                context: context, windowClosed: pickedWindowClosed,
+                outputWritable: !idleWithWindow || SkreenrekController.canWrite(model.settings.outputFolder),
+                resize: model.barResize, recordStarting: model.recordStarting,
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion))
+    }
+
+    /// Record and Stop go the panel's way. A preset goes through the bar's own resize, which reports back to it.
+    private func actOnControlBar(_ action: MenuAction) {
+        if case .chooseSize(.size(let size)) = action {
+            let frame = controlBar.windowFrame
+            Task { await model.chooseBarSize(size, currentFrame: frame) }
+        } else {
+            act(action)
+        }
     }
 
     /// The V1 menu-bar glyph for the state: a template image (mono), or while recording the bichrome glyph with the
@@ -194,6 +237,7 @@ public final class MenuController: NSObject {
     private func applyPreview() {
         applyContent(model.context, opening: false)
         updateOutline()
+        updateControlBar()
     }
 
     /// Opening never animates. While the panel is open, a change of height animates its top-anchored frame and the

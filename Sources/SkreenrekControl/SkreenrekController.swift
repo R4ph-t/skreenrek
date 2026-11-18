@@ -38,12 +38,14 @@ public actor SkreenrekController {
         let recordingId: String
         let startedAt: Date
         let startHostTime: TimeInterval
+        /// What stays picked when this recording ends. Nil goes back to nothing picked.
+        let keptTarget: Armed?
         private let endTask = Mutex<Task<Outcome, Never>?>(nil)
 
         init(
             session: RecordingSession, events: EventRecorder?, target: CaptureTarget, display: DisplayInfo,
             size: PixelSize, options: RecordingOptions, origin: RecordingOrigin, readback: Readback?,
-            recordingId: String, startedAt: Date, startHostTime: TimeInterval
+            recordingId: String, startedAt: Date, startHostTime: TimeInterval, keptTarget: Armed?
         ) {
             self.session = session
             self.events = events
@@ -56,6 +58,7 @@ public actor SkreenrekController {
             self.recordingId = recordingId
             self.startedAt = startedAt
             self.startHostTime = startHostTime
+            self.keptTarget = keptTarget
         }
 
         var app: String? {
@@ -301,8 +304,11 @@ public actor SkreenrekController {
 
     /// Starts recording: Screen Recording and direct capture check → resolve the target → resize first when a size
     /// is given (exit 4 unless `allowInexact`) → output folder → recorder with events. Returns once the recorder runs, never waiting
-    /// for a frame to be encoded.
-    public func start(_ params: StartParams, startedBy: StartedBy, client: String? = nil) async throws -> StartBody {
+    /// for a frame to be encoded. `keepWindowPicked` leaves a recorded window picked after a saved or discarded clip;
+    /// the menu bar's control bar asks for it. The CLI and MCP don't, so their state still returns to idle.
+    public func start(
+        _ params: StartParams, startedBy: StartedBy, client: String? = nil, keepWindowPicked: Bool = false
+    ) async throws -> StartBody {
         clearError()
         try ensureNotBusy()
         let previous: Armed? = if case .armed(let armed) = phase { armed } else { nil }
@@ -314,7 +320,8 @@ public actor SkreenrekController {
         }()
         phase = .starting(app: app, previous: previous)
         do {
-            let body = try await performStart(params, previous: previous, startedBy: startedBy, client: client)
+            let body = try await performStart(
+                params, previous: previous, startedBy: startedBy, client: client, keepWindowPicked: keepWindowPicked)
             publish()
             return body
         } catch {
@@ -324,9 +331,9 @@ public actor SkreenrekController {
         }
     }
 
-    private func performStart(_ params: StartParams, previous: Armed?, startedBy: StartedBy, client: String?)
-        async throws -> StartBody
-    {
+    private func performStart(
+        _ params: StartParams, previous: Armed?, startedBy: StartedBy, client: String?, keepWindowPicked: Bool
+    ) async throws -> StartBody {
         let options = try recordingOptions(params, surface: startedBy)
         let size = try requestedSize(params)
         // Capture permissions first, before any resize or ScreenCaptureKit call: a missing one fails here (and the app
@@ -338,6 +345,7 @@ public actor SkreenrekController {
         var target: CaptureTarget
         var display: DisplayInfo
         var readback: Readback?
+        var keptTarget: Armed?
         if let region = params.region {
             guard params.windowQuery == nil else {
                 throw SkreenrekError.usage(
@@ -371,6 +379,15 @@ public actor SkreenrekController {
             }
             display = resolved.display
             target = .window(resolved.window)
+            if keepWindowPicked {
+                var kept = readback
+                if kept == nil, case .window(let armed, let armedReadback)? = previous,
+                    armed.window.id == resolved.window.id
+                {
+                    kept = armedReadback
+                }
+                keptTarget = .window(resolved, readback: kept)
+            }
         }
         // A sized window records at the clip size read back (the requested size when exact), scaled down from its
         // native pixels; otherwise the target's own pixels.
@@ -422,7 +439,7 @@ public actor SkreenrekController {
         let active = Active(
             session: session, events: events, target: target, display: display, size: outputSize, options: options,
             origin: origin, readback: readback, recordingId: folder.lastPathComponent, startedAt: startedAt,
-            startHostTime: startHostTime)
+            startHostTime: startHostTime, keptTarget: keptTarget)
         active.setEndTask(Task { await self.end(active) })
         phase = .recording(active)
         Self.log.info("Recording \(active.recordingId, privacy: .public) started by \(startedBy.rawValue, privacy: .public)")
@@ -504,7 +521,7 @@ public actor SkreenrekController {
         let result = await active.session.waitForEnd()
         if result.stopReason == .discarded {
             _ = await active.events?.stop()
-            phase = .idle
+            phase = active.keptTarget.map(Phase.armed) ?? .idle
             publish()
             return .discarded
         }
@@ -521,7 +538,12 @@ public actor SkreenrekController {
         case .discarded:
             break
         }
-        phase = .idle
+        // A failed recording (the window closed, the disk filled) forgets its target as before.
+        if result.error == nil, case .saved = outcome, let kept = active.keptTarget {
+            phase = .armed(kept)
+        } else {
+            phase = .idle
+        }
         publish()
         if let error = result.error, case .saved = outcome { return .failed(error) }
         return outcome
@@ -611,7 +633,7 @@ public actor SkreenrekController {
     }
 
     /// The folder is writable, or its nearest existing parent is (so it can be created).
-    static func canWrite(_ folder: URL) -> Bool {
+    public static func canWrite(_ folder: URL) -> Bool {
         let fm = FileManager.default
         var url = folder.standardizedFileURL
         while !fm.fileExists(atPath: url.path) {

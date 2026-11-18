@@ -320,7 +320,7 @@ struct MenuPanelView: View {
     private func popup(_ submenu: SubmenuModel, value: String, width: CGFloat) -> some View {
         Menu {
             ForEach(Array(submenu.entries.enumerated()), id: \.offset) { _, entry in
-                menuEntry(entry)
+                PanelMenuEntry(entry: entry, onAction: onAction)
             }
         } label: {
             HStack(spacing: 0) {
@@ -359,34 +359,6 @@ struct MenuPanelView: View {
         .menuIndicator(.hidden)
         .frame(width: width, height: PanelMetrics.cellHeight)
         .accessibilityLabel(UIStrings.Panel.popupLabel(title: submenu.title, value: value))
-    }
-
-    @ViewBuilder
-    private func menuEntry(_ entry: MenuEntry) -> some View {
-        switch entry {
-        case .separator:
-            Divider()
-        case .item(let item):
-            Button {
-                if let action = item.action { onAction(action) }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark")
-                        .opacity(item.checked ? 1 : 0)
-                        .accessibilityHidden(true)
-                    Text(item.title)
-                    if let trailing = item.trailing {
-                        Spacer(minLength: 12)
-                        Text(trailing)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .disabled(!item.enabled)
-            .modifier(PanelHelp(text: item.toolTip))
-        default:
-            EmptyView()
-        }
     }
 
     @ViewBuilder
@@ -455,12 +427,7 @@ struct MenuPanelView: View {
 
     /// The V1 mark in `color`: white on Record in both appearances, tertiary when Record is disabled.
     private func mark(pointSize: CGFloat, color: Color) -> some View {
-        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
-            .resizable()
-            .renderingMode(.template)
-            .foregroundStyle(color)
-            .frame(width: pointSize, height: pointSize)
-            .accessibilityHidden(true)
+        PanelBrandMark(pointSize: pointSize, color: color)
     }
 
     private var origin: some View {
@@ -480,6 +447,56 @@ struct MenuPanelView: View {
             .padding(.leading, PanelMetrics.margin)
             .padding(.top, (PanelMetrics.separator - PanelMetrics.separatorLine) / 2)
             .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Shared with the control bar
+
+/// One row of a Size or Frame Rate pop-up.
+struct PanelMenuEntry: View {
+    var entry: MenuEntry
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        switch entry {
+        case .separator:
+            Divider()
+        case .item(let item):
+            Button {
+                if let action = item.action { onAction(action) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                        .opacity(item.checked ? 1 : 0)
+                        .accessibilityHidden(true)
+                    Text(item.title)
+                    if let trailing = item.trailing {
+                        Spacer(minLength: 12)
+                        Text(trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .disabled(!item.enabled)
+            .modifier(PanelHelp(text: item.toolTip))
+        default:
+            EmptyView()
+        }
+    }
+}
+
+/// The Skreenrek mark in one colour.
+struct PanelBrandMark: View {
+    var pointSize: CGFloat
+    var color: Color
+
+    var body: some View {
+        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(color)
+            .frame(width: pointSize, height: pointSize)
+            .accessibilityHidden(true)
     }
 }
 
@@ -681,7 +698,7 @@ private struct PanelRowButtonBody: View {
 }
 
 /// Pick Window…, Record and Stop Recording: a solid fill that darkens on hover and press.
-private struct PanelHeroButtonStyle: ButtonStyle {
+struct PanelHeroButtonStyle: ButtonStyle {
     var fill: Color
 
     func makeBody(configuration: Configuration) -> some View {
@@ -770,7 +787,7 @@ private struct PanelClearButton: View {
 
 // MARK: - Chrome
 
-private struct PanelHelp: ViewModifier {
+struct PanelHelp: ViewModifier {
     var text: String?
 
     func body(content: Content) -> some View {
@@ -782,7 +799,7 @@ private struct PanelHelp: ViewModifier {
     }
 }
 
-private struct PanelHint: ViewModifier {
+struct PanelHint: ViewModifier {
     var text: String?
 
     func body(content: Content) -> some View {

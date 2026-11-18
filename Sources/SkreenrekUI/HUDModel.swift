@@ -35,7 +35,11 @@ public struct HUDModel: Sendable {
 
     public init() {}
 
-    public mutating func observe(_ snapshot: ControllerSnapshot, now: TimeInterval, indicatorEnabled: Bool = true) {
+    /// `controlBarVisible`: the bar under the window already has the timer and Stop, so the HUD leaves them to it.
+    public mutating func observe(
+        _ snapshot: ControllerSnapshot, now: TimeInterval, indicatorEnabled: Bool = true,
+        controlBarVisible: Bool = false
+    ) {
         if !observed { lastClipID = snapshot.lastClip?.recording.id; observed = true }
         if snapshot.state == .recording || snapshot.state == .writing {
             activeError = nil; dismissedError = nil
@@ -63,7 +67,9 @@ public struct HUDModel: Sendable {
         lastClipID = snapshot.lastClip?.recording.id
         // The indicator option (Settings, `--no-hud`) hides the HUD while capturing, when it could get in the way.
         // Saved and Stopped show after the clip ends, so they always appear: a recording never ends silently.
-        if !enabled || !indicatorEnabled, state.kind == .recording || state.kind == .writing { state = .hidden }
+        if !enabled || !indicatorEnabled || controlBarVisible, state.kind == .recording || state.kind == .writing {
+            state = .hidden
+        }
         tick(now: now)
     }
 

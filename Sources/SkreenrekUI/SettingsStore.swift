@@ -14,6 +14,7 @@ public final class SettingsStore {
         public static let cursor = "showCursor"
         public static let events = "writeClickEvents"
         public static let hud = "showRecordingIndicator"
+        public static let controlBar = "showControlBar"
         public static let size = "nextSize"
         public static let settingsTab = "settingsTab"
     }
@@ -41,6 +42,11 @@ public final class SettingsStore {
         didSet { defaults.set(hud, forKey: Key.hud) }
     }
 
+    /// The bar under the picked window. The menu panel and Settings share it. The controller never sees it.
+    public var showControlBar: Bool {
+        didSet { defaults.set(showControlBar, forKey: Key.controlBar) }
+    }
+
     /// The size the next recording (or the armed window) gets, from the Size submenu.
     public var sizeChoice: SizeChoice {
         didSet { defaults.set(sizeChoice.storageValue, forKey: Key.size) }
@@ -64,6 +70,7 @@ public final class SettingsStore {
         cursor = defaults.object(forKey: Key.cursor) as? Bool ?? fallback.cursor
         events = defaults.object(forKey: Key.events) as? Bool ?? fallback.events
         hud = defaults.object(forKey: Key.hud) as? Bool ?? fallback.hud
+        showControlBar = defaults.object(forKey: Key.controlBar) as? Bool ?? true
         sizeChoice = defaults.string(forKey: Key.size).flatMap(SizeChoice.init(storageValue:)) ?? .default
         settingsTab = defaults.string(forKey: Key.settingsTab).flatMap(SettingsTab.init(rawValue:)) ?? .general
     }

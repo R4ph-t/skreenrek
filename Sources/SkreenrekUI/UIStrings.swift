@@ -80,6 +80,7 @@ public enum UIStrings {
         public static let frameRate = "Frame Rate"
         public static let showCursor = "Show Cursor"
         public static let writeClickEvents = "Write Click Events"
+        public static let showControlBar = "Show Control Bar"
         public static let recordWindow = "Record Window"
         public static let lastClip = "Last Clip"
         public static let showInFinder = "Show in Finder"
@@ -188,6 +189,31 @@ public enum UIStrings {
         public static func popupLabel(title: String, value: String) -> String {
             "\(title), \(value)"
         }
+    }
+
+    /// Copy for the bar under the picked window. Everything else it shows is reused.
+    public enum ControlBar {
+        public static let sizeHelp = "Clip size. Skreenrek resizes the window to fit."
+        public static let recordHelp = "Record this window."
+        public static let outputFolderNotWritable =
+            "The output folder isn't writable. Choose another folder in Settings."
+        public static var directCaptureBlocked: String {
+            "\(Errors.directCaptureOff). \(Errors.directCaptureDetail)"
+        }
+
+        /// `Skreenrek controls for Safari — localhost:3000`: VoiceOver, for the whole bar.
+        public static func group(_ title: String) -> String { "Skreenrek controls for \(title)" }
+
+        /// `Records Safari — localhost:3000.`
+        public static func recordHint(_ title: String) -> String { "Records \(title)." }
+
+        /// `The clip will be 1920 × 1080 px. The window is 1440 × 810 pt on screen.`
+        public static func readoutHelp(clip: PixelSize, window: WindowPoints) -> String {
+            "The clip will be \(clip). The window is \(window) pt on screen."
+        }
+
+        /// `1920 by 1080 pixels`.
+        public static func spokenSize(_ size: PixelSize) -> String { "\(size.width) by \(size.height) pixels" }
     }
 
     // MARK: - Error rows (the design spec's error-copy table)
@@ -336,6 +362,7 @@ public enum UIStrings {
         public static let showCursor = "Show cursor in video"
         public static let writeClickEvents = "Write click events"
         public static let showRecordingIndicator = "Show recording indicator"
+        public static let showControlBar = "Show control bar"
         public static let openAtLogin = "Open at login"
         public static let stopShortcut = "Stop shortcut"
         public static let stopShortcutKeys = "⌃⌘⎋"
@@ -484,5 +511,7 @@ public enum UIStrings {
         Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
         Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
         Updates.menuAvailable, Updates.whatsNew,
+        Menu.showControlBar, Settings.showControlBar, ControlBar.sizeHelp, ControlBar.recordHelp,
+        ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked,
     ]
 }

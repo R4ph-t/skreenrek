@@ -45,6 +45,13 @@ enum PanelInteraction: Hashable, Sendable {
     }
 }
 
+/// One soft black drop shadow.
+struct PanelShadow: Hashable, Sendable {
+    var opacity: Double
+    var blur: CGFloat
+    var y: CGFloat
+}
+
 /// The menu panel's solid surface, for one appearance (addendum of 2026-11-18). Nothing here is a material.
 struct PanelPalette: Hashable, Sendable {
     var isDark: Bool
@@ -59,6 +66,9 @@ struct PanelPalette: Hashable, Sendable {
     /// Light cells only: a dark cell already stands out from the panel.
     var cellHairline: PanelTone? { isDark ? nil : .black(0.08) }
     var wellFill: PanelTone { .hex(isDark ? 0x2C2C2F : 0xE9E9EE) }
+    var shadow: PanelShadow {
+        isDark ? PanelShadow(opacity: 0.35, blur: 24, y: 8) : PanelShadow(opacity: 0.15, blur: 20, y: 6)
+    }
 
     func hairline(increaseContrast: Bool) -> PanelTone {
         let opacity = increaseContrast ? 0.25 : 0.10
