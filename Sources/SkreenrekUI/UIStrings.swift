@@ -195,6 +195,7 @@ public enum UIStrings {
     public enum ControlBar {
         public static let sizeHelp = "Clip size. Skreenrek resizes the window to fit."
         public static let recordHelp = "Record this window."
+        public static let clearWindow = "Clear window"
         public static let outputFolderNotWritable =
             "The output folder isn't writable. Choose another folder in Settings."
         public static let accessibilityOff =
@@ -519,5 +520,6 @@ public enum UIStrings {
         Updates.menuAvailable, Updates.whatsNew,
         Menu.showControlBar, Settings.showControlBar, ControlBar.sizeHelp, ControlBar.recordHelp,
         ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked, ControlBar.accessibilityOff,
+        ControlBar.clearWindow,
     ]
 }
