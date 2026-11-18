@@ -28,13 +28,14 @@ public final class FakeReleaseFeed: ReleaseFeed {
         (calls, started) = AsyncStream.makeStream()
     }
 
-    /// `v<version>` at the GitHub releases page.
-    public convenience init(latest version: String, gated: Bool = false) {
+    /// `v<version>` at the GitHub releases page. `notes` is the release body (empty when the release has none).
+    public convenience init(latest version: String, notes: String = "", gated: Bool = false) {
         self.init(
             .success(
                 ReleaseInfo(
                     version: SemanticVersion(version)!,
-                    pageURL: URL(string: "https://github.com/R4ph-t/skreenrek/releases/tag/v\(version)")!)),
+                    pageURL: URL(string: "https://github.com/R4ph-t/skreenrek/releases/tag/v\(version)")!,
+                    notes: notes)),
             gated: gated)
     }
 

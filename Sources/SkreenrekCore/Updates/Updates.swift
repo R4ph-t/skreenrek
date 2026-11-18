@@ -72,14 +72,17 @@ public struct SemanticVersion: Sendable, Hashable, Comparable, CustomStringConve
     }
 }
 
-/// The newest published release: its version and the page to download it from.
+/// The newest published release: its version, the page to download it from, and the notes (the release body).
 public struct ReleaseInfo: Sendable, Hashable {
     public var version: SemanticVersion
     public var pageURL: URL
+    /// GitHub's `body`. Empty when the release has no notes.
+    public var notes: String
 
-    public init(version: SemanticVersion, pageURL: URL) {
+    public init(version: SemanticVersion, pageURL: URL, notes: String = "") {
         self.version = version
         self.pageURL = pageURL
+        self.notes = notes
     }
 }
 
@@ -99,8 +102,8 @@ public enum GitHubReleases {
         case badTag(String)
     }
 
-    /// Reads `tag_name` (`v1.0.3`) and `html_url` from the endpoint's body. A missing `html_url` falls back to the
-    /// releases page.
+    /// Reads `tag_name` (`v1.0.3`), `html_url` and `body` from the endpoint's body. A missing `html_url` falls back to
+    /// the releases page. A missing or null `body` is empty notes.
     public static func parse(_ data: Data) throws -> ReleaseInfo {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ParseError.notJSON
@@ -108,7 +111,8 @@ public enum GitHubReleases {
         let tag = object["tag_name"] as? String ?? ""
         guard let version = SemanticVersion(tag) else { throw ParseError.badTag(tag) }
         let page = (object["html_url"] as? String).flatMap(URL.init(string:)) ?? releasesPage
-        return ReleaseInfo(version: version, pageURL: page)
+        let notes = object["body"] as? String ?? ""
+        return ReleaseInfo(version: version, pageURL: page, notes: notes)
     }
 }
 

@@ -3,9 +3,10 @@
 #
 #   scripts/release.sh <version>          (or: make release VERSION=x.y.z)
 #
-# Writes dist/Skreenrek-<version>.zip (the stapled app, zipped with ditto --keepParent) and
-# dist/Skreenrek-<version>.zip.sha256. It never creates a git tag or a GitHub release: publishing stays a manual step
-# (`gh release create v<version> dist/Skreenrek-<version>.zip`).
+# Writes dist/Skreenrek-<version>.zip (the stapled app, zipped with ditto --keepParent),
+# dist/Skreenrek-<version>.zip.sha256, and dist/Skreenrek-<version>-notes.md (the CHANGELOG.md section for
+# <version>). It never creates a git tag or a GitHub release: publishing stays a manual step
+# (`gh release create v<version> dist/Skreenrek-<version>.zip --notes-file dist/Skreenrek-<version>-notes.md`).
 #
 # Signing material comes from the login Keychain, named by two env vars:
 #   SKREENREK_SIGN_IDENTITY   the Developer ID Application identity (default below)
@@ -44,7 +45,19 @@ work="build/release-$version"
 dist=dist
 app="$work/Skreenrek.app"
 zip="$dist/Skreenrek-$version.zip"
+notes="$dist/Skreenrek-$version-notes.md"
 notary_zip="$work/Skreenrek-$version-notarize.zip"
+
+# Before the Keychain, the build, or signing: a release with no changelog section does not get a zip.
+step "Reading the changelog"
+notes_tmp="$(mktemp)"
+if ! bash scripts/release-notes.sh "$version" >"$notes_tmp"; then
+  rm -f "$notes_tmp"
+  fail "CHANGELOG.md has no section for $version. Add a ## [$version] section before releasing."
+fi
+mkdir -p "$dist"
+cat "$notes_tmp" >"$notes"
+rm -f "$notes_tmp"
 
 step "Checking the signing identity and notary profile"
 command -v xcrun >/dev/null || fail "xcrun not found; install Xcode"
@@ -146,4 +159,4 @@ step "Done"
 echo "submission id: $submission"
 codesign -dv --verbose=2 "$app" 2>&1 | sed -E '/^(Executable|Hash|CandidateCDHash|CMSDigest|Sealed|Internal|Info.plist)/d'
 cat "$dist/$(basename "$zip").sha256"
-echo "Publish (not done here): gh release create v$version $zip"
+echo "Publish (not done here): gh release create v$version $zip --notes-file $notes"

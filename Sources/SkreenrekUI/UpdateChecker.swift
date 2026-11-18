@@ -29,6 +29,7 @@ public final class UpdateChecker {
         public static let lastCheck = "updates.lastCheck"
         public static let latestVersion = "updates.latestVersion"
         public static let latestPage = "updates.latestPage"
+        public static let latestNotes = "updates.latestNotes"
     }
 
     public private(set) var state: UpdateState
@@ -68,7 +69,8 @@ public final class UpdateChecker {
         }
         guard latest > current else { return .upToDate(current: current) }
         let page = defaults.string(forKey: Key.latestPage).flatMap(URL.init(string:)) ?? GitHubReleases.releasesPage
-        return .available(ReleaseInfo(version: latest, pageURL: page))
+        let notes = defaults.string(forKey: Key.latestNotes) ?? ""
+        return .available(ReleaseInfo(version: latest, pageURL: page, notes: notes))
     }
 
     public var lastCheck: Date? {
@@ -113,6 +115,7 @@ public final class UpdateChecker {
             let release = try await feed.latestRelease()
             defaults.set(release.version.description, forKey: Key.latestVersion)
             defaults.set(release.pageURL.absoluteString, forKey: Key.latestPage)
+            defaults.set(release.notes, forKey: Key.latestNotes)
             set(release.version > current ? .available(release) : .upToDate(current: current))
         } catch {
             // A known update stays on screen; otherwise the row says the check failed.
@@ -207,11 +210,14 @@ public struct UpdateRowModel: Sendable, Hashable {
     public var busy: Bool
     /// The detail is the quiet failure line.
     public var quiet: Bool
+    /// Release notes for the What's new disclosure. Set only while an update is available and the notes aren't blank.
+    public var notes: String?
 
     public init(state: UpdateState, current: SemanticVersion, method: UpdateMethod) {
         let check = Button(title: UIStrings.Updates.checkForUpdates, action: .check, prominent: false, enabled: true)
         busy = false
         quiet = false
+        notes = nil
         switch state {
         case .idle:
             detail = UIStrings.Updates.currentVersion(current.description)
@@ -225,6 +231,7 @@ public struct UpdateRowModel: Sendable, Hashable {
             button = check
         case .available(let info):
             detail = UIStrings.Updates.available(info.version.description, current: current.description)
+            notes = Self.visibleNotes(info.notes)
             button = Button(
                 title: method == .homebrew ? UIStrings.Updates.update : UIStrings.Updates.download, action: .update,
                 prominent: true, enabled: true)
@@ -245,5 +252,11 @@ public struct UpdateRowModel: Sendable, Hashable {
                 title: UIStrings.Updates.openReleasePage, action: .openReleasePage, prominent: false, enabled: true)
             quiet = true
         }
+    }
+
+    /// Blank notes stay hidden. Anything else is the markdown the disclosure shows, without surrounding whitespace.
+    private static func visibleNotes(_ notes: String) -> String? {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

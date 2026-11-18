@@ -6,8 +6,9 @@ records it with ScreenCaptureKit and AVAssetWriter at native resolution (H.264, 
 folder per clip with `clip.mp4`, `events.json`, and `hyperframes.html`.
 
 Free and open source (MIT). Unsandboxed. Releases are Developer ID signed, notarized and stapled by `make release`
-(Raph's, by hand) and installed with the Homebrew cask in `Casks/`; dev builds and the source formula stay ad-hoc
-signed. Written fresh: it shares no code with Fraime.
+(Raph's, by hand) and installed with the Homebrew cask in `Casks/`. Before it builds, `make release` writes that
+version's `CHANGELOG.md` section to `dist/Skreenrek-<version>-notes.md` and refuses to build when the section is
+missing. Dev builds and the source formula stay ad-hoc signed. Written fresh: it shares no code with Fraime.
 
 ## Layout
 
@@ -50,6 +51,8 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
 - `make check` is the factory's gate: an offline lint of `.factory/project.conf`, then `swift build` and `swift test`
   once `Package.swift` exists. There is no GitHub CI (Raph's call, 2026-11-17): a PR merges when `make check` passes in
   its lane worktree on Raph's Mac at the PR head. New warnings count as failures in review.
+- Every user-visible PR adds a line under `## [Unreleased]` in `CHANGELOG.md`. The release bump moves that Unreleased
+  section into `## [x.y.z] - YYYY-MM-DD` and leaves Unreleased empty.
 - Never commit secrets, keys, team ids or personal paths, and never read `.release.env`, `.env`, key or cert files.
 - Designer's spec is in `docs/design-spec.md`. When a spec says 'from the design spec', use that file verbatim;
   don't block on Notion.
