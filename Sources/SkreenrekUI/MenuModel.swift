@@ -15,6 +15,7 @@ public enum MenuAction: Sendable, Hashable {
     case quit
     case toggleCursor
     case toggleEvents
+    case toggleControlBar
     case chooseSize(SizeChoice)
     case customSize
     case chooseFrameRate(FrameRate)
@@ -337,22 +338,9 @@ public enum MenuModel {
     public static func sizeSubmenu(_ choice: SizeChoice, display: DisplayInfo? = nil, window: WindowInfo? = nil)
         -> SubmenuModel
     {
-        func rows(_ presets: [SizePreset]) -> [MenuEntry] {
-            presets.map { preset in
-                var toolTip: String?
-                if let display, case .failure(let failure) = WindowFit.plan(clip: preset.size, on: display) {
-                    toolTip = failure.tooltip
-                }
-                return .item(
-                    MenuItemModel(
-                        preset.title, action: .chooseSize(.size(preset.size)), enabled: toolTip == nil,
-                        checked: choice == .size(preset.size), trailing: UIStrings.Menu.dimensions(preset.size),
-                        toolTip: toolTip))
-            }
-        }
         let current = window.flatMap { window in display.map { window.frame.pixelSize(scale: $0.scale) } }
         let preset = choice.pixelSize.flatMap(SizePreset.init(size:))
-        var entries = rows(SizePresets.standard) + [.separator] + rows(SizePresets.shaped) + [.separator]
+        var entries = sizePresetEntries(choice, display: display) + [.separator]
         entries.append(
             .item(
                 MenuItemModel(
@@ -368,6 +356,24 @@ public enum MenuModel {
             case .size(let size): preset?.title ?? UIStrings.Menu.dimensions(size)
             }
         return SubmenuModel(title: UIStrings.Menu.size, detail: detail, entries: entries)
+    }
+
+    /// The six presets in their two groups: the Size submenu's first part, and all of the control bar's menu.
+    public static func sizePresetEntries(_ choice: SizeChoice, display: DisplayInfo?) -> [MenuEntry] {
+        func rows(_ presets: [SizePreset]) -> [MenuEntry] {
+            presets.map { preset in
+                var toolTip: String?
+                if let display, case .failure(let failure) = WindowFit.plan(clip: preset.size, on: display) {
+                    toolTip = failure.tooltip
+                }
+                return .item(
+                    MenuItemModel(
+                        preset.title, action: .chooseSize(.size(preset.size)), enabled: toolTip == nil,
+                        checked: choice == .size(preset.size), trailing: UIStrings.Menu.dimensions(preset.size),
+                        toolTip: toolTip))
+            }
+        }
+        return rows(SizePresets.standard) + [.separator] + rows(SizePresets.shaped)
     }
 
     public static func frameRateSubmenu(_ fps: FrameRate) -> SubmenuModel {

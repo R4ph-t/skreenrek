@@ -82,6 +82,11 @@ public final class AppModel {
     public private(set) var snapshot: ControllerSnapshot
     public private(set) var actionError: SkreenrekError?
     public private(set) var menuOpen = false
+    /// A preset chosen from the control bar, while it resizes and after a refusal.
+    public private(set) var barResize = ControlBarResize.none
+    /// Record was clicked and the recorder isn't running yet.
+    public private(set) var recordStarting = false
+    @ObservationIgnored private var refusals = 0
     /// A newer release's version, from `UpdateChecker`, for the dropdown's footer line.
     public var updateAvailable: String? {
         didSet { if updateAvailable != oldValue { onChange?() } }
@@ -102,7 +107,8 @@ public final class AppModel {
         MenuContext(
             snapshot: snapshot, actionError: actionError, lastClipTitle: tracker.title,
             sizeChoice: settings.sizeChoice, display: snapshot.display ?? effects.mainDisplay(),
-            cursor: settings.cursor, events: settings.events,
+            cursor: settings.cursor, events: settings.events, showControlBar: settings.showControlBar,
+            recordingIndicator: settings.hud,
             permissionsMissing: permissions.map { !$0.canCapture || $0.accessibility != .allowed }
                 ?? false,
             updateAvailable: updateAvailable)
@@ -209,6 +215,9 @@ public final class AppModel {
         case .toggleEvents:
             settings.events.toggle()
             await pushSettings()
+        case .toggleControlBar:
+            settings.showControlBar.toggle()
+            onChange?()
         case .chooseSize(let choice):
             await clearErrors()
             await chooseSize(choice)
@@ -252,14 +261,67 @@ public final class AppModel {
         await run { _ = try await self.controller.resize(query: nil, size: size, allowInexact: true) }
     }
 
-    /// Records the picked window, resizing it first to the chosen size unless it already has that read-back.
-    private func record() async {
+    /// A preset from the control bar: the same exact resize as the CLI. A window that keeps its size puts the previous
+    /// choice back, and the bar shows why instead of the menu's error state. `currentFrame` is where the window is now.
+    public func chooseBarSize(_ size: PixelSize, currentFrame: PointRect?) async {
+        guard barResize != .resizing, snapshot.window != nil, context.isArmed else { return }
+        let previous = settings.sizeChoice
+        settings.sizeChoice = .size(size)
+        barResize = .resizing
+        onChange?()
+        await clearErrors()
+        var refusal: String?
+        do {
+            let readback = try await controller.resize(query: nil, size: size, allowInexact: true)
+            if !readback.exact, let currentFrame, readback.frame.width == currentFrame.width,
+                readback.frame.height == currentFrame.height
+            {
+                refusal = UIStrings.Menu.notExactReason(
+                    app: readback.window.app, requested: readback.requested, actual: readback.actual,
+                    reason: ExactResizer.reason(requested: readback.requested, actuals: [readback.actual]))
+            }
+        } catch {
+            let failure = error as? SkreenrekError ?? .internal(message: error.localizedDescription)
+            await controller.reportActionFailure(failure)
+            Self.log.info("Control bar resize failed: \(failure.code, privacy: .public)")
+            refusal = ErrorPresentation(failure, lastClip: nil).row.detail
+        }
+        apply(await controller.snapshot())
+        if let refusal {
+            settings.sizeChoice = previous
+            refusals += 1
+            barResize = .refused(sequence: refusals, reason: refusal)
+        } else {
+            barResize = .none
+        }
+        onChange?()
+    }
+
+    /// Record on the control bar. Without Accessibility the window can't be resized, so it records as it is, which is
+    /// the size the bar's readout shows.
+    public func recordFromBar() async {
+        await clearErrors()
+        await record(resizing: (permissions?.accessibility ?? .allowed) == .allowed)
+    }
+
+    /// Records the picked window, resizing it first to the chosen size unless it already has that read-back. With the
+    /// control bar on, the window stays picked afterwards, so the bar goes back to Record.
+    private func record(resizing: Bool = true) async {
         var params = StartParams()
-        if snapshot.window != nil, let size = settings.sizeChoice.pixelSize, snapshot.readback?.requested != size {
+        if resizing, snapshot.window != nil, let size = settings.sizeChoice.pixelSize,
+            snapshot.readback?.requested != size
+        {
             params.width = size.width
             params.height = size.height
         }
-        await run { _ = try await self.controller.start(params, startedBy: .menu) }
+        let keepPicked = settings.showControlBar && snapshot.window != nil
+        recordStarting = true
+        onChange?()
+        await run {
+            _ = try await self.controller.start(params, startedBy: .menu, keepWindowPicked: keepPicked)
+        }
+        recordStarting = false
+        onChange?()
     }
 
     /// Settings changed in the Settings window or the menu: the controller takes the new defaults.

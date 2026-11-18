@@ -55,6 +55,10 @@ public struct MenuContext: Sendable, Hashable {
     public var display: DisplayInfo?
     public var cursor: Bool
     public var events: Bool
+    /// The Show Control Bar switch.
+    public var showControlBar: Bool
+    /// The Show Recording Indicator setting.
+    public var recordingIndicator: Bool
     /// Screen Recording or Accessibility is missing: the dropdown offers "Permissions needed…".
     public var permissionsMissing: Bool
     /// A newer release's version (`1.0.3`): the footer shows `Update available · 1.0.3`.
@@ -66,8 +70,8 @@ public struct MenuContext: Sendable, Hashable {
     public init(
         snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, lastClipTitle: String? = nil,
         sizeChoice: SizeChoice = .default, display: DisplayInfo? = nil, cursor: Bool = true, events: Bool = true,
-        permissionsMissing: Bool = false, updateAvailable: String? = nil,
-        timeZone: TimeZone = .current, locale: Locale = .current
+        showControlBar: Bool = true, recordingIndicator: Bool = true, permissionsMissing: Bool = false,
+        updateAvailable: String? = nil, timeZone: TimeZone = .current, locale: Locale = .current
     ) {
         self.permissionsMissing = permissionsMissing
         self.updateAvailable = updateAvailable
@@ -78,6 +82,8 @@ public struct MenuContext: Sendable, Hashable {
         self.display = display ?? snapshot.display
         self.cursor = cursor
         self.events = events
+        self.showControlBar = showControlBar
+        self.recordingIndicator = recordingIndicator
         self.timeZone = timeZone
         self.locale = locale
     }

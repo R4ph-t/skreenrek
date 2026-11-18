@@ -199,6 +199,7 @@ public enum DropdownModel {
         case .pickWindow: "macwindow"
         case .toggleCursor: "cursorarrow"
         case .toggleEvents: "cursorarrow.click"
+        case .toggleControlBar: PanelSymbol.controlBar
         case .record: "record.circle"
         case .openOutputFolder: "folder"
         case .openSettings: "gearshape"

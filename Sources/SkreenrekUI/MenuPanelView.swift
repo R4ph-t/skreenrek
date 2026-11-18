@@ -423,12 +423,7 @@ struct MenuPanelView: View {
 
     /// The V1 mark in `color`: white on Record in both appearances, tertiary when Record is disabled.
     private func mark(pointSize: CGFloat, color: Color) -> some View {
-        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
-            .resizable()
-            .renderingMode(.template)
-            .foregroundStyle(color)
-            .frame(width: pointSize, height: pointSize)
-            .accessibilityHidden(true)
+        PanelBrandMark(pointSize: pointSize, color: color)
     }
 
     private var origin: some View {
@@ -651,7 +646,7 @@ private struct PanelRowButtonBody: View {
 }
 
 /// Pick Window…, Record and Stop Recording: a solid fill that darkens on hover and press.
-private struct PanelHeroButtonStyle: ButtonStyle {
+struct PanelHeroButtonStyle: ButtonStyle {
     var fill: Color
 
     func makeBody(configuration: Configuration) -> some View {
@@ -759,6 +754,21 @@ private struct PanelClearButton: View {
 
 // MARK: - Chrome
 
+/// The Skreenrek mark in one colour, shared with the control bar.
+struct PanelBrandMark: View {
+    var pointSize: CGFloat
+    var color: Color
+
+    var body: some View {
+        Image(nsImage: BrandStatusGlyph.templateLayer(.idle, style: .mono))
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(color)
+            .frame(width: pointSize, height: pointSize)
+            .accessibilityHidden(true)
+    }
+}
+
 /// The rows of a Size or Frame Rate popup, which SwiftUI turns into native menu items. A toggle gives the item its
 /// check mark. An image in the label would become the item's image and show even at zero opacity, and an `HStack`
 /// label keeps only its first text, so the trailing value goes in the title.
@@ -802,7 +812,7 @@ struct PanelPopupEntries: View {
     }
 }
 
-private struct PanelHelp: ViewModifier {
+struct PanelHelp: ViewModifier {
     var text: String?
 
     func body(content: Content) -> some View {
@@ -814,7 +824,7 @@ private struct PanelHelp: ViewModifier {
     }
 }
 
-private struct PanelHint: ViewModifier {
+struct PanelHint: ViewModifier {
     var text: String?
 
     func body(content: Content) -> some View {

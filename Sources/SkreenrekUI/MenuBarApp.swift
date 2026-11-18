@@ -125,6 +125,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private let permissions: any PermissionProbe
     private let requester: any PermissionRequester
     private let previews: any WindowPreviewSource
+    private let displays: @MainActor () -> [DisplayInfo]
     private let defaults: UserDefaults
     private var model: AppModel?
     private var menuController: MenuController?
@@ -136,12 +137,14 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 
     public init(
         host: HeadlessHost, permissions: any PermissionProbe, requester: any PermissionRequester,
-        previews: any WindowPreviewSource, defaults: UserDefaults = .standard
+        previews: any WindowPreviewSource, displays: @escaping @MainActor () -> [DisplayInfo],
+        defaults: UserDefaults = .standard
     ) {
         self.host = host
         self.permissions = permissions
         self.requester = requester
         self.previews = previews
+        self.displays = displays
         self.defaults = defaults
     }
 
@@ -182,18 +185,24 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
         self.settingsWindow = settingsWindow
-        let menu = MenuController(model: model, previews: previews, permissions: permissions)
+        let menu = MenuController(model: model, previews: previews, permissions: permissions, displays: displays)
         menuController = menu
         let hud = RecordingHUD(defaults: defaults)
         self.hud = hud
         hud.stop = { [weak model] in Task { await model?.perform(.stop) } }
         hud.showDetails = { [weak menu] in menu?.showDropdown() }
         let renderMenu = model.onChange
-        model.onChange = { [weak model, weak hud] in
-            renderMenu?()
+        let updateHUD = { [weak model, weak hud, weak menu] in
             guard let model else { return }
-            hud?.update(model.snapshot, indicatorEnabled: model.settings.hud)
+            hud?.update(
+                model.snapshot, indicatorEnabled: model.settings.hud,
+                controlBarVisible: menu?.controlBarVisible ?? false)
         }
+        model.onChange = {
+            renderMenu?()
+            updateHUD()
+        }
+        menu.onControlBarVisibilityChange = updateHUD
         Task {
             await host.controller.setPermissionFailureHandler { [weak onboarding] _ in
                 Task { @MainActor in onboarding?.show() }
@@ -258,7 +267,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 public enum MenuBarApp {
     public static func run(
-        seams: ControllerSeams, requester: any PermissionRequester, previews: any WindowPreviewSource
+        seams: ControllerSeams, requester: any PermissionRequester, previews: any WindowPreviewSource,
+        displays: @escaping @MainActor () -> [DisplayInfo]
     ) -> Never {
         migrateLegacyDefaults()
         let host = HeadlessHost(seams: seams, settings: SettingsStore().controllerSettings)
@@ -271,7 +281,8 @@ public enum MenuBarApp {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         let delegate = MenuBarAppDelegate(
-            host: host, permissions: seams.permissions, requester: requester, previews: previews)
+            host: host, permissions: seams.permissions, requester: requester, previews: previews,
+            displays: displays)
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
         exit(0)

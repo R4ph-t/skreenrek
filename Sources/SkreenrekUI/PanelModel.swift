@@ -212,7 +212,7 @@ public struct PanelPlacedBlock: Sendable, Hashable, Identifiable {
 }
 
 /// The 1.0.5 panel. Every element shares one content edge, x 16–284. Row highlights are inset 8 from the panel edge.
-/// Compact is 323 pt, a picked window 530.5, and recording 457.5, before the optional Last Clip and update rows.
+/// Compact is 351 pt, a picked window 558.5, and recording 457.5, before the optional Last Clip and update rows.
 public enum PanelMetrics {
     public static let width: CGFloat = 300
     /// The content edge: the preview, caption, cells, hero, separators and row icons start here.
@@ -265,14 +265,15 @@ public enum PanelMetrics {
     public static let transitionSeconds: Double = 0.2
     public static let menuBarHeight: CGFloat = 24
     public static let shortScreen: CGFloat = 800
-    public static let idleBudget: CGFloat = 620
+    /// Picked, with Last Clip and the update row. The control bar spec accepts passing the old 620 cap by 27.5.
+    public static let idleBudget: CGFloat = 648
     public static let recordingBudget: CGFloat = 490
     /// Idle with a window, the update row and a last clip.
-    public static let idleHeight: CGFloat = 619.5
+    public static let idleHeight: CGFloat = 647.5
     /// Recording with the update row.
     public static let recordingHeight: CGFloat = 485.5
     /// No window picked, or the window closed, with no clip and no update row.
-    public static let compactHeight: CGFloat = 323
+    public static let compactHeight: CGFloat = 351
 
     /// The row icon's column.
     public static var iconX: CGFloat { rowHighlightX + rowPadding }
@@ -407,7 +408,7 @@ public enum PanelModel {
     /// Everything that leaves (Record, Stop, Settings, opening the clip) closes it.
     public static func keepsPanelOpen(_ action: MenuAction) -> Bool {
         switch action {
-        case .toggleCursor, .toggleEvents, .chooseSize, .chooseFrameRate, .copyFilePath, .copySnippet,
+        case .toggleCursor, .toggleEvents, .toggleControlBar, .chooseSize, .chooseFrameRate, .copyFilePath, .copySnippet,
             .copyErrorDetails, .clearWindow:
             true
         default:
@@ -702,6 +703,9 @@ public enum PanelModel {
             PanelToggle(
                 title: UIStrings.Menu.writeClickEvents, symbol: "cursorarrow.click", isOn: context.events,
                 action: .toggleEvents, accessibilityLabel: UIStrings.Menu.writeClickEvents),
+            PanelToggle(
+                title: UIStrings.Menu.showControlBar, symbol: PanelSymbol.controlBar, isOn: context.showControlBar,
+                action: .toggleControlBar, accessibilityLabel: UIStrings.Menu.showControlBar),
         ]
     }
 
@@ -774,6 +778,7 @@ enum PanelSymbol {
     static let clearWindow = "xmark.circle.fill"
     static let copyFilePath = "square.on.square"
     static let quit = "power"
+    static let controlBar = "rectangle.bottomthird.inset.filled"
 
     static func symbol(for action: MenuAction) -> String? {
         switch action {

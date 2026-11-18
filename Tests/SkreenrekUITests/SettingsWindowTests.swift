@@ -99,7 +99,7 @@ import Testing
                 store: SettingsStore(defaults: defaults), panel: Self.panel(), actions: .none)
             let window = NSWindow(contentViewController: tabs)
             defer { window.contentViewController = nil }
-            for (tab, height) in [(SettingsTab.general, 508.0), (.permissions, 120.0)] {
+            for (tab, height) in [(SettingsTab.general, 552.0), (.permissions, 120.0)] {
                 tabs.select(tab)
                 tabs.view.layoutSubtreeIfNeeded()
                 let child = try #require(tabs.tabViewItems[tabs.selectedTabViewItemIndex].viewController)

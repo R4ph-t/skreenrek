@@ -103,6 +103,9 @@ public enum UIRenderer {
             for sample in settingsSamples {
                 try save(settingsView(sample, home: home), "settings", sample.name, active: true)
             }
+            for sample in ControlBarRenderer.samples() {
+                try save(sample.view, "control-bar", sample.name, active: true)
+            }
             try save(selectionOutline(increaseContrast: false), "screen", "outline")
             try save(selectionOutline(increaseContrast: true), "screen", "outline-contrast")
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
@@ -178,6 +181,7 @@ public enum UIRenderer {
         return [
             ("idle", panel(idleContent, preview: preview, clip: preview)),
             ("picked", panel(picked, preview: preview, clip: preview)),
+            ("control-bar-row", panel(picked, preview: preview, clip: preview)),
             ("clear-hover", panel(picked, preview: preview, clip: preview, clearState: .hover)),
             ("clear-pressed", panel(picked, preview: preview, clip: preview, clearState: .pressed)),
             ("lastclip-hover", panel(picked, preview: preview, clip: preview, lastClipState: .hover)),
@@ -206,7 +210,7 @@ public enum UIRenderer {
         .ready(WindowStill(png: Data(), pixelWidth: 320, pixelHeight: 180))
     }
 
-    /// Armed at 1080p with a last clip: 591.5 pt, or the 619.5 pt idle panel with an update.
+    /// Armed at 1080p with a last clip: 619.5 pt, or the 647.5 pt idle panel with an update.
     private static func specArmed(update: String?) -> MenuContext {
         var context = RenderSamples.armed.context
         let size = SizePreset.p1080.size
@@ -279,6 +283,7 @@ public enum UIRenderer {
     static let settingsSamples = [
         SettingsSample(name: "default", tab: .general),
         SettingsSample(name: "general", tab: .general),
+        SettingsSample(name: "general-control-bar", tab: .general),
         SettingsSample(name: "updateavailable", tab: .general, latest: RenderSamples.newerVersion),
         SettingsSample(name: "agents", tab: .agents),
         SettingsSample(name: "permissions", tab: .permissions),
@@ -314,14 +319,21 @@ public enum UIRenderer {
 
     /// The on-screen outline around a sample window on a plain desktop.
     static func selectionOutline(increaseContrast: Bool) -> NSView {
+        outlineSample(
+            window: PointRect(x: 48, y: 48, width: 640, height: 400), size: NSSize(width: 736, height: 496),
+            increaseContrast: increaseContrast)
+    }
+
+    /// A stand-in window with the real outline around it, on a desktop of `size`.
+    static func outlineSample(window frame: PointRect, size: NSSize, increaseContrast: Bool) -> NSView {
         var window = RenderSamples.safari
-        window.frame = PointRect(x: 48, y: 48, width: 640, height: 400)
+        window.frame = frame
         var model = SelectionOutlineModel(macOSMajorVersion: 26)
         model.update(
             SelectionOutlineInput(
                 target: SelectionOutlineTarget(window: window), panelOpen: true, increaseContrast: increaseContrast),
             now: 0)
-        let view = SelectionOutlineSampleView(frame: NSRect(x: 0, y: 0, width: 736, height: 496))
+        let view = SelectionOutlineSampleView(frame: NSRect(origin: .zero, size: size))
         view.sampleFrame = window.frame.cgRect
         view.outline.appearanceModel = model.display(at: 0).appearance
         if let frame = view.outline.appearanceModel?.frame { view.outline.frame = frame.cgRect }

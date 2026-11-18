@@ -135,8 +135,10 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
         panel.isMovableByWindowBackground = true
     }
 
-    func update(_ snapshot: ControllerSnapshot, indicatorEnabled: Bool) {
-        model.observe(snapshot, now: ProcessInfo.processInfo.systemUptime, indicatorEnabled: indicatorEnabled)
+    func update(_ snapshot: ControllerSnapshot, indicatorEnabled: Bool, controlBarVisible: Bool = false) {
+        model.observe(
+            snapshot, now: ProcessInfo.processInfo.systemUptime, indicatorEnabled: indicatorEnabled,
+            controlBarVisible: controlBarVisible)
         if snapshot.state == .recording || snapshot.state == .writing { updateTarget(snapshot) }
         render()
     }
