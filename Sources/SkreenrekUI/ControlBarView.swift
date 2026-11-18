@@ -16,7 +16,7 @@ final class ControlBarPresentation {
     }
 }
 
-/// The bar: Size, the readout and Record, or the timer, the readout and Stop. Every fill and hairline comes from the
+/// The bar: Size, the readout, Record and Clear, or the timer, the readout, Stop and Clear. Every fill and hairline comes from the
 /// solid panel's tokens. There is no material here.
 struct ControlBarView: View {
     var presentation: ControlBarPresentation
@@ -36,6 +36,7 @@ struct ControlBarView: View {
         HStack(spacing: ControlBarMetrics.slotGap) {
             leadingArea
             ControlBarActionButton(action: content.action, onAction: onAction)
+            ControlBarClearButton(clear: content.clear, onAction: onAction)
         }
         .padding(.horizontal, ControlBarMetrics.padding)
         .frame(width: content.width.points, height: ControlBarMetrics.height)
@@ -245,6 +246,29 @@ private struct ControlBarActionButton: View {
         case .record, .recordBusy:
             PanelBrandMark(pointSize: ControlBarMetrics.markSize, color: foreground)
         }
+    }
+}
+
+/// Forgets the window. It stays in place, dimmed, while the window can't be forgotten.
+private struct ControlBarClearButton: View {
+    var clear: ControlBarClear
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        Button {
+            if let action = clear.action { onAction(action) }
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: ControlBarMetrics.clearGlyph, weight: .semibold))
+                .foregroundStyle(clear.enabled ? PanelSurface.secondaryText : PanelSurface.tertiaryText)
+                .frame(width: ControlBarMetrics.clearWidth, height: ControlBarMetrics.controlHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(ControlBarCellButtonStyle())
+        .disabled(!clear.enabled)
+        .accessibilityLabel(clear.accessibilityLabel)
+        .modifier(PanelHelp(text: clear.enabled ? clear.help : nil))
+        .modifier(ControlBarDisabledHelp(text: clear.enabled ? nil : clear.help))
     }
 }
 

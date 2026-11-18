@@ -73,7 +73,7 @@ private enum Bar {
         let result = layout(Bar.window)
         #expect(result.placement == .below)
         #expect(result.width == .regular)
-        #expect(result.frame == PointRect(x: 350, y: 608, width: 300, height: 36))
+        #expect(result.frame == PointRect(x: 332, y: 608, width: 336, height: 36))
     }
 
     @Test func belowNeedsRoomForTheBarAndItsMargin() {
@@ -101,7 +101,7 @@ private enum Bar {
         let result = layout(display.frame, on: display)
         #expect(result.placement == .docked)
         #expect(result.frame.y + result.frame.height == 982 - 12)
-        #expect(result.frame.x == 606)
+        #expect(result.frame.x == 588)
     }
 
     @Test func aWindowHangingOffTheScreenKeepsTheBarOnIt() {
@@ -111,12 +111,12 @@ private enum Bar {
     }
 
     @Test func theCentreIsRoundedToWholePoints() {
-        #expect(layout(PointRect(x: 100, y: 100, width: 801, height: 500)).frame.x == 351)
+        #expect(layout(PointRect(x: 100, y: 100, width: 801, height: 500)).frame.x == 333)
     }
 
     @Test func itIsClampedToBothScreenEdges() {
         #expect(layout(PointRect(x: -400, y: 100, width: 500, height: 400)).frame.x == 8)
-        #expect(layout(PointRect(x: 1300, y: 100, width: 500, height: 400)).frame.x == 1204)
+        #expect(layout(PointRect(x: 1300, y: 100, width: 500, height: 400)).frame.x == 1168)
     }
 
     @Test func theDisplayIsTheOneWithTheLargestPartOfTheWindow() throws {
@@ -139,14 +139,15 @@ private enum Bar {
     @Test func aNarrowWindowGetsTheCompactBar() {
         let result = layout(PointRect(x: 100, y: 100, width: 260, height: 400))
         #expect(result.width == .compact)
-        #expect(result.frame == PointRect(x: 134, y: 508, width: 192, height: 36))
-        #expect(layout(PointRect(x: 100, y: 100, width: 300, height: 400)).width == .regular)
+        #expect(result.frame == PointRect(x: 116, y: 508, width: 228, height: 36))
+        #expect(layout(PointRect(x: 100, y: 100, width: 335, height: 400)).width == .compact)
+        #expect(layout(PointRect(x: 100, y: 100, width: 336, height: 400)).width == .regular)
     }
 
     @Test func aVeryNarrowWindowKeepsTheCompactBarCentred() {
         let result = layout(PointRect(x: 100, y: 100, width: 120, height: 400))
-        #expect(result.frame.width == 192)
-        #expect(result.frame.x == 64)
+        #expect(result.frame.width == 228)
+        #expect(result.frame.x == 46)
     }
 
     @Test func theSlotsAddUpToBothWidths() {
@@ -156,8 +157,10 @@ private enum Bar {
         #expect(102 + m.readoutWidth == 198)
         #expect(198 + m.slotGap == 210)
         #expect(210 + m.actionWidth == 294)
-        #expect(294 + m.padding == m.regularWidth)
-        #expect(m.padding * 2 + m.sizeSlotWidth + m.slotGap + m.actionWidth == m.compactWidth)
+        #expect(294 + m.slotGap + m.clearWidth == 330)
+        #expect(330 + m.padding == m.regularWidth)
+        #expect(
+            m.padding * 2 + m.sizeSlotWidth + m.slotGap * 2 + m.actionWidth + m.clearWidth == m.compactWidth)
     }
 }
 
@@ -466,7 +469,7 @@ private enum Bar {
     func theTimerGainsHoursAndTheBarKeepsItsWidth(seconds: Int, expected: String) throws {
         let display = try #require(Bar.model(Bar.input(activity: .recording(seconds: seconds))).display(at: 0))
         #expect(display.content.leading == .timer(expected))
-        #expect(display.frame.width == 300)
+        #expect(display.frame.width == 336)
         #expect(display.content.readout?.text == "1920 × 1080 px")
     }
 
@@ -484,6 +487,23 @@ private enum Bar {
         #expect(content.leading == .saving(spinner: true, text: "Saving clip…", showsText: true))
         #expect(content.readout == nil)
         #expect(content.action.style == .recordBusy)
+    }
+
+    @Test func clearIsOfferedOnlyWhileTheWindowCanBeForgotten() throws {
+        let idle = try #require(Bar.model().display(at: 0)?.content.clear)
+        #expect(idle.enabled)
+        #expect(idle.action == .clearWindow)
+        #expect(idle.help == "Clear window")
+        #expect(idle.accessibilityLabel == "Clear window")
+        let busy = [
+            Bar.input(activity: .starting), Bar.input(activity: .recording(seconds: 1)), Bar.input(activity: .saving),
+            Bar.input(resize: .resizing),
+        ]
+        for input in busy {
+            let clear = try #require(Bar.model(input).display(at: 0)?.content.clear)
+            #expect(!clear.enabled)
+            #expect(clear.action == nil)
+        }
     }
 
     @Test func theSavingGroupHasTheSpaceLeftOfRecord() {
@@ -510,7 +530,7 @@ private enum Bar {
         ]
         for input in inputs {
             let display = try #require(Bar.model(input).display(at: 0))
-            #expect(display.frame.width == 300, "\(input.activity)")
+            #expect(display.frame.width == 336, "\(input.activity)")
         }
     }
 
@@ -608,8 +628,9 @@ private final class FakeBarSurface: ControlBarSurface {
 @MainActor
 private final class FakeOutlineSurface: SelectionOutlineSurface {
     var hidden = 0
+    var frames: [PointRect] = []
     var onHide: (() -> Void)?
-    func show(_ appearance: SelectionOutlineAppearance) {}
+    func show(_ appearance: SelectionOutlineAppearance) { frames.append(appearance.frame) }
     func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) {}
     func hide() {
         hidden += 1
@@ -779,6 +800,96 @@ private final class FakeBarTracker: WindowFrameTracking {
         }
     }
 
+    /// The bar stays up during the clip, so the one tracker keeps running and the outline picks up its latest report.
+    @Test func theOutlineAndBarComeBackAroundAWindowMovedDuringAClip() async throws {
+        try await onMain("moved during clip") {
+            let scene = SharedTrackerScene()
+            scene.render(.idle)
+            #expect(scene.outlineSurface.frames.last == SelectionOutlineModel.outlineFrame(around: Bar.window))
+            scene.render(.recording(seconds: 1))
+            #expect(scene.outlineSurface.hidden == 1)
+            #expect(scene.source.stops == 0)
+            let moved = PointRect(x: 200, y: 150, width: 800, height: 500)
+            scene.source.onChange?(.onScreen(moved))
+            scene.render(.saving)
+            #expect(scene.outlineSurface.frames.count == 1)
+            scene.render(.idle)
+            scene.expectBoth(around: moved)
+            let later = PointRect(x: 300, y: 180, width: 700, height: 400)
+            scene.source.onChange?(.onScreen(later))
+            scene.expectBoth(around: later)
+        }
+    }
+
+    /// With no on-screen chrome nothing tracks during the clip, so the tracker starts again and reads the window.
+    @Test func theOutlineAndBarReadTheWindowAgainAfterAClipWithoutChrome() async throws {
+        try await onMain("moved without chrome") {
+            let scene = SharedTrackerScene()
+            scene.render(.idle)
+            scene.render(.recording(seconds: 1), chrome: false)
+            #expect(scene.source.stops == 1)
+            let moved = PointRect(x: 200, y: 150, width: 800, height: 500)
+            scene.source.first = .onScreen(moved)
+            scene.render(.idle)
+            scene.expectBoth(around: moved)
+            let later = PointRect(x: 300, y: 180, width: 700, height: 400)
+            scene.source.onChange?(.onScreen(later))
+            scene.expectBoth(around: later)
+        }
+    }
+
+    @Test func clientsKeepTheSharedTrackerAlive() async throws {
+        try await onMain("shared lifetime") {
+            let source = FakeBarTracker()
+            let client = Self.sharedClients(source).outline
+            client.start(RenderSamples.safari) { _ in }
+            #expect(source.started == [RenderSamples.safari.id])
+        }
+    }
+
+    /// The outline and the bar on one shared tracker, updated in the app's order. Like the app, it keeps only the
+    /// clients.
+    @MainActor
+    private final class SharedTrackerScene {
+        let source = FakeBarTracker()
+        let outlineSurface = FakeOutlineSurface()
+        let barSurface = FakeBarSurface()
+        let outline: SelectionOutlineController
+        let bar: ControlBarController
+
+        init() {
+            let clients = ControlBarControllerTests.sharedClients(source)
+            let clock = ManualClock()
+            outline = SelectionOutlineController(
+                surface: outlineSurface, tracker: clients.outline, clock: clock, macOSMajorVersion: 26)
+            bar = ControlBarController(
+                surface: barSurface, tracker: clients.bar, clock: clock, permissions: FakePermissionProbe(),
+                displays: { [Bar.screen] })
+        }
+
+        func render(_ activity: ControlBarActivity, chrome: Bool = true) {
+            var input = Bar.input(activity: activity)
+            input.recordingChrome = chrome
+            bar.update(input)
+            let capturing = activity != .idle && activity != .starting
+            outline.update(
+                SelectionOutlineInput(target: Bar.target(), capturing: capturing, controlBarVisible: bar.isVisible))
+        }
+
+        func expectBoth(around window: PointRect) {
+            #expect(outlineSurface.frames.last == SelectionOutlineModel.outlineFrame(around: window))
+            #expect(barSurface.last?.frame == ControlBarLayout.place(window: window, on: Bar.screen).frame)
+        }
+    }
+
+    @MainActor
+    fileprivate static func sharedClients(
+        _ source: FakeBarTracker
+    ) -> (outline: any WindowFrameTracking, bar: any WindowFrameTracking) {
+        let shared = SharedWindowFrameTracker(source: source)
+        return (shared.makeClient(), shared.makeClient())
+    }
+
     @Test func aSecondClientGetsTheLatestPositionRightAway() async throws {
         try await onMain("shared replay") {
             let source = FakeBarTracker()
@@ -884,6 +995,47 @@ private final class FakeBarTracker: WindowFrameTracking {
             #expect(tracker.started == [UIFixtures.safari.id])
             #expect(surface.last?.content.action.style == .record)
             #expect(surface.last?.content.action.action == .record)
+        }
+    }
+
+    /// Clear on the bar sends the panel's action, and the window's bar and outline go with the target.
+    @Test func clearOnTheBarForgetsTheWindowAndHidesTheBarAndOutline() async throws {
+        try await onMain("bar clear") {
+            let h = MenuHarness()
+            defer { h.cleanUp() }
+            let barSurface = FakeBarSurface()
+            let barTracker = FakeBarTracker()
+            let outlineSurface = FakeOutlineSurface()
+            let bar = ControlBarController(
+                surface: barSurface, tracker: barTracker, clock: ManualClock(), permissions: h.permissions,
+                displays: { [MenuHarness.display] })
+            let outline = SelectionOutlineController(
+                surface: outlineSurface, tracker: FakeBarTracker(), clock: ManualClock(), macOSMajorVersion: 26)
+            let render = {
+                bar.update(
+                    ControlBarInput(
+                        context: h.model.context, windowClosed: false, outputWritable: true, resize: .none,
+                        recordStarting: false, reduceMotion: true))
+                outline.update(
+                    SelectionOutlineInput(
+                        snapshot: h.model.snapshot, panelOpen: false, windowClosed: false, reduceMotion: true,
+                        increaseContrast: false, controlBarVisible: bar.isVisible))
+            }
+            await h.perform(.pickWindow)
+            render()
+            #expect(bar.isVisible)
+            #expect(outlineSurface.frames.count == 1)
+
+            let action = try #require(barSurface.last?.content.clear.action)
+            #expect(action == .clearWindow)
+            await h.perform(action)
+            render()
+
+            #expect(h.model.snapshot.window == nil)
+            #expect(!bar.isVisible)
+            #expect(barSurface.log.last == "hide fade 0.0")
+            #expect(barTracker.stops == 1)
+            #expect(outlineSurface.hidden == 1)
         }
     }
 
@@ -1219,13 +1371,13 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(PanelPalette(.light).dropShadow == PanelShadow(opacity: 0.15, blur: 20, y: 6))
     }
 
-    /// Reads the drawn pixels: the surface token, and the slot edges at x 6, 90, 210 and 294.
+    /// Reads the drawn pixels: the surface token, and the slot edges at x 6, 90, 210, 294, 306 and 330.
     @Test(arguments: [UIRenderer.Appearance.light, .dark])
     func theFillAndSlotEdgesAreWhereTheSpecPutsThem(appearance: UIRenderer.Appearance) throws {
         let palette = PanelPalette(appearance == .dark ? .dark : .light)
         let data = try UIRenderer.png(hosted(try content()), appearance: appearance, active: true)
         let image = try #require(NSBitmapImageRep(data: data))
-        #expect(image.pixelsWide == 600)
+        #expect(image.pixelsWide == 672)
         #expect(image.pixelsHigh == 72)
         // Raw bytes: the PNG is tagged sRGB, and `colorAt` would convert them again.
         func isTone(_ x: Int, _ y: Int, _ tone: PanelTone) -> Bool {
@@ -1242,6 +1394,10 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(!isTone(211, 18, palette.fill), "Record start")
         #expect(!isTone(292, 18, palette.fill), "Record end")
         #expect(isTone(295, 18, palette.fill), "after Record")
+        #expect(isTone(305, 18, palette.fill), "before Clear")
+        #expect(isTone(307, 18, palette.cellFill), "Clear start")
+        #expect(isTone(328, 18, palette.cellFill), "Clear end")
+        #expect(isTone(331, 18, palette.fill), "after Clear")
     }
 
     /// Reads the drawn pixels left of Record: the indicator and the text form one centred group, 6 pt apart.

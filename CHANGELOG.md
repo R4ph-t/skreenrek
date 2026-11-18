@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - During a recording the control bar follows the recording indicator: `--no-hud` or turning off Show recording indicator hides it, and when an agent records a window that isn't picked, the bar shows the timer and Stop until the clip ends.
 - The control bar's timer shows hours from the first hour on, like 1:02:03. While a clip saves, the spinner and "Saving clip…" sit together in the middle of the bar.
 - Without Accessibility, the control bar warns that it can't resize the window, and Record captures the window at its current size.
+- An X button at the end of the control bar clears the picked window.
 
 ### Changed
 
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The window outline and the control bar now follow the picked window when it moves or resizes, including after a clip.
 - The Show Cursor and Write Click Events switches are back at the right edge of the menu.
 - Connect in onboarding no longer seems to do nothing. It replaces a leftover `~/.local/bin/skreenrek` link from an old install, finishes when at least one item connects, and shows each failure in red in a window that grows to fit.
 - The Size and Frame Rate menus check only the selected item, and Size presets show their dimensions again.

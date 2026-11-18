@@ -5,8 +5,8 @@ import SkreenrekCore
 /// The bar's measurements (control bar spec §2 and §5), in points.
 public enum ControlBarMetrics {
     public static let height: CGFloat = 36
-    public static let regularWidth: CGFloat = 300
-    public static let compactWidth: CGFloat = 192
+    public static let regularWidth: CGFloat = 336
+    public static let compactWidth: CGFloat = 228
     public static let padding: CGFloat = 6
     public static let slotGap: CGFloat = 12
     public static let sizeSlotWidth: CGFloat = 84
@@ -14,6 +14,9 @@ public enum ControlBarMetrics {
     public static let readoutHeight: CGFloat = 15
     public static let actionWidth: CGFloat = 84
     public static let controlHeight: CGFloat = 24
+    /// The square Clear button at the trailing edge.
+    public static let clearWidth: CGFloat = 24
+    public static let clearGlyph: CGFloat = 10
     /// From the slot's edge to the value, the chevron's end, and the status dot (bar x 14).
     public static let slotInset: CGFloat = 8
     public static let statusDot: CGFloat = 8
@@ -53,7 +56,8 @@ public enum ControlBarWidth: Sendable, Hashable {
 
     /// The space left of Record: Size and the readout, or Size alone on the compact bar.
     public var leadingAreaWidth: CGFloat {
-        points - ControlBarMetrics.padding * 2 - ControlBarMetrics.slotGap - ControlBarMetrics.actionWidth
+        points - ControlBarMetrics.padding * 2 - ControlBarMetrics.slotGap * 2 - ControlBarMetrics.actionWidth
+            - ControlBarMetrics.clearWidth
     }
 }
 
@@ -292,12 +296,23 @@ public struct ControlBarAction: Sendable, Hashable {
     }
 }
 
+/// The button that forgets the window, through the panel's Clear action. It keeps its slot while it can't be used, so
+/// the bar doesn't shift.
+public struct ControlBarClear: Sendable, Hashable {
+    public var enabled: Bool
+    public var help: String
+    public var accessibilityLabel: String
+
+    public var action: MenuAction? { enabled ? .clearWindow : nil }
+}
+
 public struct ControlBarContent: Sendable, Hashable {
     public var width: ControlBarWidth
     public var groupLabel: String
     public var leading: ControlBarLeading
     public var readout: ControlBarReadout?
     public var action: ControlBarAction
+    public var clear: ControlBarClear
 }
 
 /// The bar for one moment: where it goes and what it holds.
@@ -468,7 +483,14 @@ public struct ControlBarModel: Sendable {
             width: layout.width, groupLabel: UIStrings.ControlBar.group(target.title),
             leading: leading(readout: readout, display: layout.display, compact: compact),
             readout: compact || input.activity == .saving ? nil : readout,
-            action: action(title: target.title, display: layout.display))
+            action: action(title: target.title, display: layout.display), clear: clear)
+    }
+
+    /// The controller refuses to forget the target while it records, saves or resizes.
+    private var clear: ControlBarClear {
+        ControlBarClear(
+            enabled: input.activity == .idle && input.resize != .resizing, help: UIStrings.ControlBar.clearWindow,
+            accessibilityLabel: UIStrings.ControlBar.clearWindow)
     }
 
     private func readout(window: PointRect, display: DisplayInfo, now: TimeInterval) -> ControlBarReadout {
@@ -672,21 +694,21 @@ public final class ControlBarController {
 }
 
 /// One window tracker shared by the outline and the bar. It runs while either of them needs it, so the bar keeps
-/// following the window after the outline's flash ends.
+/// following the window after the outline's flash ends. Clients keep it alive, so holding them is enough.
 @MainActor
 public final class SharedWindowFrameTracker {
     private final class Client: WindowFrameTracking {
-        weak var owner: SharedWindowFrameTracker?
+        let owner: SharedWindowFrameTracker
         var window: WindowInfo?
         var onChange: (@MainActor (WindowPresence) -> Void)?
 
         init(owner: SharedWindowFrameTracker) { self.owner = owner }
 
         func start(_ window: WindowInfo, onChange: @escaping @MainActor (WindowPresence) -> Void) {
-            owner?.start(self, window: window, onChange: onChange)
+            owner.start(self, window: window, onChange: onChange)
         }
 
-        func stop() { owner?.stop(self) }
+        func stop() { owner.stop(self) }
     }
 
     private let source: any WindowFrameTracking

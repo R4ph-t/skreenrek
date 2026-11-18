@@ -131,7 +131,7 @@ public final class MenuController: NSObject {
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion))
     }
 
-    /// Stop goes the panel's way. Record and a preset have their own paths on the model.
+    /// Stop and Clear go the panel's way. Record and a preset have their own paths on the model.
     private func actOnControlBar(_ action: MenuAction) {
         switch action {
         case .chooseSize(.size(let size)):
@@ -285,7 +285,8 @@ public final class MenuController: NSObject {
 
     private func act(_ action: MenuAction) {
         if !PanelModel.keepsPanelOpen(action) { closePanel() }
-        if action == .clearWindow { clearPending = true }
+        // From the control bar the panel may be closed, and there is no focus to move.
+        if action == .clearWindow, panel.isVisible { clearPending = true }
         Task { await model.perform(action) }
     }
 
