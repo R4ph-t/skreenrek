@@ -8,6 +8,7 @@ import SwiftUI
 public final class SystemEffects: UIEffects {
     /// Opens the Settings window.
     public var showSettings: () -> Void = {}
+    public var showSettingsUpdates: () -> Void = {}
     /// Opens onboarding on its permissions step.
     public var showOnboardingPermissions: () -> Void = {}
     private var sizePanel: NSPanel?
@@ -34,6 +35,10 @@ public final class SystemEffects: UIEffects {
 
     public func openSettings() {
         showSettings()
+    }
+
+    public func showUpdates() {
+        showSettingsUpdates()
     }
 
     public func showPermissions() {

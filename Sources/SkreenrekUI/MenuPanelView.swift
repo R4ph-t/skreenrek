@@ -10,10 +10,16 @@ struct MenuPanelView: View {
     var clipImage: NSImage?
     var reduceMotion: Bool
     var showsMaterial: Bool
+    /// Bumped after Clear, to move focus to Pick Window….
+    var heroFocusRequest = 0
+    /// Draws the Clear button hovered, for `render-ui`.
+    var showsClearHover = false
     var onAction: (MenuAction) -> Void
     var onClose: () -> Void = {}
 
     @Environment(\.colorSchemeContrast) private var contrast
+    @FocusState private var heroFocused: Bool
+    @AccessibilityFocusState private var heroAccessibilityFocused: Bool
 
     var body: some View {
         let height = PanelMetrics.contentHeight(content)
@@ -32,16 +38,25 @@ struct MenuPanelView: View {
             RoundedRectangle(cornerRadius: PanelMetrics.radiusPanel, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor), lineWidth: contrast == .increased ? 1 : PanelMetrics.hairline)
         }
+        // The top edge stays under the status item while the window's height animates.
+        .frame(maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(UIStrings.productName)
         .onExitCommand(perform: onClose)
+        .onChange(of: heroFocusRequest) {
+            heroFocused = true
+            heroAccessibilityFocused = true
+        }
     }
 
     private var stack: some View {
         VStack(spacing: 0) {
-            ForEach(Array(PanelMetrics.blocks(for: content).enumerated()), id: \.offset) { _, block in
-                blockView(block)
-                    .frame(width: PanelMetrics.width, height: PanelMetrics.height(of: block), alignment: .leading)
+            ForEach(PanelMetrics.placedBlocks(for: content)) { placed in
+                blockView(placed.block)
+                    .frame(
+                        width: PanelMetrics.width, height: PanelMetrics.height(of: placed.block), alignment: .leading
+                    )
+                    .transition(.opacity)
             }
         }
     }
@@ -61,6 +76,8 @@ struct MenuPanelView: View {
         switch block {
         case .space:
             Color.clear
+        case .header:
+            header.padding(.leading, PanelMetrics.margin)
         case .preview:
             previewBox.padding(.leading, PanelMetrics.margin)
         case .caption:
@@ -72,48 +89,111 @@ struct MenuPanelView: View {
         case .origin:
             origin.padding(.leading, PanelMetrics.margin)
         case .row(let button):
-            PanelRowButton(button: button, onAction: onAction).padding(.leading, PanelMetrics.margin)
+            PanelRowButton(button: button, onAction: onAction).padding(.leading, PanelMetrics.rowHighlightX)
         case .toggle(let toggle):
-            PanelToggleRow(toggle: toggle, onAction: onAction).padding(.leading, PanelMetrics.margin)
+            PanelToggleRow(toggle: toggle, onAction: onAction).padding(.leading, PanelMetrics.rowHighlightX)
         case .clip:
             if let clip = content.lastClip {
-                PanelClipRow(clip: clip, image: clipImage, onAction: onAction).padding(.leading, PanelMetrics.margin)
+                PanelClipRow(clip: clip, image: clipImage, onAction: onAction)
+                    .padding(.leading, PanelMetrics.rowHighlightX)
             }
         case .separator:
             separator
         }
     }
 
-    // MARK: - Preview
+    // MARK: - Compact header
 
-    private var previewBox: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
-                .fill(Color(nsColor: .quaternarySystemFill))
-            previewContent
-            RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
-                .strokeBorder(
-                    content.preview.framed ? Color(nsColor: .systemRed) : Color(nsColor: .separatorColor),
-                    lineWidth: content.preview.framed
-                        ? PanelMetrics.recordingStroke
-                        : (contrast == .increased ? 1 : PanelMetrics.hairline))
+    @ViewBuilder
+    private var header: some View {
+        if let header = content.header {
+            HStack(spacing: PanelMetrics.iconGap) {
+                headerIcon(header.icon)
+                    .frame(width: PanelMetrics.iconColumn, height: PanelMetrics.iconColumn)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(header.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                    Text(header.detail)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .contentTransition(.opacity)
+                }
+            }
+            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.captionHeight, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(header.accessibilityLabel)
+            .modifier(PanelHelp(text: header.help))
         }
-        .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.previewHeight)
-        .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
-        .accessibilityElement(children: previewDecorative ? .ignore : .contain)
-        .accessibilityHidden(previewDecorative)
     }
 
-    private var previewDecorative: Bool {
-        switch content.preview.phase {
+    @ViewBuilder
+    private func headerIcon(_ icon: PanelHeader.Icon) -> some View {
+        switch icon {
+        case .noWindow:
+            Image(systemName: PanelSymbol.pickWindow).font(.system(size: 16))
+        case .windowClosed:
+            // SF Symbols has no window-with-× at this weight, so the badge is composed.
+            Image(systemName: "macwindow")
+                .font(.system(size: 16))
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: PanelSymbol.clearWindow)
+                        .font(.system(size: 8, weight: .bold))
+                        .background(Circle().fill(Color(nsColor: .windowBackgroundColor)))
+                        .offset(x: 2, y: 2)
+                }
+        }
+    }
+
+    // MARK: - Preview
+
+    @ViewBuilder
+    private var previewBox: some View {
+        if let preview = content.preview {
+            ZStack {
+                RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+                    .fill(Color(nsColor: .quaternarySystemFill))
+                previewContent(preview)
+                RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+                    .strokeBorder(strokeColor(preview.stroke), lineWidth: strokeWidth(preview.stroke))
+            }
+            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.previewHeight)
+            .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+            .accessibilityElement(children: previewDecorative(preview) ? .ignore : .contain)
+            .accessibilityHidden(previewDecorative(preview))
+        }
+    }
+
+    private func strokeColor(_ stroke: PanelPreviewStroke) -> Color {
+        switch stroke {
+        case .hairline: Color(nsColor: .separatorColor)
+        case .selected: Color(nsColor: .controlAccentColor)
+        case .recording: Color(nsColor: .systemRed)
+        }
+    }
+
+    private func strokeWidth(_ stroke: PanelPreviewStroke) -> CGFloat {
+        switch stroke {
+        case .hairline: contrast == .increased ? 1 : PanelMetrics.hairline
+        case .selected, .recording: PanelMetrics.previewStroke
+        }
+    }
+
+    private func previewDecorative(_ preview: PanelPreviewBox) -> Bool {
+        switch preview.phase {
         case .failed, .permissionMissing: false
         default: true
         }
     }
 
     @ViewBuilder
-    private var previewContent: some View {
-        switch content.preview.phase {
+    private func previewContent(_ preview: PanelPreviewBox) -> some View {
+        switch preview.phase {
         case .ready:
             if let previewImage {
                 still(previewImage, dimmed: false)
@@ -130,7 +210,7 @@ struct MenuPanelView: View {
                     .accessibilityHidden(true)
             }
         case .loading:
-            if content.preview.showsSpinner {
+            if preview.showsSpinner {
                 ProgressView()
                     .controlSize(.small)
                     .frame(width: 16, height: 16)
@@ -138,12 +218,12 @@ struct MenuPanelView: View {
             }
         case .failed:
             placeholder(
-                symbol: "rectangle.slash", symbolSize: 20, message: content.preview.message,
-                help: content.preview.messageHelp, settings: nil)
+                symbol: "rectangle.slash", symbolSize: 20, message: preview.message,
+                help: preview.messageHelp, settings: nil)
         case .permissionMissing:
             placeholder(
-                symbol: "lock", symbolSize: 20, message: content.preview.message, help: content.preview.messageHelp,
-                settings: content.preview.settings)
+                symbol: "lock", symbolSize: 20, message: preview.message, help: preview.messageHelp,
+                settings: preview.settings)
         case .noWindow, .region:
             mark(pointSize: 32, color: Color.primary.opacity(0.28))
         }
@@ -196,20 +276,37 @@ struct MenuPanelView: View {
 
     // MARK: - Caption, cells, hero
 
+    @ViewBuilder
     private var caption: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(content.caption.title)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1)
-            Text(content.caption.detail)
-                .font(.system(size: 12, weight: content.caption.detail == UIStrings.Panel.windowClosed ? .semibold : .regular))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+        if let caption = content.caption {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(caption.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .contentTransition(.opacity)
+                    .frame(
+                        width: content.clear == nil ? PanelMetrics.blockWidth : PanelMetrics.clearTitleWidth,
+                        alignment: .leading)
+                Text(caption.detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .contentTransition(.opacity)
+            }
+            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.captionHeight, alignment: .topLeading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(caption.accessibilityLabel)
+            .modifier(PanelHelp(text: caption.help))
+            .overlay(alignment: .topLeading) {
+                if let clear = content.clear {
+                    PanelClearButton(button: clear, forcedHover: showsClearHover, onAction: onAction)
+                        .offset(
+                            x: PanelMetrics.clearHitX - PanelMetrics.margin,
+                            y: (PanelMetrics.titleLineHeight - PanelMetrics.iconButton) / 2)
+                }
+            }
         }
-        .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.captionHeight, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(content.caption.accessibilityLabel)
-        .modifier(PanelHelp(text: content.caption.help))
     }
 
     @ViewBuilder
@@ -292,49 +389,40 @@ struct MenuPanelView: View {
 
     @ViewBuilder
     private var hero: some View {
-        if let hero = content.hero {
-            HStack(spacing: PanelMetrics.heroGap) {
-                ForEach(Array(hero.buttons.enumerated()), id: \.offset) { index, button in
-                    heroButton(button)
-                        .frame(
-                            width: hero.buttons.count > 1 && index == hero.buttons.count - 1
-                                ? hero.trailingWidth : nil
-                        )
-                        .frame(maxWidth: index == 0 ? .infinity : nil)
-                }
-            }
-            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.heroHeight, alignment: .leading)
-        }
-    }
-
-    private func heroButton(_ button: PanelButton) -> some View {
-        Button {
-            onAction(button.action)
-        } label: {
-            HStack(spacing: 6) {
-                heroMark(button)
-                Text(button.title)
+        if let button = content.hero {
+            Button {
+                onAction(button.action)
+            } label: {
+                HStack(spacing: PanelMetrics.heroIconGap) {
+                    heroMark(button)
+                    HStack(spacing: PanelMetrics.heroTimerGap) {
+                        Text(button.title)
+                            .lineLimit(1)
+                        if let trailing = button.trailing {
+                            Text(trailing)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                        }
+                    }
                     .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                if let trailing = button.trailing {
-                    Spacer(minLength: 4)
-                    Text(trailing)
-                        .font(.system(size: 13, weight: .semibold))
-                        .monospacedDigit()
-                        .lineLimit(1)
                 }
+                .foregroundStyle(heroForeground(button))
+                .padding(.horizontal, 12)
+                .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.heroHeight)
+                .background(
+                    heroFill(button),
+                    in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
             }
-            .foregroundStyle(heroForeground(button))
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: PanelMetrics.heroHeight, maxHeight: PanelMetrics.heroHeight)
-            .background(heroFill(button), in: RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous))
+            .buttonStyle(.plain)
+            .disabled(!button.enabled)
+            .focused($heroFocused)
+            .accessibilityFocused($heroAccessibilityFocused)
+            .accessibilityLabel(button.accessibilityLabel)
+            .modifier(PanelHelp(text: button.help))
+            .modifier(PanelHint(text: button.help))
+            .modifier(PanelShortcut(button: button))
         }
-        .buttonStyle(.plain)
-        .disabled(!button.enabled)
-        .accessibilityLabel(button.accessibilityLabel)
-        .modifier(PanelHelp(text: button.help))
-        .modifier(PanelHint(text: button.help))
-        .modifier(PanelShortcut(button: button))
     }
 
     @ViewBuilder
@@ -389,15 +477,15 @@ struct MenuPanelView: View {
     private var separator: some View {
         Rectangle()
             .fill(Color(nsColor: .separatorColor))
-            .frame(width: PanelMetrics.blockWidth - PanelMetrics.separatorInset * 2, height: PanelMetrics.separatorLine)
-            .padding(.leading, PanelMetrics.margin + PanelMetrics.separatorInset)
+            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.separatorLine)
+            .padding(.leading, PanelMetrics.margin)
             .frame(maxHeight: .infinity, alignment: .center)
     }
 }
 
 // MARK: - Rows
 
-/// A 28 pt row. The icon sits 8 pt into the 268 pt row (x = 24), and the title 16 pt after that (x = 48).
+/// A 28 pt row. The highlight runs x 8–292, the icon column starts at x 16, and the title at x 40.
 private struct PanelRowButton: View {
     var button: PanelButton
     var onAction: (MenuAction) -> Void
@@ -431,11 +519,12 @@ private struct PanelRowButton: View {
                 }
             }
             .padding(.horizontal, PanelMetrics.rowPadding)
-            .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.rowHeight, alignment: .leading)
+            .frame(width: PanelMetrics.rowHighlightWidth, height: PanelMetrics.rowHeight, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
                     .fill(hovering && button.enabled ? rowHover(scheme) : .clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!button.enabled)
@@ -447,32 +536,29 @@ private struct PanelRowButton: View {
     }
 }
 
+/// A row with its switch at the trailing content edge, x 284.
 private struct PanelToggleRow: View {
     var toggle: PanelToggle
     var onAction: (MenuAction) -> Void
 
     var body: some View {
-        Toggle(
-            isOn: Binding(
-                get: { toggle.isOn },
-                set: { _ in onAction(toggle.action) }
-            )
-        ) {
-            HStack(spacing: PanelMetrics.iconGap) {
-                Image(systemName: toggle.symbol)
-                    .font(.system(size: 13))
-                    .frame(width: PanelMetrics.iconColumn, height: PanelMetrics.iconColumn)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                Text(toggle.title)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-            }
+        HStack(spacing: PanelMetrics.iconGap) {
+            Image(systemName: toggle.symbol)
+                .font(.system(size: 13))
+                .frame(width: PanelMetrics.iconColumn, height: PanelMetrics.iconColumn)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(toggle.title)
+                .font(.system(size: 13))
+                .lineLimit(1)
+                .accessibilityHidden(true)
+            Spacer(minLength: 4)
+            TrailingSwitch(
+                title: toggle.accessibilityLabel,
+                isOn: Binding(get: { toggle.isOn }, set: { _ in onAction(toggle.action) }))
         }
-        .modifier(SettingsSwitch())
         .padding(.horizontal, PanelMetrics.rowPadding)
-        .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.rowHeight, alignment: .leading)
-        .accessibilityLabel(toggle.accessibilityLabel)
+        .frame(width: PanelMetrics.rowHighlightWidth, height: PanelMetrics.rowHeight, alignment: .leading)
     }
 }
 
@@ -504,8 +590,9 @@ private struct PanelClipRow: View {
                 }
             }
         }
-        .padding(.horizontal, PanelMetrics.rowPadding)
-        .frame(width: PanelMetrics.blockWidth, height: PanelMetrics.clipRowHeight, alignment: .leading)
+        // The last hit area overhangs the content edge, so its glyph ends at x 284.
+        .padding(.trailing, PanelMetrics.rowPadding - PanelMetrics.iconButtonOverhang)
+        .frame(width: PanelMetrics.rowHighlightWidth, height: PanelMetrics.clipRowHeight, alignment: .leading)
     }
 
     private var mainLabel: some View {
@@ -522,6 +609,7 @@ private struct PanelClipRow: View {
                     .lineLimit(1)
             }
         }
+        .padding(.leading, PanelMetrics.rowPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
@@ -608,6 +696,7 @@ private struct PanelIconButton: View {
         } label: {
             Image(systemName: button.symbol ?? "circle")
                 .font(.system(size: 13))
+                .frame(width: PanelMetrics.iconGlyph, height: PanelMetrics.iconGlyph)
                 .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
                 .foregroundStyle(button.enabled ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
                 .background(
@@ -620,6 +709,37 @@ private struct PanelIconButton: View {
         .onHover { hovering = button.enabled && $0 }
         .accessibilityLabel(button.accessibilityLabel)
         .modifier(PanelHelp(text: button.title))
+    }
+}
+
+/// Clear, at the end of the title line: a 16 pt glyph in a 24 pt hit area.
+private struct PanelClearButton: View {
+    var button: PanelButton
+    var forcedHover: Bool
+    var onAction: (MenuAction) -> Void
+    @State private var hovering = false
+    @Environment(\.colorScheme) private var scheme
+
+    private var highlighted: Bool { hovering || forcedHover }
+
+    var body: some View {
+        Button {
+            onAction(button.action)
+        } label: {
+            Image(systemName: button.symbol ?? PanelSymbol.clearWindow)
+                .font(.system(size: PanelMetrics.iconGlyph))
+                .foregroundStyle(highlighted ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
+                .background(
+                    RoundedRectangle(cornerRadius: PanelMetrics.radiusChip, style: .continuous)
+                        .fill(highlighted ? rowHover(scheme) : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityLabel(button.accessibilityLabel)
+        .modifier(PanelHelp(text: button.help))
     }
 }
 

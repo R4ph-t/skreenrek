@@ -134,25 +134,6 @@ struct SampleFrame: View {
     }
 }
 
-/// A Settings row's icon tile: 22 × 22, radius 6, monochrome (`.fill.tertiary` with a `.primary` 13 pt symbol), so
-/// the only colour in the window is the accent on the switches and the hero.
-struct SettingsIconTile: View {
-    var symbol: String
-    @Environment(\.colorSchemeContrast) private var contrast
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(contrast == .increased ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.tertiary))
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
-        }
-        .frame(width: 22, height: 22)
-        .accessibilityHidden(true)
-    }
-}
-
 extension NSHostingView {
     /// A hosting view sized to its content, for the offscreen renders.
     @MainActor
@@ -169,7 +150,21 @@ extension EnvironmentValues {
     @Entry var drawsActiveControls = false
 }
 
-/// A trailing switch: the native small switch in the app, an active-state stand-in in the renders.
+/// A switch with no visible label, sized to itself so a `Spacer` can push it to the trailing edge. `title` stays its
+/// VoiceOver label.
+struct TrailingSwitch: View {
+    var title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(title, isOn: $isOn)
+            .labelsHidden()
+            .modifier(SettingsSwitch())
+            .fixedSize()
+    }
+}
+
+/// The native mini switch in the app, an active-state stand-in in the renders.
 struct SettingsSwitch: ViewModifier {
     @Environment(\.drawsActiveControls) private var drawsActive
 
@@ -177,26 +172,22 @@ struct SettingsSwitch: ViewModifier {
         if drawsActive {
             content.toggleStyle(DrawnSwitchStyle())
         } else {
-            content.toggleStyle(.switch).controlSize(.small)
+            content.toggleStyle(.switch).controlSize(.mini)
         }
     }
 }
 
-/// The label, then a small switch at the trailing edge, drawn as an active window draws it (renders only).
+/// A 32 × 18 switch, drawn as an active window draws it (renders only).
 struct DrawnSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 8) {
-            configuration.label
-            Spacer(minLength: 8)
-            Capsule()
-                .fill(configuration.isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.secondary))
-                .overlay(alignment: configuration.isOn ? .trailing : .leading) {
-                    Circle().fill(.white).shadow(color: .black.opacity(0.25), radius: 0.8, y: 0.5).padding(2)
-                }
-                .frame(width: 32, height: 18)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isToggle)
+        Capsule()
+            .fill(configuration.isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.secondary))
+            .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                Circle().fill(.white).shadow(color: .black.opacity(0.25), radius: 0.8, y: 0.5).padding(2)
+            }
+            .frame(width: 32, height: 18)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isToggle)
     }
 }
 

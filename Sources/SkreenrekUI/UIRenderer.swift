@@ -100,8 +100,11 @@ public enum UIRenderer {
                         base.sizeChoice, display: RenderSamples.display, window: base.snapshot.window
                     ).entries, width: MenuMetrics.sizeSubmenuWidth), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
-            try save(settingsView(home: home, latest: SkreenrekVersion.current), "settings", "default", active: true)
-            try save(settingsView(home: home, latest: RenderSamples.newerVersion), "settings", "updateavailable", active: true)
+            for sample in settingsSamples {
+                try save(settingsView(sample, home: home), "settings", sample.name, active: true)
+            }
+            try save(selectionOutline(increaseContrast: false), "screen", "outline")
+            try save(selectionOutline(increaseContrast: true), "screen", "outline-contrast")
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
                           size: NSSize(width: 280, height: 56)), "picker", "label")
             try save(host(PickerHint(), size: NSSize(width: 640, height: 44)), "picker", "hint")
@@ -163,18 +166,20 @@ public enum UIRenderer {
             preview: thumbnail, clip: thumbnail)
     }
 
-    /// The spec's panel states, one file each: idle, recording, no window, loading, a slow load, capture failed,
-    /// permission missing, window closed, and the three preview aspects.
+    /// The spec's panel states, one file each. The 1.0.5 names (`nowindow`, `picked`, `recording`, `clear-hover`,
+    /// `window-closed`) use the spec's samples, so their heights are the ones in its `sizes.json`.
     static func specPanels(preview: NSImage) -> [(name: String, view: NSView)] {
         let idle = specArmed(update: "1.0.4")
         let idleContent = PanelModel.content(for: idle, preview: readyStill)
-        let recordingContext = specRecording(update: "1.0.4")
-        let closed = specClosed()
+        let picked = PanelModel.content(for: specArmed(update: nil), preview: readyStill)
         return [
             ("idle", panel(idleContent, preview: preview, clip: preview)),
+            ("picked", panel(picked, preview: preview, clip: preview)),
+            ("clear-hover", panel(picked, preview: preview, clip: preview, clearHover: true)),
             ("recording", panel(
-                PanelModel.content(for: recordingContext, preview: readyStill), preview: preview, clip: nil)),
-            ("nowindow", panel(PanelModel.content(for: specIdleMenu(), preview: .noWindow), preview: nil, clip: preview)),
+                PanelModel.content(for: specRecording(), preview: readyStill), preview: preview, clip: nil)),
+            ("nowindow", panel(
+                PanelModel.content(for: specNoWindow(), preview: .noWindow), preview: nil, clip: nil)),
             ("loading", panel(PanelModel.content(for: idle, preview: .loading), preview: nil, clip: preview)),
             ("loading-slow", panel(
                 PanelModel.content(for: idle, preview: .loading, showSpinner: true), preview: nil, clip: preview)),
@@ -183,8 +188,8 @@ public enum UIRenderer {
                 PanelModel.content(for: idle, preview: .permissionMissing(.screenRecording)), preview: nil, clip: preview)),
             ("window-closed", panel(
                 PanelModel.content(
-                    for: closed, preview: .windowClosed(nil), closedTitle: RenderSamples.clipTitle),
-                preview: preview, clip: preview)),
+                    for: specClosed(), preview: .windowClosed(nil), closedTitle: RenderSamples.clipTitle),
+                preview: nil, clip: nil)),
             ("aspect-16x10", panel(idleContent, preview: swatch(width: 320, height: 200), clip: preview)),
             ("aspect-21x9", panel(idleContent, preview: swatch(width: 420, height: 180), clip: preview)),
             ("aspect-9x16", panel(idleContent, preview: swatch(width: 180, height: 320), clip: preview)),
@@ -195,8 +200,8 @@ public enum UIRenderer {
         .ready(WindowStill(png: Data(), pixelWidth: 320, pixelHeight: 180))
     }
 
-    /// Armed, 1080p, with a last clip and an update: the 619.5 pt idle panel.
-    private static func specArmed(update: String) -> MenuContext {
+    /// Armed at 1080p with a last clip: 591.5 pt, or the 619.5 pt idle panel with an update.
+    private static func specArmed(update: String?) -> MenuContext {
         var context = RenderSamples.armed.context
         let size = SizePreset.p1080.size
         context.sizeChoice = .size(size)
@@ -210,24 +215,20 @@ public enum UIRenderer {
         return context
     }
 
-    private static func specRecording(update: String) -> MenuContext {
+    private static func specRecording() -> MenuContext {
         var context = RenderSamples.states.first { $0.name == "recording" }?.context ?? RenderSamples.armed.context
-        context.updateAvailable = update
         context.snapshot.size = SizePreset.p1080.size
         return context
     }
 
-    /// No window, but with a last clip and an update: the 591.5 pt panel.
-    private static func specIdleMenu() -> MenuContext {
+    private static func specNoWindow() -> MenuContext {
         var context = RenderSamples.idle.context
-        context.updateAvailable = "1.0.4"
-        context.snapshot.lastClip = RenderSamples.clip()
-        context.lastClipTitle = RenderSamples.clipTitle
+        context.sizeChoice = .size(SizePreset.p1080.size)
         return context
     }
 
     private static func specClosed() -> MenuContext {
-        var context = specIdleMenu()
+        var context = specNoWindow()
         context.snapshot.error = .recordingFailed(.windowClosed(at: 31))
         return context
     }
@@ -243,11 +244,11 @@ public enum UIRenderer {
     }
 
     /// The panel at its content height, 300 pt wide, opaque so the render has a background.
-    static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?) -> NSView {
+    static func panel(_ content: PanelContent, preview: NSImage?, clip: NSImage?, clearHover: Bool = false) -> NSView {
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let root = MenuPanelView(
             content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview, clipImage: clip,
-            reduceMotion: true, showsMaterial: false, onAction: { _ in })
+            reduceMotion: true, showsMaterial: false, showsClearHover: clearHover, onAction: { _ in })
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true)
         let hosting = NSHostingView(rootView: root)
@@ -256,25 +257,65 @@ public enum UIRenderer {
         return hosting
     }
 
-    /// The Settings window's content with sample values (Accessibility missing, so both permission row forms show).
-    /// `latest` is the release the Updates row last saw: the current version (up to date) or a newer one.
-    static func settingsView(home: URL, latest: String) -> NSView {
+    /// One Settings render: a tab, its permission state, and the release the Updates row last saw.
+    struct SettingsSample {
+        var name: String
+        var tab: SettingsTab
+        var screenRecording: PermissionStatus = .allowed
+        var accessibility: PermissionStatus = .allowed
+        var latest = SkreenrekVersion.current
+    }
+
+    static let settingsSamples = [
+        SettingsSample(name: "default", tab: .general),
+        SettingsSample(name: "general", tab: .general),
+        SettingsSample(name: "updateavailable", tab: .general, latest: RenderSamples.newerVersion),
+        SettingsSample(name: "agents", tab: .agents),
+        SettingsSample(name: "permissions", tab: .permissions),
+        SettingsSample(
+            name: "permissions-notallowed", tab: .permissions, screenRecording: .missing, accessibility: .missing),
+    ]
+
+    /// A Settings tab under a drawn stand-in for the window's toolbar, which an offscreen render can't show.
+    static func settingsView(_ sample: SettingsSample, home: URL) -> NSView {
         let defaults = UserDefaults(suiteName: "skreenrek.render-ui.\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
-        defaults.set(latest, forKey: UpdateChecker.Key.latestVersion)
+        defaults.set(sample.latest, forKey: UpdateChecker.Key.latestVersion)
         let updates = UpdateChecker(
             feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
             openURL: { _ in }, relaunch: {})
         let panel = SettingsPanelState(
-            permissions: StaticPermissions(screenRecording: .allowed, accessibility: .missing),
+            permissions: StaticPermissions(
+                screenRecording: sample.screenRecording, accessibility: sample.accessibility),
             loginItem: StaticLoginItem(),
             agents: AgentsPanelState(
                 installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")),
             updates: updates)
         return RefitHostingView.fitted(
-            SettingsView(store: store, panel: panel, actions: .none, version: SkreenrekVersion.current)
-                .environment(\.controlActiveState, .key).environment(\.drawsActiveControls, true))
+            VStack(spacing: 0) {
+                SettingsToolbarPreview(selected: sample.tab)
+                SettingsView(tab: sample.tab, store: store, panel: panel, actions: .none)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+            .environment(\.controlActiveState, .key)
+            .environment(\.drawsActiveControls, true))
+    }
+
+    /// The on-screen outline around a sample window on a plain desktop.
+    static func selectionOutline(increaseContrast: Bool) -> NSView {
+        var window = RenderSamples.safari
+        window.frame = PointRect(x: 48, y: 48, width: 640, height: 400)
+        var model = SelectionOutlineModel(macOSMajorVersion: 26)
+        model.update(
+            SelectionOutlineInput(
+                target: SelectionOutlineTarget(window: window), panelOpen: true, increaseContrast: increaseContrast),
+            now: 0)
+        let view = SelectionOutlineSampleView(frame: NSRect(x: 0, y: 0, width: 736, height: 496))
+        view.sampleFrame = window.frame.cgRect
+        view.outline.appearanceModel = model.display(at: 0).appearance
+        if let frame = view.outline.appearanceModel?.frame { view.outline.frame = frame.cgRect }
+        return view
     }
 
     /// Draws `view` at 2× with the appearance forced and writes a PNG.
@@ -527,6 +568,56 @@ final class StaticLoginItem: LoginItemService {
 }
 
 // MARK: - Preview views
+
+/// The window toolbar as the Settings renders show it: the title over the three tabs.
+private struct SettingsToolbarPreview: View {
+    let selected: SettingsTab
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(selected.title).font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 8) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    VStack(spacing: 2) {
+                        Image(systemName: tab.symbol).font(.system(size: 16))
+                        Text(tab.title).font(.system(size: 11))
+                    }
+                    .foregroundStyle(tab == selected ? Color.accentColor : Color.secondary)
+                    .frame(width: 76, height: 42)
+                    .background(
+                        RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+                            .fill(tab == selected ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear)))
+                }
+            }
+        }
+        .frame(width: SettingsMetrics.width, height: 80)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
+/// A sample window on a plain desktop, with the real outline view around it.
+final class SelectionOutlineSampleView: NSView {
+    let outline = SelectionOutlineView()
+    var sampleFrame = CGRect.zero
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        addSubview(outline)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.blended(withFraction: 0.5, of: .systemBlue)?.setFill()
+        bounds.fill()
+        let radius = SelectionOutlineModel.windowCornerRadius(macOSMajorVersion: 26)
+        NSColor.textBackgroundColor.setFill()
+        NSBezierPath(roundedRect: sampleFrame, xRadius: radius, yRadius: radius).fill()
+    }
+}
 
 /// A composed submenu (Size, Frame Rate): the same entries the `NSMenu` shows, laid out with the design spec's metrics
 /// on the menu material's colours (an offscreen `NSMenu` can't be drawn).

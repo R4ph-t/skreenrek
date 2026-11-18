@@ -191,6 +191,21 @@ final class FailingLoginItem: LoginItemService {
         return strings
     }
 
+    @Test func theNewPanelAndSettingsCopyIsInTheAudit() {
+        for text in [
+            "No window", "Pick a window to record", "Clear Window", "Clear picked window", "About", "View on GitHub",
+            "Connect adds the Skreenrek MCP server and the record-window skill.",
+            "Accessibility isn't allowed. Skreenrek can record, but windows keep their current size.",
+            "Screen Recording isn't allowed. Skreenrek can't record until you allow it.",
+        ] {
+            #expect(UIStrings.allFixed.contains(text), "\(text)")
+        }
+        #expect(UIStrings.Panel.picked("Safari — localhost:3000") == "Picked Safari — localhost:3000")
+        #expect(UIStrings.Agents.installFirst("Cursor") == "Install Cursor first.")
+        #expect(!UIStrings.allFixed.contains("Pick a window first."))
+        #expect(UIStrings.Menu.noWindowPicked == "No window picked")
+    }
+
     @Test func noNamesRolesOrPlaceholders() throws {
         let strings = try #require(try Self.sources().first { $0.name == "UIStrings.swift" }).text
         for text in [strings] + Self.samples {

@@ -1,0 +1,204 @@
+{
+ "sizes": {
+  "panel-nowindow-light": {
+   "w": 300,
+   "h": 323
+  },
+  "panel-picked-light": {
+   "w": 300,
+   "h": 591.5
+  },
+  "panel-recording-light": {
+   "w": 300,
+   "h": 457.5
+  },
+  "panel-clear-hover-light": {
+   "w": 300,
+   "h": 591.5
+  },
+  "panel-window-closed-light": {
+   "w": 300,
+   "h": 323
+  },
+  "screen-outline-light": {
+   "w": 1180,
+   "h": 740
+  },
+  "settings-general-light": {
+   "w": 480,
+   "h": 588
+  },
+  "settings-agents-light": {
+   "w": 480,
+   "h": 311
+  },
+  "settings-permissions-light": {
+   "w": 480,
+   "h": 200
+  },
+  "settings-permissions-notallowed-light": {
+   "w": 480,
+   "h": 200
+  },
+  "panel-nowindow-dark": {
+   "w": 300,
+   "h": 323
+  },
+  "panel-picked-dark": {
+   "w": 300,
+   "h": 591.5
+  },
+  "panel-recording-dark": {
+   "w": 300,
+   "h": 457.5
+  },
+  "panel-clear-hover-dark": {
+   "w": 300,
+   "h": 591.5
+  },
+  "panel-window-closed-dark": {
+   "w": 300,
+   "h": 323
+  },
+  "screen-outline-dark": {
+   "w": 1180,
+   "h": 740
+  },
+  "settings-general-dark": {
+   "w": 480,
+   "h": 588
+  },
+  "settings-agents-dark": {
+   "w": 480,
+   "h": 311
+  },
+  "settings-permissions-dark": {
+   "w": 480,
+   "h": 200
+  },
+  "settings-permissions-notallowed-dark": {
+   "w": 480,
+   "h": 200
+  }
+ },
+ "qa": {
+  "panel-nowindow-light": {
+   "box": [
+    300,
+    323
+   ],
+   "body": null,
+   "labelX": [
+    40
+   ],
+   "trailEnd": [
+    284
+   ],
+   "iconX": [
+    16
+   ],
+   "textToTrailGap": []
+  },
+  "panel-picked-light": {
+   "box": [
+    300,
+    591.5
+   ],
+   "body": null,
+   "labelX": [
+    16,
+    40
+   ],
+   "trailEnd": [
+    284,
+    236,
+    260
+   ],
+   "iconX": [
+    16
+   ],
+   "textToTrailGap": []
+  },
+  "panel-recording-light": {
+   "box": [
+    300,
+    457.5
+   ],
+   "body": null,
+   "labelX": [
+    16,
+    40
+   ],
+   "trailEnd": [
+    284
+   ],
+   "iconX": [
+    16
+   ],
+   "textToTrailGap": []
+  },
+  "settings-general-light": {
+   "box": [
+    480,
+    588
+   ],
+   "body": 508,
+   "labelX": [
+    28
+   ],
+   "trailEnd": [
+    452
+   ],
+   "iconX": [],
+   "textToTrailGap": [
+    228,
+    311,
+    180.2,
+    264.2,
+    284.5,
+    239.8,
+    306.9,
+    124,
+    313.8
+   ]
+  },
+  "settings-agents-light": {
+   "box": [
+    480,
+    311
+   ],
+   "body": 231,
+   "labelX": [
+    28
+   ],
+   "trailEnd": [
+    452
+   ],
+   "iconX": [],
+   "textToTrailGap": [
+    256.8,
+    274.6,
+    274.6,
+    157.3
+   ]
+  },
+  "settings-permissions-notallowed-light": {
+   "box": [
+    480,
+    200
+   ],
+   "body": 120,
+   "labelX": [
+    28
+   ],
+   "trailEnd": [
+    452
+   ],
+   "iconX": [],
+   "textToTrailGap": [
+    128.7,
+    44
+   ]
+  }
+ }
+}

@@ -5,6 +5,8 @@ import SkreenrekCore
 /// What a dropdown item does. The menu controller hands it to `AppModel.perform(_:)`.
 public enum MenuAction: Sendable, Hashable {
     case pickWindow
+    /// Forgets the picked window. The panel stays open and goes back to its compact layout.
+    case clearWindow
     case record
     case stop
     case discard

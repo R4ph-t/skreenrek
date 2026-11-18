@@ -15,6 +15,7 @@ public final class SettingsStore {
         public static let events = "writeClickEvents"
         public static let hud = "showRecordingIndicator"
         public static let size = "nextSize"
+        public static let settingsTab = "settingsTab"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -45,6 +46,11 @@ public final class SettingsStore {
         didSet { defaults.set(sizeChoice.storageValue, forKey: Key.size) }
     }
 
+    /// The Settings tab used last, so Settings reopens there.
+    public var settingsTab: SettingsTab {
+        didSet { defaults.set(settingsTab.rawValue, forKey: Key.settingsTab) }
+    }
+
     public init(defaults: UserDefaults = .standard, home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.defaults = defaults
         self.home = home
@@ -59,6 +65,7 @@ public final class SettingsStore {
         events = defaults.object(forKey: Key.events) as? Bool ?? fallback.events
         hud = defaults.object(forKey: Key.hud) as? Bool ?? fallback.hud
         sizeChoice = defaults.string(forKey: Key.size).flatMap(SizeChoice.init(storageValue:)) ?? .default
+        settingsTab = defaults.string(forKey: Key.settingsTab).flatMap(SettingsTab.init(rawValue:)) ?? .general
     }
 
     /// The controller's defaults for requests that leave them out.

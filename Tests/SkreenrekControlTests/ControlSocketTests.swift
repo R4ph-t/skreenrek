@@ -538,6 +538,37 @@ import Testing
         #expect(reported.withLock { $0 } == [.screenRecording])
     }
 
+    @Test func forgettingTheTargetGoesBackToIdleAndCountsNoPick() async throws {
+        let h = try Harness(picker: FakeWindowPicker(result: .window(WindowID(4127)))).start()
+        defer { h.stop() }
+        _ = try await h.controller.pick()
+        var snapshot = await h.controller.snapshot()
+        #expect(snapshot.state == .armed)
+        #expect(snapshot.pickCount == 1)
+        #expect(!snapshot.picking)
+        try await h.controller.forgetTarget()
+        snapshot = await h.controller.snapshot()
+        #expect(snapshot.state == .idle)
+        #expect(snapshot.window == nil)
+        #expect(snapshot.pickCount == 1)
+        _ = try await h.controller.pick()
+        #expect(await h.controller.snapshot().pickCount == 2)
+    }
+
+    @Test func theSnapshotSaysWhileThePickerIsOpen() async throws {
+        let picker = FakeWindowPicker(result: nil)
+        let h = try Harness(picker: picker).start()
+        defer { h.stop() }
+        let pick = Task { try await h.controller.pick() }
+        await picker.waitForPick()
+        #expect(await h.controller.snapshot().picking)
+        picker.answer(.cancelled)
+        _ = try await pick.value
+        let snapshot = await h.controller.snapshot()
+        #expect(!snapshot.picking)
+        #expect(snapshot.pickCount == 0)
+    }
+
     @Test func snapshotsGoIdleRecordingWritingIdle() async throws {
         let h = try Harness().start()
         defer { h.stop() }

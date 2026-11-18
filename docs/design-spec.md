@@ -52,21 +52,47 @@ Decisions: no blinking or pulsing (calm, Reduce Motion-safe). The recording symb
 
 ### 2. Menu-bar panel
 
-Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel is SwiftUI in a non-activating `NSPanel` at `.popUpMenu` level, anchored under the status item. It closes on Esc, on a click outside, or after an action that leaves the panel (Record, Stop, Settings…, opening the clip). Copy actions, Size, Frame Rate and the toggles stay open. Width is 300 pt. Idle with a window, an update and a last clip is **619.5 pt** (the cap is 620). Recording is **485.5 pt**. No window and window-closed are **591.5 pt**. All three fit an 800 pt screen minus the menu bar; anything taller scrolls.
+> **Updated for 1.0.5 (18 Nov 2026).** The measured detail, renders, redlines and boards are in Designer's [1.0.5 spec](design/1.0.5/spec.md) and `docs/design/1.0.5/`.
+
+Direction B, hero record (18 Nov 2026), replaces the native `NSMenu`. The panel is SwiftUI in a non-activating `NSPanel` at `.popUpMenu` level, anchored under the status item. It closes on Esc, on a click outside, or after an action that leaves the panel (Record, Stop, Settings…, opening the clip). Copy actions, Size, Frame Rate, the toggles and Clear stay open. Width is 300 pt.
+
+| State | Height (pt) | With Last Clip | With the update row | With both |
+| --- | --- | --- | --- | --- |
+| No window, or window closed (compact) | **323** | 384 | 351 | 412 |
+| Window picked | **530.5** | 591.5 | 558.5 | 619.5 (the cap is 620) |
+| Recording | **457.5** | | 485.5 | |
+
+Anything taller than the screen scrolls.
 
 Material is `.menu`. Corner radius 10, plus the system hairline and shadow. Tab moves through every control. Return triggers the hero. ⌘, opens Settings… and ⌘Q quits. ⌃⌘⎋ stays the global stop. No numeric shortcuts.
 
-The header tile is gone. The title and the detail sit under the preview. The window block (preview, caption, cells, hero) shares one left edge, x = 16, and is 268 pt wide. Rows use that same margin. Inside a row the icon is at x = 24 and the text at x = 48. The row highlight is inset with the row (268 × 28, radius 6). Switches and the clip's icon buttons end at x = 276.
+Everything shares one content edge, x 16–284: the preview, caption, cells, hero, separators, row icons and trailing content. Panel padding is 16 at the top and sides and 8 at the bottom. The row highlight is inset 8 from the panel edge (x 8–292, radius 6). A row's icon sits in a 16 pt column at x 16, and every row title starts at x 40. Switches, shortcuts and the glyphs of the Last Clip and Clear buttons end at x 284. Those buttons' 24 pt hit areas overhang the edge by 4.
 
-**Idle, top to bottom**
+**No window picked (compact), top to bottom**
+
+| Element | Size (pt) | Gap above |
+| --- | --- | --- |
+| Header: `viewfinder` 16 pt at x 16, "No window" (13/16 semibold) over "Pick a window to record" (12/15 secondary) at x 40 | 268 × 33 | 16 |
+| Size and Frame Rate pop-up cells | 28 tall | 12 |
+| Pick Window…, accent, centred | 268 × 40, radius 6 | 12 |
+| Separator | 1 | 8 / 8 |
+| Show Cursor, Write Click Events | 28 each | |
+| Separator and Last Clip, when a clip exists | 1 + 44 | 8 / 8 |
+| Separator | 1 | 8 / 8 |
+| Update available · 1.0.4 (only when an update exists), Open Output Folder, Settings… ⌘,, Quit Skreenrek ⌘Q | 28 each | |
+| Bottom padding | 8 | |
+
+There is no preview and no Record button. VoiceOver reads the header as "No window picked. Pick a window to record."
+
+**Window picked, top to bottom**
 
 | Element | Size (pt) | Gap above |
 | --- | --- | --- |
 | Preview | 268 × 167.5 (16:10), radius 6 | 16 |
-| Caption: title 13/16 semibold, then the size line 12/15 secondary | 268 × 33 | 12 |
+| Caption: title 13/16 semibold, middle-truncated, then the size line 12/15 secondary. The Clear button ends the title line | 268 × 33 | 12 |
 | Size and Frame Rate pop-up cells. Size is 116 wide, an 8 pt gap, Frame Rate takes the rest. Radius 6 | 28 tall | 12 |
-| Record, with the V1 mark | 268 × 40, radius 6 | 12 |
-| Separator, inset 8 from the 268 pt block | 1 | 8 / 8 |
+| Record, with the V1 mark, centred | 268 × 40, radius 6 | 12 |
+| Separator | 1 | 8 / 8 |
 | Pick Another Window…, Show Cursor, Write Click Events | 28 each | |
 | Separator | 1 | 8 / 8 |
 | Last Clip | 44 | |
@@ -74,7 +100,13 @@ The header tile is gone. The title and the detail sit under the preview. The win
 | Update available · 1.0.4 (only when an update exists), Open Output Folder, Settings… ⌘,, Quit Skreenrek ⌘Q | 28 each | |
 | Bottom padding | 8 | |
 
-**Preview.** One still per open, of that window only (desktop-independent window filter), sized to the preview box times the backing scale (536 × 335 px at 2×), with the cursor hidden. No stream, and no refresh while the panel stays open. Opening it again takes a new still. Opening it during a recording takes one still and does not touch the recording stream. The still is aspect-fit and centred, never cropped: 16:10 fills the box, 21:9 gets bars top and bottom, 9:16 gets bars at the sides. The bars are the preview fill (`quaternarySystemFill`), not pixels in the image. A 0.5 pt hairline sits on top. While recording that hairline becomes a 2 pt inner stroke in system red. The still is decorative for VoiceOver. The caption carries the meaning.
+**Clear.** `xmark.circle.fill`, a 16 pt glyph in a 24 × 24 hit area (x 264–288), secondary, primary on hover with the row hover fill at radius 4. Tooltip "Clear Window", VoiceOver "Clear picked window". It forgets the picked window, keeps Size and Frame Rate, leaves the window at its current size, and keeps the panel open in the compact layout. Focus moves to Pick Window… and VoiceOver announces "No window picked". It is hidden while recording or saving and when the window has closed.
+
+**Transitions.** When the state changes while the panel is open, the height animates with the top edge fixed, and the preview, header and caption fade over 0.2 s ease-in-out. Reduce Motion changes everything in one frame. Opening the panel never animates.
+
+**On-screen outline.** A click-through overlay draws a 3 pt `controlAccentColor` stroke just outside the picked window, with a 0.5 pt black 30% hairline on its outer edge (1 pt at 60% with Increase Contrast). Its radius is the window's plus 3: 19 on macOS 26, 13 on macOS 15. It is ordered directly above the target window, so windows in front still cover it, and it is kept out of capture (`sharingType = .none`, and region filters exclude the whole app). It shows while the panel is open and for 1.5 s after a pick, then fades over 0.3 s (no fade with Reduce Motion). It never shows while recording or saving, while the picker is up, when the window is minimised, hidden or on another Space, or once it has closed. It follows the window's moves and resizes. After a pick, VoiceOver announces "Picked Safari — localhost:3000".
+
+**Preview.** One still per open, of that window only (desktop-independent window filter), sized to the preview box times the backing scale (536 × 335 px at 2×), with the cursor hidden. No stream, and no refresh while the panel stays open. Opening it again takes a new still. Opening it during a recording takes one still and does not touch the recording stream. The still is aspect-fit and centred, never cropped: 16:10 fills the box, 21:9 gets bars top and bottom, 9:16 gets bars at the sides. The bars are the preview fill (`quaternarySystemFill`), not pixels in the image. A 2 pt inner stroke in the accent colour sits on top whenever a window is picked, in system red while recording. The still is decorative for VoiceOver. The caption carries the meaning.
 
 **Size.** The cell shows the preset name: `720p`, `1080p`, `1440p`, `4K`, `Square`, `Portrait`. Current Size and any other size show `Custom`. The exact px stays on the caption (`1920 × 1080 px · 60 fps`). The cells open the existing Size and Frame Rate menus, with the same checkmarks, disabled presets and tooltips. Choosing a size while armed resizes the window immediately.
 
@@ -82,25 +114,25 @@ The header tile is gone. The title and the detail sit under the preview. The win
 
 | State | Preview | Caption | Hero |
 | --- | --- | --- | --- |
-| Idle, window picked | The still, aspect-fit | Window title / `1920 × 1080 px · 60 fps` | Record |
-| Recording | The still from this open, 2 pt red inner stroke | `Recording Safari — localhost:3000` / the size line | Stop Recording, elapsed time at the right. Then the origin line and Discard Recording…. Cells, toggles, Last Clip and Pick are hidden |
-| No window | Empty fill, the idle mark at 32 pt and 28% ink | Ready / No window picked | Pick Window…, and Record disabled at 104 pt. Tooltip: "Pick a window first." No Pick Another row |
-| Loading | Empty fill. A 16 pt spinner only after 300 ms. The still fades in over 120 ms (no fade when Reduce Motion is on) | Unchanged | Record stays enabled |
-| Capture failed | "Preview unavailable" | Unchanged | Record stays enabled. Tooltip and VoiceOver: "Skreenrek couldn't take a preview of this window. Recording still works." |
-| Screen Recording off | A lock, "Screen Recording is off", and Open Settings… | Unchanged | Record disabled. The full sentence is the tooltip and VoiceOver: "Allow Skreenrek in System Settings › Privacy & Security, then reopen it." |
-| Window closed | The last still at 22% opacity, greyscale, under a 70% scrim, and a window-with-× icon | The window title / Window closed | Pick Another Window…. Record is not shown |
+| Idle, window picked | The still, aspect-fit, accent stroke | Window title and Clear / `1920 × 1080 px · 60 fps` | Record |
+| Recording | The still from this open, 2 pt red inner stroke | `Recording Safari — localhost:3000` / the size line. No Clear | `■ Stop Recording 0:12`, centred, tabular digits, the timer 4 pt after the label. Then the origin line and Discard Recording…. Cells, toggles, Last Clip and Pick are hidden |
+| No window | None: the compact header | None | Pick Window… |
+| Loading | Empty fill, accent stroke. A 16 pt spinner only after 300 ms. The still fades in over 120 ms (no fade when Reduce Motion is on) | Unchanged | Record stays enabled |
+| Capture failed | "Preview unavailable", accent stroke | Unchanged | Record stays enabled. Tooltip and VoiceOver: "Skreenrek couldn't take a preview of this window. Recording still works." |
+| Screen Recording off | A lock, "Screen Recording is off", and Open Settings…, accent stroke | Unchanged | Record disabled. The full sentence is the tooltip and VoiceOver: "Allow Skreenrek in System Settings › Privacy & Security, then reopen it." |
+| Window closed | None: the compact header, with a window-with-× icon, "Window closed" and the window's title | None | Pick Window… |
 
-Red appears only while recording. The icon shape carries each empty state (the mark, the lock, the slashed preview, the window with ×).
+Red appears only while recording. The icon shape carries each empty state (the viewfinder, the lock, the slashed preview, the window with ×).
 
 **Last Clip.** One 44 pt row. The visible title is "Last Clip". The detail is `0:42 · 1080p · 60 fps`: duration, the preset name (or Custom), and the frame rate. The thumbnail (40 × 25, radius 4), the title or the detail opens `clip.mp4` and closes the panel. Tooltip: "Open Clip". VoiceOver: "Open last clip, <title>, <spoken duration>". The trailing icon buttons (Show in Finder, Copy File Path, Copy HyperFrames Snippet) do not open the clip, and the copy actions do not close the panel. Rest has no fill. Hover paints the main area (radius 6), darkens the thumbnail 22%, and shows a play glyph. Pressed is deeper, and the action fires on mouse-up inside the row. If the file is missing, the row is not clickable, the detail reads "Clip moved or deleted", Show in Finder is disabled, and VoiceOver reads "Last clip, moved or deleted".
 
-**Tokens.** System colours. Accent is `controlAccentColor` (Record, Pick, switches, the update icon). Red is `systemRed`, and only while recording. The preview fill is `quaternarySystemFill`. Cells and Open Settings… use `tertiarySystemFill`. Type is only 13/16 and 12/15. The timer is 13 pt semibold with tabular digits. Radii are only 10, 6 and 4, plus the system switch. Rows are 28 pt, the clip row 44, the hero 40, the cells 28, the icon buttons 24. Every hit target is at least 24 × 24. Focus rings follow the system's style and each control's radius.
+**Tokens.** System colours. Accent is `controlAccentColor` (Record, Pick, switches, the update icon). Red is `systemRed`, and only while recording. The preview fill is `quaternarySystemFill`. Cells and Open Settings… use `tertiarySystemFill`. Type is only 13/16 and 12/15. The timer is 13 pt semibold with tabular digits. Radii are only 10, 6 and 4, plus the system switch and the on-screen outline. Rows are 28 pt, the clip row 44, the hero 40, the cells 28, the icon buttons 24. Every hit target is at least 24 × 24. Focus rings follow the system's style and each control's radius.
 
 **Errors.** The copy below is unchanged. A missing capture permission and a closed window are the preview states above, not extra rows. Every other error keeps its title, its sentence and its fix row. The error clears when the next action starts, or after the panel is opened and closed once.
 
 | Cause | Title | Detail | Fix item |
 | --- | --- | --- | --- |
-| Window closed | The window's title | Window closed | Pick Another Window… (the hero). The saved clip stays on the Last Clip row |
+| Window closed | Window closed | The window's title | Pick Window… (the hero). The saved clip stays on the Last Clip row |
 | Screen Recording off | Screen Recording is off | Allow Skreenrek in System Settings › Privacy & Security, then reopen it. (tooltip and VoiceOver; the box shows the title only) | Open Settings… |
 | Accessibility off | Can't resize windows | Allow Skreenrek in Accessibility settings to set exact sizes. | Open Accessibility Settings… |
 | Not exact | Size isn't exact | Safari can't be narrower than 1286 px. It is 1286 × 800 px now. | Pick Another Size… |
@@ -145,22 +177,17 @@ A single 520 × 496 pt titled window with two steps. It appears on first launch,
 
 Decision: Accessibility is asked for up front but isn't blocking. Rationale: resize is the headline feature, but recording a window at its current size is still useful.
 
-### 6. Settings (one pane, no tabs)
+### 6. Settings
 
-A 480 pt wide window built from a grouped native Form. Rows:
+> **Updated for 1.0.5 (18 Nov 2026).** The measured detail, renders and redlines are in Designer's [1.0.5 spec](design/1.0.5/spec.md) (§5) and `docs/design/1.0.5/`.
 
-- Output folder: path, plus a \[Choose…\] button
-- Default frame rate: segmented control, 30 / 60 fps
-- Show cursor in video (checkbox)
-- Write click events (checkbox)
-- Show recording indicator (checkbox)
-- Open at login (checkbox)
-- Stop shortcut: ⌃⌘⎋ (shown, not editable in v1)
-- Agents: per-client status rows with \[Connect\] / \[Remove\], the same as onboarding step 2
-- Permissions: the same two rows as onboarding step 1
-- Footer: version, plus "Check for Updates" (Sparkle, notarized builds only)
+A standard macOS Settings window, 480 pt wide, with toolbar tabs: **General** (`gearshape`), **Agents** (`terminal`) and **Permissions** (`hand.raised`). The window title is the selected tab's name, the height fits each tab with no scroll view, and ⌘, reopens the last tab used.
 
-Rationale: every default lives here once; no tabs for nine rows.
+Each tab is a grouped `Form` with 16 pt outer padding. Every row is 44 pt, with its label at x 28 and its trailing control ending at x 452, at least 12 pt apart. The label truncates and the control never does. There are no leading icons, tiles or hero header. Switches are mini, push buttons are at least 80 pt wide.
+
+- **General.** Output folder (the path, tooltip with the full path, \[Choose…\]) and Open at login. **Recording:** Default frame rate (30 / 60 fps), Show cursor in video, Write click events, Show recording indicator, Stop shortcut ⌃⌘⎋ (read-only). **About:** Updates, with What's new under it when a release is waiting, and View on GitHub, where the whole row is the link.
+- **Agents.** Claude Code, Codex, Cursor and Command-line tool, each with its status and an 88 pt \[Connect\] or \[Remove\]. It is disabled with "Install <Agent> first." when the agent isn't installed. Setup problems replace the status line. Footer: "Connect adds the Skreenrek MCP server and the record-window skill."
+- **Permissions.** Screen Recording and Accessibility. Allowed is a green check and "Allowed". Not allowed is an orange triangle, whose tooltip and VoiceOver give the full sentence, and \[Open System Settings…\]. The status refreshes when the window shows and when the app becomes active, and never prompts.
 
 ## CLI
 
@@ -374,7 +401,7 @@ Fraime Lead checks these on a real Mac (Apple silicon, 2× display, plus one 1×
 7. **Snippet:** pasting `hyperframes.html` into a fresh HyperFrames project (with `--assets`) previews the clip with no edits.
 8. **The HUD and region outline never appear in the clip** (checked frame by frame on a region recording that overlaps the HUD position).
 9. **Menu-bar icon:** each of the five states shows its symbol, and its tooltip and VoiceOver label match the table word for word. Recording is the only tinted state, and nothing blinks.
-10. **Menu panel:** the direction B panel, 300 pt wide. Idle with a window and an update is 619.5 pt (at most 620). Recording is 485.5 pt (at most 490). No window and window-closed are 591.5 pt. Preview, caption, cells and the hero share x = 16 and are 268 pt wide. Matches the panel states in both appearances.
+10. **Menu panel:** the direction B panel, 300 pt wide. With a window, an update and a last clip it is 619.5 pt (at most 620). Recording with an update is 485.5 pt (at most 490). No window and window-closed are 323 pt. Everything shares the content edge x 16–284, and row titles start at x 40. Matches the panel states in both appearances.
 11. **Picker:** tint and 2 pt outline follow the hovered window, the label shows the correct px size per display, Tab/arrows/Return/Esc work, and VoiceOver announces the window.
 12. **Onboarding:** status updates live when permissions are granted in System Settings, Continue unlocks on Screen Recording, the window comes back on the same step after macOS's relaunch, and step 2 installs MCP and the skill for the checked agents only.
 13. **Errors:** each row of the error copy table can be triggered, and each shows its exact title, detail and fix item. The CLI prints `error:` + `hint:` and the right exit code.
@@ -470,7 +497,7 @@ There are no new controls; the dropdown keeps Frame Rate only. The one visible c
 
 Status rows in the dropdown keep at least a 16 pt right inset; a detail line that doesn't fit wraps to a second line, the same as the error rows, instead of running to the menu edge. Copy is unchanged. (Designer, 2026-11-17.)
 
-Settings: the Agents section (09) sits between Stop shortcut and Permissions, in the same grouped style. (Designer, 2026-11-17.)
+Settings: agents have their own tab (section 6, updated for 1.0.5).
 
 ### Acceptance
 

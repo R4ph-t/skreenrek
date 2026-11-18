@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
+- The picked window gets an outline on screen while the menu is open, and for a moment right after you pick it. The outline never appears in a recording.
+
+### Changed
+
+- With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
+- The preview has an accent outline while a window is picked, and a red one while recording.
+- Settings is now a standard window with General, Agents, and Permissions tabs.
+- Everything in the menu lines up on one left and one right edge, and the button labels are centered.
+
+### Fixed
+
+- The Show Cursor and Write Click Events switches are back at the right edge of the menu.
+
 ## [1.0.5] - 2026-11-18
 
 ### Fixed

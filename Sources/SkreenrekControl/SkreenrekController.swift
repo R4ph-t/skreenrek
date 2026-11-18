@@ -110,6 +110,9 @@ public actor SkreenrekController {
     /// True while `resize` waits on the window: the actor is reentrant, so this keeps a start, pick or second resize
     /// from slipping in mid-resize.
     private var resizing = false
+    /// Pick requests waiting on the picker. The actor is reentrant, so a second request can overlap the first.
+    private var openPickers = 0
+    private var pickCount = 0
     private var endWaiterWatchers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     /// - Parameter socketPath: reported by `doctor`.
@@ -162,7 +165,9 @@ public actor SkreenrekController {
 
     /// The state right now.
     public func snapshot() -> ControllerSnapshot {
-        var s = ControllerSnapshot(state: state, fps: settings.fps, lastClip: lastClip, error: error)
+        var s = ControllerSnapshot(
+            state: state, fps: settings.fps, lastClip: lastClip, error: error, picking: openPickers > 0,
+            pickCount: pickCount)
         switch phase {
         case .idle:
             break
@@ -231,7 +236,18 @@ public actor SkreenrekController {
     public func pick(timeout: TimeInterval = PickParams.defaultTimeout) async throws -> PickBody {
         clearError()
         try ensureNotBusy()
-        let result = try await seams.picker.pick(timeout: timeout)
+        openPickers += 1
+        publish()
+        let result: PickResult
+        do {
+            result = try await seams.picker.pick(timeout: timeout)
+        } catch {
+            openPickers -= 1
+            publish()
+            throw error
+        }
+        openPickers -= 1
+        publish()
         switch result {
         case .cancelled:
             return .cancelled
@@ -239,6 +255,7 @@ public actor SkreenrekController {
             let resolved = try await directory.resolve(.id(id))
             try ensureNotBusy()
             phase = .armed(.window(resolved, readback: nil))
+            pickCount += 1
             publish()
             return .window(WindowEntry(resolved))
         case .region(let rect, let displayId):
@@ -248,6 +265,14 @@ public actor SkreenrekController {
             publish()
             return .region(PickedRegion(region: rect, displayId: display.id))
         }
+    }
+
+    /// Forgets the picked window or region and leaves its size alone. `wrong_state` while a recording runs.
+    public func forgetTarget() throws {
+        clearError()
+        try ensureNotBusy()
+        phase = .idle
+        publish()
     }
 
     /// Resizes a window to exact pixels and reads it back. `query` nil means the armed window. Without Accessibility

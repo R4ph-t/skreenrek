@@ -158,3 +158,42 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
     func windowWillClose(_ notification: Notification) { timer?.invalidate(); timer = nil }
 }
+
+/// An onboarding permission with its status: Allowed (green check) or Open System Settings….
+struct PermissionRow: View {
+    let title: String
+    let detail: String
+    let status: PermissionStatus
+    let open: () -> Void
+
+    var body: some View {
+        // One 12 pt minimum gap between the text and the status. The text column takes the room up to the trailing
+        // status first, and the status keeps its own size.
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 13))
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .layoutPriority(1)
+            Spacer(minLength: 12)
+            if status == .allowed {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).frame(width: 16)
+                        .foregroundStyle(Color(nsColor: .systemGreen))
+                    Text(UIStrings.Settings.allowed).foregroundStyle(.secondary)
+                }
+                .fixedSize()
+                .accessibilityElement(children: .combine)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "circle.dashed").font(.system(size: 16)).frame(width: 16)
+                        .foregroundStyle(.secondary).accessibilityHidden(true)
+                    Button(UIStrings.Settings.openSystemSettings, action: open)
+                }
+                .fixedSize()
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}

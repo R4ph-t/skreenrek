@@ -32,8 +32,13 @@ import Vision
                 "picker-label-\(appearance)@2x.png", "picker-hint-\(appearance)@2x.png",
                 "picker-window-\(appearance)@2x.png", "picker-region-\(appearance)@2x.png",
                 "submenu-size-\(appearance)@2x.png", "submenu-framerate-\(appearance)@2x.png",
-                "settings-default-\(appearance)@2x.png", "settings-updateavailable-\(appearance)@2x.png",
+                "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
             ]
+            for state in [
+                "default", "general", "updateavailable", "agents", "permissions", "permissions-notallowed",
+            ] {
+                expected.append("settings-\(state)-\(appearance)@2x.png")
+            }
             expected.append("picker-empty-\(appearance)@2x.png")
             for state in ["keyboard", "window-contrast", "region-contrast"] {
                 expected.append("picker-\(state)-\(appearance)@2x.png")
@@ -43,8 +48,8 @@ import Vision
             expected += CaptureRenderSamples.hudStates.map { "hud-\($0.name)-\(appearance)@2x.png" }
             expected += CaptureRenderSamples.onboardingStates.map { "onboarding-\($0.name)-\(appearance)@2x.png" }
             for state in [
-                "idle", "recording", "nowindow", "loading", "loading-slow", "capture-failed",
-                "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
+                "idle", "picked", "clear-hover", "recording", "nowindow", "loading", "loading-slow",
+                "capture-failed", "permission-missing", "window-closed", "aspect-16x10", "aspect-21x9", "aspect-9x16",
             ] {
                 expected.append("panel-\(state)-\(appearance)@2x.png")
             }
@@ -80,7 +85,16 @@ import Vision
             }
             let idle = sizes["menubaricon-idle-\(appearance)@2x.png"]?.0 ?? 0
             #expect(sizes["menubaricon-recording-\(appearance)@2x.png"]?.0 ?? 0 > idle)
-            #expect(sizes["settings-default-\(appearance)@2x.png"]?.0 == 960)
+            for state in ["general", "agents", "permissions", "permissions-notallowed"] {
+                #expect(sizes["settings-\(state)-\(appearance)@2x.png"]?.0 == 960, "\(state)")
+            }
+            // The heights Designer measured, at 2×.
+            for (state, height) in [
+                ("nowindow", 646), ("window-closed", 646), ("picked", 1183), ("clear-hover", 1183),
+                ("recording", 915), ("idle", 1239),
+            ] {
+                #expect(sizes["panel-\(state)-\(appearance)@2x.png"]?.1 == height, "\(state)")
+            }
             #expect(sizes["picker-label-\(appearance)@2x.png"] ?? (0, 0) == (560, 112))
             #expect(sizes["picker-hint-\(appearance)@2x.png"] ?? (0, 0) == (1280, 88))
             for state in CaptureRenderSamples.hudStates {
@@ -135,6 +149,41 @@ import Vision
             let panel = try #require(rep.colorAt(x: 12, y: 509)?.usingColorSpace(.deviceRGB), "\(name)")
             #expect(abs(fill.brightnessComponent - panel.brightnessComponent) > 0.02, "\(name) has no cell fill")
         }
+    }
+
+    /// Reads the drawn pixels: the stroke's colour on the preview edge, and each trailing switch ending at x 284.
+    @Test func panelsDrawTheSelectedStateAndTheirEdges() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-edges-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try await Self.run(["debug", "render-ui", "--out", folder.path]) == 0)
+
+        func image(_ name: String) throws -> NSBitmapImageRep {
+            let data = try Data(contentsOf: folder.appendingPathComponent(name))
+            return try #require(NSBitmapImageRep(data: data), "\(name)")
+        }
+        // Halfway down the preview's left edge, inside the 2 pt stroke.
+        let picked = try #require(try image("panel-picked-light@2x.png").colorAt(x: 34, y: 200)?.usingColorSpace(.deviceRGB))
+        #expect(picked.blueComponent > 0.8 && picked.redComponent < 0.3, "\(picked)")
+        let recording = try #require(
+            try image("panel-recording-light@2x.png").colorAt(x: 34, y: 200)?.usingColorSpace(.deviceRGB))
+        #expect(recording.redComponent > 0.8 && recording.blueComponent < 0.4, "\(recording)")
+
+        // The compact panel's first switch row: 16 + 33 + 12 + 28 + 12 + 40 + 17 pt down, centred at +14.
+        let compact = try image("panel-nowindow-light@2x.png")
+        let y = Int((158 + 14) * 2)
+        // 1 pt inside the end, past the knob's 2 pt inset.
+        let inside = try #require(compact.colorAt(x: 566, y: y)?.usingColorSpace(.deviceRGB))
+        let outside = try #require(compact.colorAt(x: 572, y: y)?.usingColorSpace(.deviceRGB))
+        #expect(inside.blueComponent - inside.redComponent > 0.3, "\(inside)")
+        #expect(outside.blueComponent - outside.redComponent < 0.1, "\(outside)")
+
+        // The outline is 3 pt of accent just outside the sample window, whose left edge is at x 48.
+        let outline = try image("screen-outline-light@2x.png")
+        let stroke = try #require(outline.colorAt(x: 93, y: 400)?.usingColorSpace(.deviceRGB))
+        let window = try #require(outline.colorAt(x: 100, y: 400)?.usingColorSpace(.deviceRGB))
+        #expect(stroke.blueComponent - stroke.redComponent > 0.5, "\(stroke)")
+        #expect(window.redComponent > 0.9, "\(window)")
     }
 
     private static func recognizedText(in image: CGImage) throws -> String {

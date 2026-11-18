@@ -100,12 +100,16 @@ public struct ControllerSnapshot: Sendable, Hashable {
     public var error: SkreenrekError?
     /// Effective HUD option of the active recording (including CLI/MCP overrides).
     public var hud: Bool
+    /// The picker overlay is on screen.
+    public var picking: Bool
+    /// Windows picked so far. It moves on every pick, including a second pick of the same window.
+    public var pickCount: Int
 
     public init(
         state: ControllerState, elapsed: TimeInterval? = nil, window: WindowInfo? = nil, region: PixelRect? = nil,
         displayId: DisplayID? = nil, size: PixelSize? = nil, readback: Readback? = nil, fps: FrameRate,
         startedBy: StartedBy? = nil, client: String? = nil, lastClip: StopBody? = nil, error: SkreenrekError? = nil,
-        hud: Bool = true, display: DisplayInfo? = nil
+        hud: Bool = true, display: DisplayInfo? = nil, picking: Bool = false, pickCount: Int = 0
     ) {
         self.state = state
         self.elapsed = elapsed
@@ -121,5 +125,7 @@ public struct ControllerSnapshot: Sendable, Hashable {
         self.error = error
         self.hud = hud
         self.display = display
+        self.picking = picking
+        self.pickCount = pickCount
     }
 }

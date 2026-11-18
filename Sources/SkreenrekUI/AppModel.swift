@@ -14,6 +14,8 @@ public protocol UIEffects: AnyObject {
     func openClip(at url: URL)
     func copy(_ text: String)
     func openSettings()
+    /// Opens Settings on General, where the Updates row is.
+    func showUpdates()
     /// Opens onboarding on step 1 (the permissions), even after onboarding was completed.
     func showPermissions()
     /// The "Discard this recording?" alert; true for Discard.
@@ -177,6 +179,10 @@ public final class AppModel {
                 // Spec 13: a picked window keeps its current size until a preset is chosen.
                 if case .window = try await self.controller.pick() { self.settings.sizeChoice = .keepCurrent }
             }
+        case .clearWindow:
+            // Size and Frame Rate keep their values, and the window keeps its current size.
+            await clearErrors()
+            await run { try await self.controller.forgetTarget() }
         case .record:
             await clearErrors()
             await record()
@@ -189,8 +195,10 @@ public final class AppModel {
         case .openOutputFolder:
             try? FileManager.default.createDirectory(at: settings.outputFolder, withIntermediateDirectories: true)
             effects.open(settings.outputFolder)
-        case .openSettings, .showUpdate:
+        case .openSettings:
             effects.openSettings()
+        case .showUpdate:
+            effects.showUpdates()
         case .showPermissions:
             effects.showPermissions()
         case .quit:
