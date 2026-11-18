@@ -1,11 +1,22 @@
-# skreenrek
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/brand/final-V1/icon/icon-light-256.png">
+  <img src="docs/brand/final-V1/icon/icon-dark-256.png" alt="Skreenrek app icon" width="128" height="128">
+</picture>
 
-A small standalone macOS agent screen-capture tool (menu bar, CLI, MCP and an agent skill in one binary). It lists
-windows, resizes one to an exact pixel size and reads the frame back, records it at native resolution (H.264, constant
-30 or 60 fps), and writes `clip.mp4`, `events.json`, and a HyperFrames snippet.
+# Skreenrek
 
-Free and open source (MIT). Unsandboxed. Releases are signed with a Developer ID, notarized by Apple and installed
-with a Homebrew cask. It shares no code with Fraime. The build plan is in `specs/` (index: `specs/README.md`).
+A small, free, open-source macOS screen-capture tool for coding agents such as Claude Code, Codex and Cursor. It is one
+binary with a menu-bar app, a CLI, an MCP server and an agent skill.
+
+## Why
+
+Skreenrek gives an agent what it needs to record a window and use the result:
+
+- **Size.** It resizes the window to an exact pixel size and reads the frame back, so the agent can verify the size
+  instead of assuming it.
+- **Quality.** It records at native resolution and a constant 30 or 60 fps, in H.264 by default.
+- **Output.** Each recording gets its own folder with `clip.mp4`, `events.json` and a HyperFrames snippet, so the agent
+  has the video, the cursor and click data, and a paste-ready clip element.
 
 ## Install
 
@@ -17,82 +28,106 @@ brew install --cask r4ph-t/skreenrek/skreenrek
 open /Applications/Skreenrek.app
 ```
 
-The cask installs Skreenrek.app into /Applications and links the `skreenrek` command. The app is notarized and keeps
-the same Developer ID signature across versions, so Screen Recording and Accessibility grants survive
-`brew upgrade --cask skreenrek`. The tap URL is needed because the tap lives in this repo, not in `homebrew-skreenrek`.
+The cask installs Skreenrek.app into `/Applications` and links the `skreenrek` command. The app is unsandboxed, signed
+with a Developer ID and notarized by Apple. The tap URL is needed because the tap lives in this repo.
 
-Open the app once to grant Screen Recording and Accessibility. Then connect detected agents:
+### First run
+
+The app walks you through its permissions the first time it opens:
+
+- **Screen Recording** is required. macOS applies it only after a restart of the app, so click Quit & Reopen when
+  Skreenrek offers it.
+- **Direct Capture** is required. It is the macOS prompt about skipping the system's private window picker.
+- **Accessibility** is what lets Skreenrek resize windows. You can skip it and still record a window at its current
+  size.
+
+Then connect your agents:
 
 ```sh
 skreenrek setup agents
-skreenrek --version
 ```
 
-Setup detects `~/.claude`, `~/.codex` and `~/.cursor`, and installs the `record-window` skill and the `skreenrek`
-MCP server. Use `--claude`, `--codex` or `--cursor` to select clients explicitly, `--cli` to link the command into
-`~/.local/bin`, `--json` for per-agent results, and `--remove` to remove the connections setup added. Existing
-configs get a `.skreenrek-backup` before their first edit. Other servers and settings stay in place.
+Setup detects `~/.claude`, `~/.codex` and `~/.cursor`, and installs the `record-window` skill and the `skreenrek` MCP
+server for each one it finds. Use `--claude`, `--codex` or `--cursor` to choose clients yourself, and `--cli` to link
+the command into `~/.local/bin`. Existing configs get a `.skreenrek-backup` before their first edit, and other servers
+and settings stay in place.
 
-To remove Skreenrek and its settings: `brew uninstall --zap --cask skreenrek`.
+## Quick start
 
-## Building from source
+Ask your agent to record something:
 
-Needs Xcode 16 or later. The source build is ad-hoc signed, so it needs no certificate, but macOS ties permission
-grants to the signature and every rebuild changes it. Use it to work on Skreenrek; use the cask to run it.
+```text
+Use the record-window skill to record my Safari window at 1080p and 60 fps while you
+click through the sign-up flow on localhost:3000. Give me the paths to the clip, the
+events file and the HyperFrames snippet.
+```
 
-With Homebrew (the `skreenrek` formula builds the latest commit; uninstall the cask first, both install `skreenrek`):
+Or use the CLI directly:
 
 ```sh
-brew tap r4ph-t/skreenrek https://github.com/R4ph-t/skreenrek
-brew trust r4ph-t/skreenrek
-brew install --HEAD skreenrek
-rm -rf /Applications/Skreenrek.app && cp -R "$(brew --prefix)/opt/skreenrek/Skreenrek.app" /Applications/
-open /Applications/Skreenrek.app
+# List the windows you can record
+skreenrek windows --app Safari
+
+# Resize a window and read the size back
+skreenrek resize --app Safari --size 1280x800
+
+# Start recording; this returns immediately
+skreenrek record --app Safari --size 1080p --fps 60
+
+# Stop, write the files and print their paths
+skreenrek stop
+
+# Print the paths of the last clip as JSON
+skreenrek last --json
 ```
 
-The app is copied, not linked, because Spotlight, Launchpad and the Finder Applications view skip symlinks. Redo the
-`rm -rf … && cp -R …` line after each `brew upgrade --fetch-HEAD skreenrek`. Newer Homebrew refuses to load a formula
-from a third-party tap until you trust it, hence `brew trust`.
+`--size` takes `720p`, `1080p`, `1440p`, `4k`, `square`, `portrait`, or `WxH` in pixels. It sets the size of the clip:
+Skreenrek fits the window to the display, captures it at native resolution and scales it down to that size. If the
+size read back isn't exact, the command fails unless you pass `--allow-inexact`.
 
-From a checkout: `make app` builds `build/Skreenrek.app`, and `make check` builds, tests and bundles a debug app.
+To record for a fixed time instead of calling `stop`, add `--duration 30s --wait`. Add `--json` for machine-readable
+output. `skreenrek <command> --help` lists the rest of the flags.
 
-After each rebuild macOS no longer matches the old grants to the new ad-hoc signature. Reset them, then open
-Skreenrek and allow both again:
+<!-- screenshot: menu panel, added after next release -->
 
-```sh
-tccutil reset ScreenCapture com.raphaelterrier.skreenrek
-tccutil reset Accessibility com.raphaelterrier.skreenrek
-```
+## Output files
 
-## Releasing
+Each recording gets a folder in `~/Movies/Skreenrek/`, named like `2026-11-17_104207_safari`. Use `--out` to put it
+somewhere else.
 
-`make release VERSION=x.y.z` (maintainers only) builds a universal (arm64 + x86_64) app, signs it with the Developer ID
-identity, the hardened runtime and a secure timestamp, verifies it with `codesign` and `spctl`, notarizes it with
-`notarytool submit --wait`, staples the ticket, and writes `dist/Skreenrek-x.y.z.zip` and its `.sha256`. VERSION must
-match `SkreenrekVersion.current`, and `CHANGELOG.md` must have a `## [x.y.z]` section. Before it builds, the script
-writes that section to `dist/Skreenrek-x.y.z-notes.md`. It reads two environment variables, both names of Keychain
-items, never secrets:
-
-- `SKREENREK_SIGN_IDENTITY`: the `Developer ID Application: …` identity (defaults to the maintainer's).
-- `SKREENREK_NOTARY_PROFILE`: a `xcrun notarytool store-credentials` profile (defaults to `skreenrek`).
-
-`make release-notes VERSION=x.y.z` prints that section without building.
-
-It never tags or publishes. To ship:
-
-```sh
-gh release create vx.y.z dist/Skreenrek-x.y.z.zip --notes-file dist/Skreenrek-x.y.z-notes.md
-```
-
-Then set `version` and `sha256` in `Casks/skreenrek.rb` to the new zip's. When you bump the version, move the lines
-under `## [Unreleased]` in `CHANGELOG.md` into `## [x.y.z] - YYYY-MM-DD` and leave `[Unreleased]` empty.
+| File | Contents |
+| --- | --- |
+| `clip.mp4` | The video: H.264 at a constant frame rate. `--codec` and `--format` select HEVC, ProRes or MOV, and a MOV is written as `clip.mov`. |
+| `events.json` | Cursor samples, mouse downs and ups, and clicks, in video pixels and timed from the first frame. It also holds the recording's details and stats. It contains no keystrokes. `--no-events` skips it. |
+| `hyperframes.html` | A `<video>` element to paste into a HyperFrames composition, with a comment showing how to copy the clip into `assets/`. `--assets DIR` copies the clip there for you. |
 
 ## Troubleshooting permissions
 
-- **Screen Recording is allowed but Skreenrek still says it's off.** macOS applies a Screen Recording grant only to a
-  new process. Click Quit & Reopen in the setup window, or quit Skreenrek from the menu bar and open it again.
-- **Where to allow a missing permission.** Choose "Permissions needed…" in the Skreenrek menu (it shows whenever
-  Screen Recording or Accessibility is missing), or run `skreenrek doctor` to see what is missing.
-- **Grants stop working after an upgrade.** This happens with source builds only: they are ad-hoc signed, and every
-  rebuild changes the signature. See [Building from source](#building-from-source) for the `tccutil` reset. The cask
-  keeps one Developer ID signature, so its grants carry over.
+Run `skreenrek doctor` to see what is missing.
+
+- **Screen Recording is allowed but Skreenrek still says it's off.** macOS applies this grant only to a new process.
+  Click Quit & Reopen in the setup window, or quit Skreenrek from the menu bar and open it again.
+- **A permission is missing.** Choose "Permissions needed…" in the Skreenrek menu.
+- **macOS asks again after an upgrade.** Cask installs keep their grants across `brew upgrade --cask skreenrek`, with
+  one exception: the first release after 1.0.5 changes Skreenrek's app ID, so macOS asks once more. Source builds need
+  a [permission reset](CONTRIBUTING.md#reset-permissions-after-a-rebuild) after each rebuild.
+
+## Uninstall
+
+Remove the agent connections first, because the zap step deletes the record of what setup added:
+
+```sh
+skreenrek setup agents --remove
+brew uninstall --zap --cask skreenrek
+```
+
+Your recordings stay in `~/Movies/Skreenrek/`.
+
+## Contributing
+
+Building from source and the release process are in [CONTRIBUTING.md](CONTRIBUTING.md). Release history is in
+[CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE)
