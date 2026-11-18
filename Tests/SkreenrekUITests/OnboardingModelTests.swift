@@ -158,6 +158,74 @@ import Testing
         }
     }
 
+    /// A temp home with Claude Code, Codex and Cursor found. Nothing here reads the real home.
+    @MainActor private static func connectModel(
+        home: URL, defaults: UserDefaults
+    ) throws -> OnboardingModel {
+        for folder in [".claude", ".codex", ".cursor", ".local/bin"] {
+            try FileManager.default.createDirectory(at: home.appendingPathComponent(folder), withIntermediateDirectories: true)
+        }
+        try Data("user executable".utf8).write(to: home.appendingPathComponent(".local/bin/skreenrek"))
+        let installer = AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")
+        let model = OnboardingModel(permissions: FakePermissionProbe(), requester: TestPermissionRequester(), defaults: defaults,
+            agents: installer.connections().map { OnboardingAgent(agent: $0.agent, detected: $0.detected) },
+            install: { installer.run(agents: $0) })
+        model.preview(.agents)
+        return model
+    }
+
+    @Test func partialConnectTriesEveryItemCompletesAndKeepsItsErrors() async throws {
+        try await onMain("partial connect") {
+            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: name)!
+            defer { defaults.removePersistentDomain(forName: name) }
+            let home = FileManager.default.temporaryDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
+            defer { try? FileManager.default.removeItem(at: home) }
+            let model = try Self.connectModel(home: home, defaults: defaults)
+            // The first agent fails, and the ones after it still connect.
+            try Data("{".utf8).write(to: home.appendingPathComponent(".claude.json"))
+            var closed = 0
+            model.didComplete = { closed += 1 }
+            model.connect()
+            #expect(model.results.map(\.agent) == AgentClient.allCases)
+            #expect(model.didConnect(.codex) && model.didConnect(.cursor))
+            #expect(FileManager.default.fileExists(atPath: home.appendingPathComponent(".codex/config.toml").path))
+            #expect(model.connectError(for: .claude) != nil && model.connectError(for: .codex) == nil)
+            #expect(model.connectError(for: .cli) == "~/.local/bin/skreenrek is another file. Move or delete it, then click Connect again.")
+            // Onboarding is done, and the window stays so the errors can be read.
+            #expect(model.completed && defaults.bool(forKey: OnboardingModel.completedKey) && closed == 0)
+            #expect(!model.allConnectsFailed && model.connectSummary == UIStrings.Onboarding.someConnected)
+            #expect(model.skipTitle == "Done" && model.stepNumber == 4 && model.steps.count == 4)
+
+            // Fixing both and connecting again closes it.
+            try FileManager.default.removeItem(at: home.appendingPathComponent(".claude.json"))
+            try FileManager.default.removeItem(at: home.appendingPathComponent(".local/bin/skreenrek"))
+            model.connect()
+            #expect(model.results.allSatisfy(\.success) && model.connectSummary == nil && closed == 1)
+        }
+    }
+
+    @Test func connectWhereEverythingFailsSaysSoAndStaysOpen() async throws {
+        try await onMain("all connects fail") {
+            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: name)!
+            defer { defaults.removePersistentDomain(forName: name) }
+            let home = FileManager.default.temporaryDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
+            defer { try? FileManager.default.removeItem(at: home) }
+            let model = try Self.connectModel(home: home, defaults: defaults)
+            try Data("{".utf8).write(to: home.appendingPathComponent(".claude.json"))
+            try Data("{".utf8).write(to: home.appendingPathComponent(".cursor/mcp.json"))
+            try Data("broken".utf8).write(to: home.appendingPathComponent(".codex/config.toml"))
+            var closed = 0
+            model.didComplete = { closed += 1 }
+            model.connect()
+            #expect(model.results.count == 4 && model.allConnectsFailed)
+            #expect(AgentClient.allCases.allSatisfy { model.connectError(for: $0) != nil })
+            #expect(model.connectSummary == UIStrings.Onboarding.nothingConnected)
+            #expect(!model.completed && closed == 0 && model.skipTitle == "Skip")
+        }
+    }
+
     @Test func permissionFailureHookPreservesMenuError() async throws {
         try await onMain("permission rejection opens onboarding without requesting") {
             let h = MenuHarness()

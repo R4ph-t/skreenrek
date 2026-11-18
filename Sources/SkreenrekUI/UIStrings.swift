@@ -313,6 +313,9 @@ public enum UIStrings {
         public static let connect = "Connect"
         public static let cliDetail = "Links skreenrek into ~/.local/bin"
         public static let notInstalled = "Not installed"
+        public static let connected = "Connected"
+        public static let someConnected = "Some items didn't connect. Fix them and click Connect again, or click Done."
+        public static let nothingConnected = "Nothing was connected. Fix the problems above and click Connect again, or click Skip."
         public static func found(_ agent: AgentClient) -> String { "Found ~/.\(agent.rawValue)" }
         public static func step(_ number: Int, of total: Int) -> String { "Step \(number) of \(total)" }
     }
@@ -452,7 +455,8 @@ public enum UIStrings {
         Onboarding.askAgain, Onboarding.notAllowed, Onboarding.explanation(.screenRecording),
         Onboarding.explanation(.directCapture),
         Onboarding.agentsTitle, Onboarding.agentsIntroduction, Onboarding.skip, Onboarding.connect,
-        Onboarding.cliDetail, Onboarding.notInstalled,
+        Onboarding.cliDetail, Onboarding.notInstalled, Onboarding.connected, Onboarding.someConnected,
+        Onboarding.nothingConnected,
         Agents.title, Agents.connect, Agents.remove, Agents.footer,
         productName, Icon.idle, Icon.writing, Icon.regionTarget,
         Menu.ready, Menu.noWindowPicked, Menu.pickWindow, Menu.pickAnotherWindow, Menu.size, Menu.frameRate,

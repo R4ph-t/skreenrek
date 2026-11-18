@@ -186,6 +186,16 @@ public struct AgentInstaller: Sendable {
         return parts.indices.contains { $0 > 1 && parts[$0] == "opt" && $0 + 1 < parts.count && parts[$0 + 1] == "skreenrek" }
     }
 
+    /// A path where an install of Skreenrek keeps its binary: inside an app bundle, or Homebrew's bin, opt or Cellar.
+    static func isSkreenrekBinary(_ path: String) -> Bool {
+        if path.hasSuffix("/Skreenrek.app/Contents/MacOS/skreenrek") { return true }
+        if path == "/opt/homebrew/bin/skreenrek" || path == "/usr/local/bin/skreenrek" { return true }
+        let parts = (path as NSString).pathComponents
+        guard parts.suffix(2) == ["bin", "skreenrek"] else { return false }
+        let prefix = Array(parts.dropLast(2))
+        return prefix.suffix(2) == ["opt", "skreenrek"] || Array(prefix.suffix(3).prefix(2)) == ["Cellar", "skreenrek"]
+    }
+
     /// The path agents should run: a `skreenrek` in `searchPath` that resolves to this executable, else the app in
     /// /Applications when it is this executable, else this executable, else the app in /Applications. Never a
     /// versioned Homebrew path (`isVersioned`) and never `excluding`. Nil when nothing stable is left.
@@ -458,7 +468,6 @@ public struct AgentInstaller: Sendable {
         let entry = ledger[AgentClient.cli.rawValue]
         let target = try? fm.destinationOfSymbolicLink(atPath: url.path)
         var updated = ledger
-        var repairing = false
         if remove {
             guard let entry else { return }
             guard target == entry.installedServer else { throw changedServer() }
@@ -471,26 +480,46 @@ public struct AgentInstaller: Sendable {
             let real: String
             do { real = try command(excluding: url.path) } catch { if works { return } else { throw error } }
             guard real != target else { return }
-            try fm.removeItem(at: url)
-            try fm.createSymbolicLink(atPath: url.path, withDestinationPath: real)
+            try pointLink(url, at: real)
             updated[AgentClient.cli.rawValue] = Entry(installedServer: real)
-            repairing = true
         } else {
-            guard !exists(url) else {
-                throw AgentSetupError("~/.local/bin/skreenrek already exists. Leave it unchanged and move it before linking.")
+            guard !exists(url) || target.map({ isReplaceableLink(url, target: $0) }) == true else {
+                throw AgentSetupError("~/.local/bin/skreenrek is another file. Move or delete it, then click Connect again.")
             }
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let real = try command(excluding: url.path)
-            try fm.createSymbolicLink(atPath: url.path, withDestinationPath: real)
+            if target == nil { try fm.createSymbolicLink(atPath: url.path, withDestinationPath: real) }
+            else { try pointLink(url, at: real) }
             updated[AgentClient.cli.rawValue] = Entry(installedServer: real)
         }
         do { try save(updated); ledger = updated }
         catch {
-            if remove || repairing, let target {
-                if repairing { try fm.removeItem(at: url) }
-                try fm.createSymbolicLink(atPath: url.path, withDestinationPath: target)
-            } else { try fm.removeItem(at: url) }
+            // Put back exactly what was there: the old link, relative or not, or nothing.
+            if let target { try pointLink(url, at: target) } else { try fm.removeItem(at: url) }
             throw error
+        }
+    }
+
+    /// A link at the CLI path that nothing else relies on: it leads nowhere, or to an install of Skreenrek.
+    private func isReplaceableLink(_ url: URL, target: String) -> Bool {
+        var info = stat()
+        if stat(url.path, &info) != 0 {
+            let code = errno
+            if code == ENOENT || code == ENOTDIR || code == ELOOP { return true }
+        }
+        // A relative target starts from the folder really holding the link, which may itself be a link.
+        let folder = url.deletingLastPathComponent().resolvingSymlinksInPath()
+        return Self.isSkreenrekBinary(URL(fileURLWithPath: target, relativeTo: folder).standardized.path)
+    }
+
+    /// Swaps the link in one step, so a failure leaves the old one in place.
+    private func pointLink(_ url: URL, at destination: String) throws {
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".skreenrek-\(UUID().uuidString)")
+        try fm.createSymbolicLink(atPath: temporary.path, withDestinationPath: destination)
+        guard rename(temporary.path, url.path) == 0 else {
+            let code = errno
+            try? fm.removeItem(at: temporary)
+            throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
         }
     }
 

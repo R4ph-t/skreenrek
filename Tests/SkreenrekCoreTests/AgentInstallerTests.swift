@@ -318,6 +318,94 @@ assets folder. Without it, follow the exact `cp` command in the snippet's commen
         #expect(home.installer.connections().first { $0.agent == .cli }?.connected == true)
     }
 
+    private static let cliRefusal = "~/.local/bin/skreenrek is another file. Move or delete it, then click Connect again."
+
+    private func linkTarget(_ home: Home) throws -> String {
+        try FileManager.default.destinationOfSymbolicLink(atPath: home.file(AgentClient.cli.config).path)
+    }
+
+    private func placeLink(_ home: Home, to target: String) throws {
+        try FileManager.default.createDirectory(at: home.file(".local/bin"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: home.file(AgentClient.cli.config).path, withDestinationPath: target)
+    }
+
+    private func expectLinkReplaced(_ home: Home) throws {
+        #expect(home.installer.run(agents: [.cli]).allSatisfy { $0.success })
+        #expect(try linkTarget(home) == home.executable.path)
+        #expect(home.installer.connections().first { $0.agent == .cli }?.connected == true)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: home.file(".local/bin").path)
+        #expect(leftovers == ["skreenrek"])
+    }
+
+    /// The link an old Homebrew build left behind, and relative or looping links that lead nowhere.
+    @Test(arguments: ["/opt/homebrew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek", "/nowhere/tool", "../gone/tool", "skreenrek"])
+    func danglingCLILinkIsReplaced(target: String) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try placeLink(home, to: target)
+        try expectLinkReplaced(home)
+    }
+
+    @Test(arguments: [true, false]) func cliLinkToAnotherSkreenrekIsReplaced(relative: Bool) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try home.makeExecutable("old/Skreenrek.app/Contents/MacOS/skreenrek")
+        let absolute = home.file("old/Skreenrek.app/Contents/MacOS/skreenrek").path
+        try placeLink(home, to: relative ? "../../old/Skreenrek.app/Contents/MacOS/skreenrek" : absolute)
+        try expectLinkReplaced(home)
+    }
+
+    @Test(arguments: [true, false]) func cliLinkToAnUnrelatedBinaryIsRefused(relative: Bool) throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try home.makeExecutable("tools/skreenrek")
+        let target = relative ? "../../tools/skreenrek" : home.file("tools/skreenrek").path
+        try placeLink(home, to: target)
+        let result = home.installer.run(agents: [.cli])
+        #expect(result.count == 1 && !result[0].success && result[0].message == Self.cliRefusal)
+        #expect(try linkTarget(home) == target)
+        #expect(try home.read("tools/skreenrek") == "binary")
+    }
+
+    @Test func regularFileAtTheCLIPathIsRefused() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try home.write(AgentClient.cli.config, "user executable")
+        let result = home.installer.run(agents: [.cli])
+        #expect(result.count == 1 && !result[0].success && result[0].message == Self.cliRefusal)
+        #expect(try home.read(AgentClient.cli.config) == "user executable")
+    }
+
+    @Test func replacedCLILinkIsRestoredWhenTheLedgerCantBeSaved() throws {
+        let home = try Home()
+        defer { home.temp.cleanUp() }
+        try placeLink(home, to: "../gone/skreenrek")
+        let folder = home.file("Library/Application Support/skreenrek")
+        try home.write("Library/Application Support/skreenrek/agent-setup.lock", "")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+        #expect(home.installer.run(agents: [.cli]).allSatisfy { !$0.success })
+        #expect(try linkTarget(home) == "../gone/skreenrek")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: home.file(".local/bin").path) == ["skreenrek"])
+    }
+
+    @Test(arguments: [
+        "/Applications/Skreenrek.app/Contents/MacOS/skreenrek",
+        "/opt/homebrew/opt/skreenrek/Skreenrek.app/Contents/MacOS/skreenrek",
+        "/opt/homebrew/bin/skreenrek", "/usr/local/bin/skreenrek",
+        "/opt/homebrew/opt/skreenrek/bin/skreenrek", "/usr/local/opt/skreenrek/bin/skreenrek",
+        "/opt/homebrew/Cellar/skreenrek/1.0.5/bin/skreenrek",
+    ]) func skreenrekBinaryPaths(path: String) {
+        #expect(AgentInstaller.isSkreenrekBinary(path))
+    }
+
+    @Test(arguments: [
+        "/usr/bin/skreenrek", "/opt/homebrew/opt/other/bin/skreenrek", "/opt/homebrew/Cellar/other/1.0/bin/skreenrek",
+        "/opt/homebrew/bin/other", "/Applications/Other.app/Contents/MacOS/skreenrek",
+    ]) func unrelatedBinaryPaths(path: String) {
+        #expect(!AgentInstaller.isSkreenrekBinary(path))
+    }
+
     /// A fake file system: each listed path exists, is executable, and resolves to its value.
     static func files(_ links: [String: String]) -> CommandFiles {
         CommandFiles(exists: { links[$0] != nil }, isExecutable: { links[$0] != nil }, resolve: { links[$0] ?? $0 })
