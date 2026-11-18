@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
 - The picked window gets an outline on screen while the menu is open, and for a moment right after you pick it. The outline never appears in a recording.
 - A control bar under the picked window sets its size and starts or stops the recording without opening the menu. It never appears in a recording, and Show Control Bar turns it off.
+- During a recording the control bar follows the recording indicator: `--no-hud` or turning off Show recording indicator hides it, and when an agent records a window that isn't picked, the bar shows the timer and Stop until the clip ends.
+- The control bar's timer shows hours from the first hour on, like 1:02:03. While a clip saves, the spinner and "Saving clip…" sit together in the middle of the bar.
+- Without Accessibility, the control bar warns that it can't resize the window, and Record captures the window at its current size.
 
 ### Changed
 
