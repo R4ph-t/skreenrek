@@ -45,6 +45,7 @@ import Testing
         let release = try GitHubReleases.parse(body)
         #expect(release.version == (try v("1.0.10")))
         #expect(release.pageURL.absoluteString == "https://github.com/R4ph-t/skreenrek/releases/tag/v1.0.10")
+        #expect(release.notes == "")
         // No html_url: the releases page.
         let bare = try GitHubReleases.parse(Data(#"{"tag_name":"1.0.3"}"#.utf8))
         #expect(bare.pageURL == GitHubReleases.releasesPage)
@@ -54,6 +55,22 @@ import Testing
         #expect(throws: GitHubReleases.ParseError.notJSON) { try GitHubReleases.parse(Data("<html>".utf8)) }
         #expect(GitHubReleases.latestURL.absoluteString
             == "https://api.github.com/repos/R4ph-t/skreenrek/releases/latest")
+    }
+
+    @Test func parsesTheReleaseBody() throws {
+        let body = Data(
+            #"{"tag_name":"v1.2.0","html_url":"https://github.com/R4ph-t/skreenrek/releases/tag/v1.2.0","body":"### Fixed\n\n- The pill"}"#
+                .utf8)
+        let release = try GitHubReleases.parse(body)
+        #expect(release.version == (try v("1.2.0")))
+        #expect(release.notes == "### Fixed\n\n- The pill")
+        let missing = try GitHubReleases.parse(Data(#"{"tag_name":"v1.0.3"}"#.utf8))
+        #expect(missing.notes == "")
+        let nullBody = try GitHubReleases.parse(Data(#"{"tag_name":"v1.0.3","body":null}"#.utf8))
+        #expect(nullBody.notes == "")
+        // A body that isn't a string doesn't invent notes.
+        let number = try GitHubReleases.parse(Data(#"{"tag_name":"v1.0.3","body":3}"#.utf8))
+        #expect(number.notes == "")
     }
 
     @Test func automaticChecksWaitTwentyFourHours() {

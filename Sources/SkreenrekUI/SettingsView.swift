@@ -287,12 +287,24 @@ struct PermissionRow: View {
 }
 
 /// Updates: the title over the state's line, then a spinner while busy and the state's button (Check for Updates,
-/// Update, Retry, Relaunch or Open Release Page).
+/// Update, Retry, Relaunch or Open Release Page). While a newer release is waiting and it has notes, What's new
+/// shows them under the row.
 struct UpdatesRow: View {
     let checker: UpdateChecker
 
     var body: some View {
         let row = UpdateRowModel(state: checker.state, current: checker.current, method: checker.method)
+        if let notes = row.notes {
+            VStack(alignment: .leading, spacing: 6) {
+                summary(row)
+                WhatsNewNotes(markdown: notes)
+            }
+        } else {
+            summary(row)
+        }
+    }
+
+    private func summary(_ row: UpdateRowModel) -> some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(UIStrings.Updates.title).font(.system(size: 13))
@@ -323,5 +335,55 @@ struct UpdatesRow: View {
         } else {
             button
         }
+    }
+}
+
+/// The newer release's notes, as simple Markdown, open so they're visible, and capped so a long section scrolls
+/// instead of stretching Settings.
+private struct WhatsNewNotes: View {
+    let markdown: String
+
+    /// Long notes scroll inside this height.
+    static let maxHeight: CGFloat = 160
+
+    @State private var open = true
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $open) {
+            ScrollView {
+                notesText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: NotesHeightKey.self, value: proxy.size.height)
+                        }
+                    }
+            }
+            .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : Self.maxHeight)
+            .onPreferenceChange(NotesHeightKey.self) { contentHeight = $0 }
+        } label: {
+            Text(UIStrings.Updates.whatsNew)
+        }
+        .font(.system(size: 12))
+    }
+
+    private var notesText: Text {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+        if let attributed = try? AttributedString(markdown: markdown, options: options) {
+            Text(attributed)
+        } else {
+            Text(markdown)
+        }
+    }
+}
+
+/// The height of the notes text, so the scroll view can shrink to it and stop at `WhatsNewNotes.maxHeight`.
+private struct NotesHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

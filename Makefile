@@ -5,8 +5,11 @@
 #
 # `make app` builds the release Skreenrek.app into build/, ad-hoc signed. `make perf` is manual and never part of
 # `check`. `make release VERSION=x.y.z` is Raph's: it Developer ID signs, notarizes and staples the app and writes
-# dist/Skreenrek-x.y.z.zip plus its sha256 (scripts/release.sh). It never tags or publishes.
-.PHONY: check app perf release
+# dist/Skreenrek-x.y.z.zip plus its sha256 (scripts/release.sh). Before building, it requires a ## [x.y.z]
+# section in CHANGELOG.md and writes that section to dist/Skreenrek-x.y.z-notes.md. It never tags or publishes.
+# `make release-notes VERSION=x.y.z` prints the section. Publishing:
+#   gh release create vX.Y.Z dist/Skreenrek-X.Y.Z.zip --notes-file dist/Skreenrek-X.Y.Z-notes.md
+.PHONY: check app perf release release-notes
 
 PERF_APP ?= Safari
 
@@ -36,3 +39,8 @@ perf: app
 release:
 	@[ -n "$(VERSION)" ] || { echo "usage: make release VERSION=x.y.z" >&2; exit 1; }
 	bash scripts/release.sh "$(VERSION)"
+
+# Prints the CHANGELOG.md section `make release` writes to dist/Skreenrek-$(VERSION)-notes.md.
+release-notes:
+	@[ -n "$(VERSION)" ] || { echo "usage: make release-notes VERSION=x.y.z" >&2; exit 1; }
+	@bash scripts/release-notes.sh "$(VERSION)"

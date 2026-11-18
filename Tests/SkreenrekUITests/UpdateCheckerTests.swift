@@ -263,6 +263,46 @@ import Testing
         #expect(prominent == [.available(info), .installing(info, line: nil), .installed(info)])
     }
 
+    /// What's new is the release body, and only while that release is available. Blank notes stay hidden.
+    @Test func availableUpdateShowsItsNotes() {
+        let current = SemanticVersion("1.0.2")!
+        let url = URL(string: "https://github.com/R4ph-t/skreenrek/releases/tag/v1.0.3")!
+        let notes = "### Added\n\n- A compact Record pill"
+        let info = ReleaseInfo(version: SemanticVersion("1.0.3")!, pageURL: url, notes: notes)
+        let row = UpdateRowModel(state: .available(info), current: current, method: .homebrew)
+        #expect(row.notes == notes)
+        let blank = ReleaseInfo(version: info.version, pageURL: url, notes: " \n\t")
+        #expect(UpdateRowModel(state: .available(blank), current: current, method: .homebrew).notes == nil)
+        let states: [UpdateState] = [
+            .idle, .checking, .upToDate(current: current), .failed, .installing(info, line: nil), .installed(info),
+            .installFailed(info),
+        ]
+        for state in states {
+            #expect(UpdateRowModel(state: state, current: current, method: .homebrew).notes == nil)
+        }
+    }
+
+    @Test func notesComeFromTheFeedAndSurviveRelaunch() async throws {
+        try await onMain("notes") {
+            let defaults = Self.freshDefaults()
+            let notes = "### Fixed\n\n- Sandboxed shells get a clear error"
+            let checker = Self.checker(
+                feed: FakeReleaseFeed(latest: "1.0.3", notes: notes), defaults: defaults, effects: Effects())
+            await checker.checkNow()
+            let row = UpdateRowModel(state: checker.state, current: checker.current, method: checker.method)
+            #expect(row.notes == notes)
+            // Relaunched within 24 h: no new request, and the notes are still the ones GitHub returned.
+            let feed = FakeReleaseFeed(latest: "9.0.0", notes: "ignored")
+            let remembered = Self.checker(feed: feed, defaults: defaults, effects: Effects())
+            #expect(feed.callCount == 0)
+            #expect(remembered.state == .available(
+                ReleaseInfo(version: SemanticVersion("1.0.3")!, pageURL: Self.release("1.0.3").pageURL, notes: notes)))
+            let again = UpdateRowModel(
+                state: remembered.state, current: remembered.current, method: remembered.method)
+            #expect(again.notes == notes)
+        }
+    }
+
     // MARK: - Dropdown footer
 
     @Test func footerShowsUpdateAvailableOnlyWhenThereIsOne() throws {

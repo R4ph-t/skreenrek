@@ -320,6 +320,8 @@ public enum UIStrings {
         public static let installFailed = "Homebrew couldn't update Skreenrek."
         /// The dropdown's footer line while a newer release waits.
         public static let menuAvailable = "Update available"
+        /// The Settings disclosure that shows the newer release's notes.
+        public static let whatsNew = "What's new"
 
         /// `Skreenrek 1.0.2`, before the first check.
         public static func currentVersion(_ version: String) -> String { "Skreenrek \(version)" }
@@ -410,6 +412,6 @@ public enum UIStrings {
         Brand.repoLink, Brand.repoHelp, Brand.thumbnailLabel, Brand.record, Brand.stop,
         Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
         Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
-        Updates.menuAvailable,
+        Updates.menuAvailable, Updates.whatsNew,
     ]
 }

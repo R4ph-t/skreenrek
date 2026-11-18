@@ -69,13 +69,23 @@ tccutil reset Accessibility it.fraime.skreenrek
 `make release VERSION=x.y.z` (maintainers only) builds a universal (arm64 + x86_64) app, signs it with the Developer ID
 identity, the hardened runtime and a secure timestamp, verifies it with `codesign` and `spctl`, notarizes it with
 `notarytool submit --wait`, staples the ticket, and writes `dist/Skreenrek-x.y.z.zip` and its `.sha256`. VERSION must
-match `SkreenrekVersion.current`. It reads two environment variables, both names of Keychain items, never secrets:
+match `SkreenrekVersion.current`, and `CHANGELOG.md` must have a `## [x.y.z]` section. Before it builds, the script
+writes that section to `dist/Skreenrek-x.y.z-notes.md`. It reads two environment variables, both names of Keychain
+items, never secrets:
 
 - `SKREENREK_SIGN_IDENTITY`: the `Developer ID Application: …` identity (defaults to the maintainer's).
 - `SKREENREK_NOTARY_PROFILE`: a `xcrun notarytool store-credentials` profile (defaults to `skreenrek`).
 
-It never tags or publishes. To ship: `gh release create vx.y.z dist/Skreenrek-x.y.z.zip`, then set `version` and
-`sha256` in `Casks/skreenrek.rb` to the new zip's.
+`make release-notes VERSION=x.y.z` prints that section without building.
+
+It never tags or publishes. To ship:
+
+```sh
+gh release create vx.y.z dist/Skreenrek-x.y.z.zip --notes-file dist/Skreenrek-x.y.z-notes.md
+```
+
+Then set `version` and `sha256` in `Casks/skreenrek.rb` to the new zip's. When you bump the version, move the lines
+under `## [Unreleased]` in `CHANGELOG.md` into `## [x.y.z] - YYYY-MM-DD` and leave `[Unreleased]` empty.
 
 ## Troubleshooting permissions
 
