@@ -174,7 +174,7 @@ Settings can hide the HUD ("Show recording indicator"), and so can `--no-hud` on
 
 ### 5. Permissions onboarding
 
-A single 520 × 496 pt titled window with two steps. It appears on first launch, and again whenever a permission the next action needs is missing (for a CLI or MCP call, the call fails with a clear error and the window opens on the Mac). It shares the Settings surface ([addendum 3](design/1.0.5/addendum-3-surface-header-2026-11-19.md)): `surface.base` under a transparent 28 pt title bar with only the traffic lights, cards as 10 pt `surface.cell` rects (light: 1 px black 8% edge), rows split by 1 px `surface.separator` lines inset 12 pt.
+A single 520 × 428 pt window with two steps (a 28 pt title-bar band over 400 pt steps). It appears on first launch, and again whenever a permission the next action needs is missing (for a CLI or MCP call, the call fails with a clear error and the window opens on the Mac). It shares the Settings surface ([addendum 3](design/1.0.5/addendum-3-surface-header-2026-11-19.md)): `surface.base` under a transparent 28 pt title bar with only the traffic lights, cards as 10 pt `surface.cell` rects (light: 1 px black 8% edge), rows split by 1 px `surface.separator` lines inset 12 pt.
 
 - **Step 1, "Set up Skreenrek":** "Skreenrek records windows for your coding agents. It needs two permissions. Everything stays on this Mac." An inset group of two 56 pt rows:
   - Screen Recording · "Required. Records the window you pick." · status: `checkmark.circle.fill` (green) "Allowed" **or** `circle.dashed` + \[Open System Settings…\]
