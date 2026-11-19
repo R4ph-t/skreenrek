@@ -16,11 +16,12 @@ final class ControlBarPresentation {
     }
 }
 
-/// The bar: Size, the readout, Record and Clear, or the timer, the readout, Stop and Clear. Every fill and hairline comes from the
-/// solid panel's tokens. There is no material here.
+/// The bar: Size, the readout, Record and Clear, or the timer, the readout, Stop and Clear, or Saved with its file
+/// buttons. Every fill and hairline comes from the solid panel's tokens. There is no material here.
 struct ControlBarView: View {
     var presentation: ControlBarPresentation
     var onAction: (MenuAction) -> Void
+    var onHover: (Bool) -> Void = { _ in }
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
@@ -35,9 +36,16 @@ struct ControlBarView: View {
     var body: some View {
         HStack(spacing: ControlBarMetrics.slotGap) {
             leadingArea
-            ControlBarActionButton(action: content.action, onAction: onAction)
+            if let files = content.files, files.placement == .action {
+                ControlBarFileButtons(files: files, gap: ControlBarMetrics.compactFileButtonGap, onAction: onAction)
+                    .frame(width: ControlBarMetrics.actionWidth, height: ControlBarMetrics.controlHeight)
+            } else {
+                ControlBarActionButton(action: content.action, onAction: onAction)
+            }
             ControlBarClearButton(clear: content.clear, onAction: onAction)
         }
+        // Saving to Saved and Saved to Idle crossfade in place: nothing moves. Reduce Motion swaps in one frame.
+        .animation(content.crossfade > 0 ? .easeInOut(duration: content.crossfade) : nil, value: content.phase)
         .padding(.horizontal, ControlBarMetrics.padding)
         .frame(width: content.width.points, height: ControlBarMetrics.height)
         .background(palette.fill.color)
@@ -51,6 +59,7 @@ struct ControlBarView: View {
         .accessibilityLabel(content.groupLabel)
         // The window is never key, so the first click has to reach the controls.
         .allowsWindowActivationEvents(true)
+        .onHover(perform: onHover)
     }
 
     /// Everything left of Record.
@@ -94,8 +103,38 @@ struct ControlBarView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(text)
             .modifier(PanelHelp(text: showsText ? nil : text))
+        case .saved(let saved):
+            HStack(spacing: 0) {
+                savedStatus(saved)
+                Spacer(minLength: 0)
+                if let files = saved.files {
+                    ControlBarFileButtons(files: files, gap: ControlBarMetrics.fileButtonGap, onAction: onAction)
+                }
+            }
+            .frame(width: content.width.leadingAreaWidth, height: ControlBarMetrics.controlHeight)
         }
     }
+
+    /// The green check at bar x 14 and the title at x 36.
+    private func savedStatus(_ saved: ControlBarSaved) -> some View {
+        HStack(spacing: ControlBarMetrics.labelGap) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: ControlBarMetrics.markSize))
+                .foregroundStyle(Color(nsColor: .systemGreen))
+                .frame(width: ControlBarMetrics.markSize, height: ControlBarMetrics.markSize)
+            // Monospaced digits keep the duration's width steady; the word has none.
+            Text(saved.title)
+                .monospacedDigit()
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(PanelSurface.primaryText)
+                .lineLimit(1)
+        }
+        .padding(.leading, ControlBarMetrics.slotInset)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(saved.accessibilityLabel)
+        .modifier(PanelHelp(text: saved.help))
+    }
+
 
     private func firstSlot<Content: View>(@ViewBuilder _ slot: () -> Content) -> some View {
         slot()
@@ -249,7 +288,38 @@ private struct ControlBarActionButton: View {
     }
 }
 
-/// Forgets the window. It stays in place, dimmed, while the window can't be forgotten.
+/// Show in Finder and Copy File Path on Saved: 24 pt icon buttons with no fill at rest and the panel's hover and
+/// pressed tones.
+private struct ControlBarFileButtons: View {
+    var files: ControlBarFiles
+    var gap: CGFloat
+    var onAction: (MenuAction) -> Void
+
+    var body: some View {
+        HStack(spacing: gap) {
+            button("folder", help: files.revealHelp, label: files.revealLabel, action: .showInFinder(path: files.path))
+            button(files.copyGlyph, help: files.copyHelp, label: files.copyLabel, action: .copyFilePath(path: files.path))
+        }
+    }
+
+    private func button(_ symbol: String, help: String, label: String, action: MenuAction) -> some View {
+        Button {
+            onAction(action)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 13))
+                .frame(width: ControlBarMetrics.fileButton, height: ControlBarMetrics.fileButton)
+        }
+        .buttonStyle(
+            PanelIconButtonStyle(rest: PanelSurface.secondaryText, active: PanelSurface.primaryText, forcedState: nil)
+        )
+        .accessibilityLabel(label)
+        .modifier(PanelHelp(text: help))
+    }
+}
+
+/// Forgets the window. Dimmed while the window can't be forgotten, and hidden while recording and saving. Its slot
+/// stays either way, so the bar never reflows.
 private struct ControlBarClearButton: View {
     var clear: ControlBarClear
     var onAction: (MenuAction) -> Void
@@ -265,10 +335,14 @@ private struct ControlBarClearButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(ControlBarCellButtonStyle())
-        .disabled(!clear.enabled)
+        .disabled(!clear.enabled || !clear.visible)
         .accessibilityLabel(clear.accessibilityLabel)
-        .modifier(PanelHelp(text: clear.enabled ? clear.help : nil))
-        .modifier(ControlBarDisabledHelp(text: clear.enabled ? nil : clear.help))
+        .modifier(PanelHelp(text: clear.enabled && clear.visible ? clear.help : nil))
+        .modifier(ControlBarDisabledHelp(text: clear.enabled || !clear.visible ? nil : clear.help))
+        .opacity(clear.visible ? 1 : 0)
+        .allowsHitTesting(clear.visible)
+        .accessibilityHidden(!clear.visible)
+        .frame(width: ControlBarMetrics.clearWidth, height: ControlBarMetrics.controlHeight)
     }
 }
 

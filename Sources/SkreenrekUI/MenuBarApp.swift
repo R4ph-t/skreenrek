@@ -196,7 +196,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             guard let model else { return }
             hud?.update(
                 model.snapshot, indicatorEnabled: model.settings.hud,
-                controlBarVisible: menu?.controlBarVisible ?? false)
+                controlBarVisible: menu?.controlBarVisible ?? false,
+                controlBarSaved: menu?.controlBarShowsSaved ?? false)
         }
         model.onChange = {
             renderMenu?()

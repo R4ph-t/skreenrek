@@ -57,6 +57,9 @@ public final class MenuController: NSObject {
     /// While the bar is up it has the timer and Stop, so the HUD stands down.
     var controlBarVisible: Bool { controlBar.isVisible }
 
+    /// The bar turned into Saved, so the HUD's Saved stays away.
+    var controlBarShowsSaved: Bool { controlBar.showsSaved }
+
     public init(
         model: AppModel, previews: any WindowPreviewSource, permissions: any PermissionProbe,
         displays: @escaping @MainActor () -> [DisplayInfo]
@@ -76,6 +79,7 @@ public final class MenuController: NSObject {
             permissions: permissions, displays: displays)
         super.init()
         controlBarWindow.onAction = { [weak self] in self?.actOnControlBar($0) }
+        controlBarWindow.onHover = { [weak self] in self?.controlBar.hover($0) }
         hotKey.onPress = { [weak model] in
             guard let model else { return }
             Task { await model.perform(.stop) }
@@ -103,8 +107,9 @@ public final class MenuController: NSObject {
         updateHotKey()
     }
 
-    /// The on-screen outline follows the panel and the control bar. A closed window counts only for the window the
-    /// last still was taken of, so a stale result can't hide the outline of a newer pick.
+    /// The on-screen outline follows the panel and the control bar, and turns red while recording. A closed window
+    /// counts only for the window the last still was taken of, so a stale result can't hide the outline of a newer
+    /// pick.
     private func updateOutline() {
         let workspace = NSWorkspace.shared
         outline.update(
@@ -112,7 +117,7 @@ public final class MenuController: NSObject {
                 snapshot: model.snapshot, panelOpen: panel.isVisible, windowClosed: pickedWindowClosed,
                 reduceMotion: workspace.accessibilityDisplayShouldReduceMotion,
                 increaseContrast: workspace.accessibilityDisplayShouldIncreaseContrast,
-                controlBarVisible: controlBar.isVisible))
+                controlBarVisible: controlBar.isVisible, recordingIndicator: model.settings.hud))
     }
 
     private var pickedWindowClosed: Bool {
@@ -131,15 +136,26 @@ public final class MenuController: NSObject {
                 reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion))
     }
 
-    /// Stop and Clear go the panel's way. Record and a preset have their own paths on the model.
+    /// Stop and Clear go the panel's way. Record and a preset have their own paths on the model. Saved's file
+    /// buttons use the panel's effects and leave the panel alone.
     private func actOnControlBar(_ action: MenuAction) {
         switch action {
         case .chooseSize(.size(let size)):
             let frame = controlBar.windowFrame
             Task { await model.chooseBarSize(size, currentFrame: frame) }
         case .record:
+            controlBar.endSaved()
             closePanel()
             Task { await model.recordFromBar() }
+        case .showInFinder:
+            controlBar.endSaved()
+            Task { await model.perform(action) }
+        case .copyFilePath:
+            controlBar.copied()
+            Task { await model.perform(action) }
+        case .clearWindow:
+            controlBar.endSaved()
+            act(action)
         default:
             act(action)
         }

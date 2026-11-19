@@ -47,9 +47,13 @@ import Testing
             await h.model.perform(.stop)
             await hud.until { h.model.snapshot.state == .idle && h.model.snapshot.lastClip != nil }
             let clip = try #require(h.model.snapshot.lastClip)
-            // (1) A confirmation the user sees, even with the recording indicator turned off: it shows after the
-            // clip ends, so it can't land in the clip.
-            #expect(hud.model.state == .saved(duration: clip.recording.duration, path: clip.files.clip))
+            // (1) A confirmation the user sees. Saved is a recording indicator too (control bar addendum 2, §C), so
+            // with the indicator turned off it shows nowhere.
+            if indicator {
+                #expect(hud.model.state == .saved(duration: clip.recording.duration, path: clip.files.clip))
+            } else {
+                #expect(hud.model.state == .hidden)
+            }
             // (2) The menu bar icon is back to idle.
             #expect(h.model.icon.symbol == StatusIconModel.Symbol.idle)
             // (3) Last Clip lists the new clip with its actions.

@@ -37,6 +37,14 @@ public enum ControlBarMetrics {
     public static let refusalSeconds: TimeInterval = 4
     /// How often the screens and permissions are read again while the window is tracked.
     public static let systemReadInterval: TimeInterval = 1
+    /// Saved (addendum 2, §C): how long it stays, how long Copy reads Copied, and the crossfades in and out of it.
+    public static let savedSeconds: TimeInterval = 6
+    public static let copiedSeconds: TimeInterval = 1.5
+    public static let crossfadeSeconds: TimeInterval = 0.2
+    /// The Saved icon buttons: 24 pt squares, 4 pt apart in the status area and 8 pt apart in Record's slot.
+    public static let fileButton: CGFloat = 24
+    public static let fileButtonGap: CGFloat = 4
+    public static let compactFileButtonGap: CGFloat = 8
 }
 
 public enum ControlBarPlacement: Sendable, Hashable {
@@ -176,6 +184,23 @@ public enum ControlBarActivity: Sendable, Hashable {
     case saving
 }
 
+/// The clip that just finished, for Saved.
+public struct ControlBarClip: Sendable, Hashable {
+    public var id: String
+    public var duration: Double
+    public var path: String
+
+    public init(id: String, duration: Double, path: String) {
+        self.id = id
+        self.duration = duration
+        self.path = path
+    }
+
+    public init(_ clip: StopBody) {
+        self.init(id: clip.recording.id, duration: clip.recording.duration, path: clip.files.clip)
+    }
+}
+
 /// Everything outside the bar that decides what it shows.
 public struct ControlBarInput: Sendable, Hashable {
     public var target: SelectionOutlineTarget?
@@ -197,13 +222,18 @@ public struct ControlBarInput: Sendable, Hashable {
     public var reduceMotion: Bool
     /// On-screen chrome is allowed during a recording: the HUD's rule (Settings and `--no-hud`).
     public var recordingChrome: Bool
+    /// While saving: the window stays picked afterwards. An agent's recording drops the pick, so its bar goes away
+    /// when saving starts.
+    public var keepsPick: Bool
+    /// The newest clip, for Saved.
+    public var lastClip: ControlBarClip?
 
     public init(
         target: SelectionOutlineTarget?, enabled: Bool = true, menuBarApp: Bool = true, pickerOpen: Bool = false,
         windowClosed: Bool = false, activity: ControlBarActivity = .idle, sizeChoice: SizeChoice = .default,
         readback: Readback? = nil, clipSize: PixelSize? = nil, knownDisplay: DisplayInfo? = nil,
         outputWritable: Bool = true, resize: ControlBarResize = .none, reduceMotion: Bool = false,
-        recordingChrome: Bool = true
+        recordingChrome: Bool = true, keepsPick: Bool = true, lastClip: ControlBarClip? = nil
     ) {
         self.target = target
         self.enabled = enabled
@@ -219,6 +249,8 @@ public struct ControlBarInput: Sendable, Hashable {
         self.resize = resize
         self.reduceMotion = reduceMotion
         self.recordingChrome = recordingChrome
+        self.keepsPick = keepsPick
+        self.lastClip = lastClip
     }
 
     /// While recording or saving, `snapshot.window` is the recorded window, picked first or not.
@@ -238,7 +270,9 @@ public struct ControlBarInput: Sendable, Hashable {
             pickerOpen: snapshot.picking, windowClosed: windowClosed, activity: activity,
             sizeChoice: context.sizeChoice, readback: snapshot.readback, clipSize: snapshot.size,
             knownDisplay: snapshot.display, outputWritable: outputWritable, resize: resize,
-            reduceMotion: reduceMotion, recordingChrome: context.recordingIndicator && snapshot.hud)
+            reduceMotion: reduceMotion, recordingChrome: context.recordingIndicator && snapshot.hud,
+            keepsPick: snapshot.state != .writing || snapshot.keepsWindowPicked,
+            lastClip: snapshot.lastClip.map(ControlBarClip.init))
     }
 }
 
@@ -252,13 +286,51 @@ public struct ControlBarSizeControl: Sendable, Hashable {
     public var accessibilityLabel: String
 }
 
-/// What sits left of the readout, or for `saving` everything left of Record.
+/// Show in Finder and Copy File Path, for the clip Saved is about.
+public struct ControlBarFiles: Sendable, Hashable {
+    public enum Placement: Sendable, Hashable {
+        /// At the end of the status area (the full bar).
+        case status
+        /// In Record's slot, which they replace (the compact bar).
+        case action
+    }
+
+    public var placement: Placement
+    public var path: String
+    public var revealHelp: String
+    public var revealLabel: String
+    /// `doc.on.doc`, or `checkmark` for a moment after a copy.
+    public var copyGlyph: String
+    public var copyHelp: String
+    public var copyLabel: String
+}
+
+/// Saved's status: the green check, then `Saved · 0:07`, or `Saved` alone on the compact bar.
+public struct ControlBarSaved: Sendable, Hashable {
+    public var title: String
+    /// `0:07`, drawn with monospaced digits. Nil on the compact bar, which puts it in the tooltip.
+    public var duration: String?
+    public var help: String?
+    public var accessibilityLabel: String
+    public var files: ControlBarFiles?
+}
+
+/// What sits left of the readout, or for `saving` and `saved` everything left of Record.
 public enum ControlBarLeading: Sendable, Hashable {
     case size(ControlBarSizeControl)
     case timer(String)
     /// The indicator and "Saving clip…", centred together. The compact bar has no room for the text, so it draws the
     /// indicator alone and keeps `text` for the tooltip and VoiceOver.
     case saving(spinner: Bool, text: String, showsText: Bool)
+    case saved(ControlBarSaved)
+}
+
+/// The bar's states, for the crossfades between them.
+public enum ControlBarPhase: Sendable, Hashable {
+    case idle
+    case recording
+    case saving
+    case saved
 }
 
 /// The middle slot. The compact bar has none, and saving uses its space.
@@ -296,14 +368,15 @@ public struct ControlBarAction: Sendable, Hashable {
     }
 }
 
-/// The button that forgets the window, through the panel's Clear action. It keeps its slot while it can't be used, so
-/// the bar doesn't shift.
+/// The button that forgets the window, through the panel's Clear action. Hidden while recording and saving, but it
+/// keeps its slot, so the bar never reflows.
 public struct ControlBarClear: Sendable, Hashable {
+    public var visible: Bool
     public var enabled: Bool
     public var help: String
     public var accessibilityLabel: String
 
-    public var action: MenuAction? { enabled ? .clearWindow : nil }
+    public var action: MenuAction? { visible && enabled ? .clearWindow : nil }
 }
 
 public struct ControlBarContent: Sendable, Hashable {
@@ -313,6 +386,19 @@ public struct ControlBarContent: Sendable, Hashable {
     public var readout: ControlBarReadout?
     public var action: ControlBarAction
     public var clear: ControlBarClear
+    /// Show in Finder and Copy while Saved shows. On the compact bar they take Record's place.
+    public var files: ControlBarFiles?
+    /// How long a change of state crossfades: 0.2 s, or 0 under Reduce Motion.
+    public var crossfade: TimeInterval
+
+    public var phase: ControlBarPhase {
+        switch leading {
+        case .size: .idle
+        case .timer: .recording
+        case .saving: .saving
+        case .saved: .saved
+        }
+    }
 }
 
 /// The bar for one moment: where it goes and what it holds.
@@ -336,13 +422,24 @@ public struct ControlBarModel: Sendable {
     private var sizeBeforeResize: PixelSize?
     private var refusal: (size: PixelSize, reason: String, until: TimeInterval)?
     private var seenRefusal: Int?
+    private var saved: SavedState?
+    private var hovering = false
+
+    /// Saved on the bar. `until` is nil while the pointer is over the bar.
+    private struct SavedState: Sendable {
+        var clip: ControlBarClip
+        var until: TimeInterval?
+        var copiedUntil: TimeInterval?
+    }
 
     public init() {}
 
-    /// Applies new conditions. Returns the sentence to announce when this update is a new refusal.
+    /// Applies new conditions. Returns the sentence to announce when this update is a new refusal, or Saved.
     @discardableResult
     public mutating func update(_ new: ControlBarInput, now: TimeInterval) -> String? {
-        let shownBefore = shownSize()
+        let sizeShown = shownSize()
+        let visibleBefore = display(at: now) != nil
+        let old = input
         let windowChanged = input.target?.window.id != new.target?.window.id
         input = new
         if windowChanged {
@@ -350,7 +447,8 @@ public struct ControlBarModel: Sendable {
             sizeBeforeResize = nil
             refusal = nil
         }
-        var announcement: String?
+        var announcement = updateSaved(old: old, windowChanged: windowChanged, visibleBefore: visibleBefore, now: now)
+        let shownBefore = sizeShown
         switch new.resize {
         case .none:
             sizeBeforeResize = nil
@@ -368,6 +466,51 @@ public struct ControlBarModel: Sendable {
         return announcement
     }
 
+    /// Saved starts when a save finishes while the bar is on screen (addendum 2, §C), and ends at once on a new
+    /// recording, a new size, or anything that takes the bar or its window away.
+    private mutating func updateSaved(
+        old: ControlBarInput, windowChanged: Bool, visibleBefore: Bool, now: TimeInterval
+    ) -> String? {
+        if saved != nil,
+            windowChanged || input.activity != .idle || !eligible || input.sizeChoice != old.sizeChoice
+                || input.resize == .resizing || activeSaved(at: now) == nil
+        {
+            saved = nil
+        }
+        guard old.activity == .saving, input.activity == .idle, !windowChanged, visibleBefore, eligible,
+            let clip = input.lastClip, clip.id != old.lastClip?.id
+        else { return nil }
+        saved = SavedState(
+            clip: clip, until: hovering ? nil : now + ControlBarMetrics.savedSeconds, copiedUntil: nil)
+        return UIStrings.ControlBar.savedAnnouncement(seconds: Self.seconds(clip.duration))
+    }
+
+    /// The pointer entered or left the bar. Saved's countdown waits while it is inside and starts again at 6 s.
+    public mutating func hover(_ inside: Bool, now: TimeInterval) {
+        hovering = inside
+        guard var state = saved, activeSaved(at: now) != nil else { return }
+        state.until = inside ? nil : now + ControlBarMetrics.savedSeconds
+        saved = state
+    }
+
+    /// Copy was clicked: its glyph reads Copied for 1.5 s.
+    public mutating func copied(now: TimeInterval) {
+        guard var state = saved, activeSaved(at: now) != nil else { return }
+        state.copiedUntil = now + ControlBarMetrics.copiedSeconds
+        saved = state
+    }
+
+    /// Record, Show in Finder or ×: Saved ends at once.
+    public mutating func endSaved() { saved = nil }
+
+    private func activeSaved(at now: TimeInterval) -> SavedState? {
+        guard let saved, input.activity == .idle else { return nil }
+        if let until = saved.until, now >= until { return nil }
+        return saved
+    }
+
+    private static func seconds(_ duration: Double) -> Int { max(0, Int(duration.rounded())) }
+
     public mutating func update(presence: WindowPresence) { self.presence = presence }
     public mutating func update(displays: [DisplayInfo]) { self.displays = displays }
     public mutating func update(permissions: ControlBarPermissions) { self.permissions = permissions }
@@ -378,10 +521,12 @@ public struct ControlBarModel: Sendable {
             && !hiddenAsChrome
     }
 
-    /// A recording that asked for no on-screen chrome gets no bar. Idle and starting aren't chrome.
+    /// A recording that asked for no on-screen chrome gets no bar. Idle and starting aren't chrome. A recording that
+    /// drops the pick (an agent's) takes the bar away when saving starts.
     private var hiddenAsChrome: Bool {
         switch input.activity {
-        case .recording, .saving: !input.recordingChrome
+        case .recording: !input.recordingChrome
+        case .saving: !input.recordingChrome || !input.keepsPick
         case .idle, .starting: false
         }
     }
@@ -415,10 +560,10 @@ public struct ControlBarModel: Sendable {
             content: content(target: target, window: frame, layout: layout, now: now))
     }
 
-    /// The next time `display` changes by itself: the end of a refusal.
+    /// The next time `display` changes by itself: the end of a refusal, of Saved, or of Copied.
     public func nextDeadline(after now: TimeInterval) -> TimeInterval? {
-        guard let until = refusal?.until, now < until else { return nil }
-        return until
+        let saved = activeSaved(at: now)
+        return [refusal?.until, saved?.until, saved?.copiedUntil].compactMap { $0 }.filter { $0 > now }.min()
     }
 
     /// The first reason Record can't run, in the spec's order. Without Accessibility the preset isn't applied, so it
@@ -479,18 +624,54 @@ public struct ControlBarModel: Sendable {
     ) -> ControlBarContent {
         let compact = layout.width == .compact
         let readout = self.readout(window: window, display: layout.display, now: now)
+        let crossfade = input.reduceMotion ? 0 : ControlBarMetrics.crossfadeSeconds
+        let action = action(title: target.title, display: layout.display)
+        if let state = activeSaved(at: now) {
+            let files = files(state, compact: compact, now: now)
+            return ControlBarContent(
+                width: layout.width, groupLabel: UIStrings.ControlBar.group(target.title),
+                leading: .saved(savedStatus(state.clip, compact: compact, files: compact ? nil : files)),
+                readout: nil, action: action, clear: clear, files: files, crossfade: crossfade)
+        }
         return ControlBarContent(
             width: layout.width, groupLabel: UIStrings.ControlBar.group(target.title),
             leading: leading(readout: readout, display: layout.display, compact: compact),
-            readout: compact || input.activity == .saving ? nil : readout,
-            action: action(title: target.title, display: layout.display), clear: clear)
+            readout: compact || input.activity == .saving ? nil : readout, action: action, clear: clear,
+            files: nil, crossfade: crossfade)
     }
 
-    /// The controller refuses to forget the target while it records, saves or resizes.
+    /// Hidden while recording and saving. The controller also refuses to forget the target while it starts or
+    /// resizes, so Clear stays in view but disabled then.
     private var clear: ControlBarClear {
-        ControlBarClear(
-            enabled: input.activity == .idle && input.resize != .resizing, help: UIStrings.ControlBar.clearWindow,
-            accessibilityLabel: UIStrings.ControlBar.clearWindow)
+        let visible: Bool =
+            switch input.activity {
+            case .recording, .saving: false
+            case .idle, .starting: true
+            }
+        return ControlBarClear(
+            visible: visible, enabled: input.activity == .idle && input.resize != .resizing,
+            help: UIStrings.ControlBar.clearWindow, accessibilityLabel: UIStrings.ControlBar.clearPickedWindow)
+    }
+
+    private func savedStatus(_ clip: ControlBarClip, compact: Bool, files: ControlBarFiles?) -> ControlBarSaved {
+        let title = UIStrings.ControlBar.savedTitle(clip.duration)
+        let file = URL(fileURLWithPath: clip.path).lastPathComponent
+        return ControlBarSaved(
+            title: compact ? UIStrings.ControlBar.saved : title,
+            duration: compact ? nil : TimeFormat.minutesSeconds(clip.duration),
+            help: compact ? title : nil,
+            accessibilityLabel: UIStrings.ControlBar.savedStatus(seconds: Self.seconds(clip.duration), file: file),
+            files: files)
+    }
+
+    private func files(_ state: SavedState, compact: Bool, now: TimeInterval) -> ControlBarFiles {
+        let copied = state.copiedUntil.map { now < $0 } ?? false
+        return ControlBarFiles(
+            placement: compact ? .action : .status, path: state.clip.path,
+            revealHelp: UIStrings.ControlBar.showInFinder, revealLabel: UIStrings.ControlBar.showInFinder,
+            copyGlyph: copied ? "checkmark" : "doc.on.doc",
+            copyHelp: copied ? UIStrings.ControlBar.copied : UIStrings.ControlBar.copyFilePath,
+            copyLabel: copied ? UIStrings.ControlBar.copied : UIStrings.ControlBar.copyFilePathLabel)
     }
 
     private func readout(window: PointRect, display: DisplayInfo, now: TimeInterval) -> ControlBarReadout {
@@ -620,6 +801,9 @@ public final class ControlBarController {
 
     public var isVisible: Bool { shown != nil }
 
+    /// Saved is on the bar, so the HUD leaves it out.
+    public var showsSaved: Bool { shown?.content.phase == .saved }
+
     /// Where the window is now, so a resize can tell whether it changed anything.
     public var windowFrame: PointRect? { model.windowFrame }
 
@@ -628,6 +812,30 @@ public final class ControlBarController {
         readSystem(now: now, force: true)
         if let announcement = model.update(input, now: now) { surface.announce(announcement) }
         updateTracking()
+        publish(now: now, tick: false)
+        schedule(after: now)
+    }
+
+    /// The pointer entered or left the bar.
+    public func hover(_ inside: Bool) {
+        let now = clock.now()
+        model.hover(inside, now: now)
+        publish(now: now, tick: false)
+        schedule(after: now)
+    }
+
+    /// Copy File Path was clicked on Saved.
+    public func copied() {
+        let now = clock.now()
+        model.copied(now: now)
+        publish(now: now, tick: false)
+        schedule(after: now)
+    }
+
+    /// Record, Show in Finder or × on Saved.
+    public func endSaved() {
+        let now = clock.now()
+        model.endSaved()
         publish(now: now, tick: false)
         schedule(after: now)
     }
@@ -689,6 +897,7 @@ public final class ControlBarController {
             do { try await clock.sleep(until: deadline) } catch { return }
             guard let self else { return }
             self.publish(now: deadline, tick: false)
+            self.schedule(after: deadline)
         }
     }
 }

@@ -77,6 +77,7 @@ final class ControlBarWindow: ControlBarSurface {
     private let shadowPanel = ControlBarPanel()
     private let shadowView = ControlBarShadowView()
     var onAction: (MenuAction) -> Void = { _ in }
+    var onHover: (Bool) -> Void = { _ in }
     private var presentation: ControlBarPresentation?
     /// Moves on every show and hide, so a fade that finishes late can't remove a bar that came back.
     private var generation = 0
@@ -147,7 +148,9 @@ final class ControlBarWindow: ControlBarSurface {
         let presentation = ControlBarPresentation(content: content)
         self.presentation = presentation
         let hosting = ControlBarHostingView(
-            rootView: ControlBarView(presentation: presentation, onAction: { [weak self] in self?.onAction($0) }))
+            rootView: ControlBarView(
+                presentation: presentation, onAction: { [weak self] in self?.onAction($0) },
+                onHover: { [weak self] in self?.onHover($0) }))
         hosting.sizingOptions = []
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
