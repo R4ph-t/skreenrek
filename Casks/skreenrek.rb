@@ -1,6 +1,6 @@
 cask "skreenrek" do
-  version "1.0.8"
-  sha256 "d10942022dacb41a888786218f2cd90f6eacff82a12fc9dd2438983c3951758a"
+  version "1.0.9"
+  sha256 "718e5e9aa6ef945a61ec926b267d9bf8181e03d029c6595df71e59a756b514ff"
 
   url "https://github.com/R4ph-t/skreenrek/releases/download/v#{version}/Skreenrek-#{version}.zip"
   name "Skreenrek"
