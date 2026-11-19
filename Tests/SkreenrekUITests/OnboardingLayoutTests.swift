@@ -5,20 +5,42 @@ import SwiftUI
 import Testing
 
 @Suite struct OnboardingLayoutTests {
-    /// Every step shares one fixed 520 × 400 pt window: step 2's content plus the 24 pt gap to the footer fills it
-    /// exactly, and step 1 is shorter, so nothing grows past the window or leaves the old ~100 pt gap.
+    /// Every step shares one fixed 520 × 400 pt content area under the 28 pt title bar band: step 2's content plus the
+    /// 24 pt gap to the footer fills it exactly, and step 1 is shorter, so nothing grows past the window or leaves the
+    /// old ~100 pt gap.
     @Test func bothStepsFitOneTrimmedWindow() async throws {
         try await onMain("onboarding layout") {
             #expect(OnboardingView.size == CGSize(width: 520, height: 400))
             #expect(OnboardingView.footerGap == 24)
+            #expect(OnboardingView.titleBarHeight == 28)
+            #expect(OnboardingView.windowSize == CGSize(width: 520, height: 428))
             for sample in CaptureRenderSamples.onboardingStates {
                 let name = "skreenrek-onboarding-layout.\(UUID().uuidString)"
                 let defaults = UserDefaults(suiteName: name)!
                 defer { defaults.removePersistentDomain(forName: name) }
                 let model = OnboardingModel.preview(sample, defaults: defaults)
                 let size = NSHostingView(rootView: OnboardingView(model: model)).fittingSize
-                #expect(size == OnboardingView.size, "\(sample.name)")
+                #expect(size == OnboardingView.windowSize, "\(sample.name)")
             }
+        }
+    }
+
+    /// Onboarding shares Settings' surface: a transparent title bar over `surface.base`, with the title kept for the
+    /// Window menu and VoiceOver.
+    @Test func theWindowIsOneToneUnderATransparentTitleBar() async throws {
+        try await onMain("onboarding window chrome") {
+            let name = "skreenrek-onboarding-chrome.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: name)!
+            defer { defaults.removePersistentDomain(forName: name) }
+            let model = OnboardingModel.preview(CaptureRenderSamples.onboardingStates[0], defaults: defaults)
+            let window = OnboardingWindowController.makeWindow(model: model)
+            defer { window.close() }
+            #expect(window.styleMask.contains(.fullSizeContentView))
+            #expect(window.titlebarAppearsTransparent)
+            #expect(window.titleVisibility == .hidden)
+            #expect(window.backgroundColor == SkreenrekSurface.baseColor)
+            #expect(window.title == UIStrings.Onboarding.title)
+            #expect(!window.title.isEmpty)
         }
     }
 
@@ -44,17 +66,18 @@ import Testing
             model.preview(.agents)
             let window = OnboardingWindowController.makeWindow(model: model)
             defer { window.close() }
-            #expect(window.contentLayoutRect.size == OnboardingView.size)
             let view = try #require(window.contentViewController?.view)
+            // The content runs under the transparent title bar: the whole window is the band plus the steps.
+            #expect(view.frame.size == OnboardingView.windowSize)
             model.selected = [.claude, .codex, .cli]
             model.connect()
             #expect(model.allConnectsFailed)
-            for _ in 0..<200 where window.contentLayoutRect.height <= OnboardingView.size.height {
+            for _ in 0..<200 where view.frame.height <= OnboardingView.windowSize.height {
                 await Task.yield()
                 window.layoutIfNeeded()
             }
-            #expect(window.contentLayoutRect.height > OnboardingView.size.height)
-            #expect(window.contentLayoutRect.height == view.fittingSize.height)
+            #expect(view.frame.height > OnboardingView.windowSize.height)
+            #expect(view.frame.height == view.fittingSize.height)
         }
     }
 }

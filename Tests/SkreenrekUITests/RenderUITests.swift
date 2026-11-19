@@ -125,7 +125,7 @@ import Vision
             #expect(tenMinutes == 358)
             #expect(sizes["hud-recording-contrast-\(appearance)@2x.png"]?.0 == recording)
             for state in CaptureRenderSamples.onboardingStates {
-                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 800))
+                #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 856))
             }
         }
         for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("panel-") {
@@ -233,8 +233,8 @@ import Vision
         }
     }
 
-    /// Addendum 3: the panel and Settings sample the same base and cell, Settings is one tone from its top edge
-    /// through the header, and the header carries the name and version on the left and the tabs on the right.
+    /// Addendum 3: the panel, Settings and onboarding sample the same base and cell, Settings is one tone from its top
+    /// edge through the header, and the header carries the name and version on the left and the tabs on the right.
     @Test func panelAndSettingsShareOneSurface() async throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("skreenrek-render-shared-\(UUID().uuidString)", isDirectory: true)
@@ -273,13 +273,36 @@ import Vision
                 let section = pixel(rep, 500, 300)
                 #expect(section == [cell, cell, cell], "\(name) section \(section)")
             }
-            // The header at 2×: y 56–168. Name and version left of x 200 pt, the tabs from x 200 to 464 pt.
+            // The tabs: 288 pt wide, ending at x 464 (x 352–928 at 2×), on the base either side.
+            let tabs = try image("settings-general-\(appearance)@2x.png")
+            for x in [330, 940] {
+                #expect(pixel(tabs, x, 112) == [base, base, base], "\(appearance) beside the tabs x \(x)")
+            }
+            for x in [360, 920] {
+                #expect(pixel(tabs, x, 112) != [base, base, base], "\(appearance) inside the tabs x \(x)")
+            }
+            // Onboarding: the same base from the title bar band down, the cards on surface.cell, and the agent card's
+            // separators inset 12 pt from its leading edge (the card starts at x 24 pt).
+            let agents = try image("onboarding-4-agents-\(appearance)@2x.png")
+            for (x, y) in [(520, 10), (20, 500), (520, 740)] {
+                let value = pixel(agents, x, y)
+                #expect(value == [base, base, base], "\(appearance) onboarding base \(x), \(y): \(value)")
+            }
+            let agentCard = pixel(agents, 500, 320)
+            #expect(agentCard == [cell, cell, cell], "\(appearance) onboarding agents card \(agentCard)")
+            #expect(pixel(agents, 60, 376) == [cell, cell, cell], "\(appearance) separator inset")
+            #expect(pixel(agents, 500, 376) != [cell, cell, cell], "\(appearance) separator")
+            let permission = try image("onboarding-1-screenrecording-\(appearance)@2x.png")
+            let permissionCard = pixel(permission, 300, 410)
+            #expect(permissionCard == [cell, cell, cell], "\(appearance) onboarding permission card \(permissionCard)")
+            #expect(pixel(permission, 20, 600) == [base, base, base], "\(appearance) onboarding permission base")
+            // The header at 2×: y 56–168. Name and version left of x 176 pt, the tabs from x 176 to 464 pt.
             let general = try image("settings-general-\(appearance)@2x.png")
             let cg = try #require(general.cgImage)
-            let left = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 100, y: 56, width: 300, height: 112))))
+            let left = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 100, y: 56, width: 240, height: 112))))
             #expect(left.contains("Skreenrek"), "\(left)")
             #expect(left.contains("Version \(SkreenrekVersion.current)"), "\(left)")
-            let right = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 400, y: 56, width: 560, height: 112))))
+            let right = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 340, y: 56, width: 620, height: 112))))
             for tab in ["General", "Agents", "Permissions"] {
                 #expect(right.contains(tab), "\(right)")
             }

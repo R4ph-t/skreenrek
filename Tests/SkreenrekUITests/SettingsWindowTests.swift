@@ -102,10 +102,50 @@ import Testing
         #expect(SettingsChromeMetrics.headerInset == 16)
         #expect(SettingsChromeMetrics.iconSize == 32)
         #expect(SettingsChromeMetrics.headerInset + SettingsChromeMetrics.iconSize + SettingsChromeMetrics.textGap == 56)
-        #expect(SettingsChromeMetrics.tabsWidth == 264)
+        #expect(SettingsChromeMetrics.segmentWidth == 96)
+        #expect(SettingsChromeMetrics.tabsWidth == 288)
         #expect(SettingsChromeMetrics.segmentHeight == 24)
         #expect(SettingsMetrics.width - SettingsChromeMetrics.headerInset == 464)
         #expect(SettingsChromeMetrics.crossfade == 0.15)
+    }
+
+    /// The tabs are 3 × 96 pt, right-aligned so they end at x 464, and the name and version fit to their left.
+    @Test func theTabsEndAtX464AndTheNameAndVersionFitBesideThem() async throws {
+        try await onMain("settings header layout") {
+            let host = NSHostingView(rootView: SettingsHeader(selection: .constant(.general)))
+            host.frame = NSRect(x: 0, y: 0, width: SettingsMetrics.width, height: SettingsChromeMetrics.headerHeight)
+            host.layoutSubtreeIfNeeded()
+            @MainActor func controls(_ view: NSView) -> [NSSegmentedControl] {
+                ((view as? NSSegmentedControl).map { [$0] } ?? []) + view.subviews.flatMap(controls)
+            }
+            let control = try #require(controls(host).first)
+            // Three equal segments across the control.
+            #expect(control.segmentDistribution == .fillEqually)
+            #expect(control.segmentCount == 3)
+            let frame = control.convert(control.bounds, to: host)
+            #expect(frame.width == 288, "\(frame)")
+            #expect(frame.maxX == 464, "\(frame)")
+            #expect(frame.minX == 176, "\(frame)")
+            // The text starts at x 56 and keeps a 12 pt gap before the tabs, without truncating.
+            let model = SettingsHeaderModel()
+            let name = (model.name as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)])
+            let version = (model.version as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)])
+            let room = frame.minX - 12 - 56
+            #expect(name.width < room, "\(name.width) of \(room)")
+            #expect(version.width < room, "\(version.width) of \(room)")
+        }
+    }
+
+    @Test func theHeaderIconIsTheDocksIconInTheBundleAndTheV1ArtworkOutside() {
+        let dock = NSImage(size: NSSize(width: 1, height: 1))
+        let brand = NSImage(size: NSSize(width: 2, height: 2))
+        let bundled = SettingsHeaderIcon.image(isAppBundle: true, applicationIcon: { dock }, fallback: { brand })
+        let unbundled = SettingsHeaderIcon.image(isAppBundle: false, applicationIcon: { dock }, fallback: { brand })
+        #expect(bundled === dock)
+        #expect(unbundled === brand)
+        #expect(SettingsHeaderIcon.isAppBundle(Bundle(path: "/System/Applications/Calculator.app") ?? .main))
+        // swift test runs from an .xctest bundle, not an app.
+        #expect(!SettingsHeaderIcon.isAppBundle(.main))
     }
 
     @Test func arrowsMoveOneTabAndStopAtTheEnds() {
@@ -130,7 +170,9 @@ import Testing
             control.onMove = { coordinator.move(by: $0) }
             #expect(control.segmentCount == 3)
             #expect((0..<3).map { control.label(forSegment: $0) } == ["General", "Agents", "Permissions"])
-            #expect((0..<3).map { control.width(forSegment: $0) } == [88, 88, 88])
+            // Equal segments filling the 288 pt control (3 × 96 pt, border included).
+            #expect(control.segmentDistribution == .fillEqually)
+            #expect(control.intrinsicContentSize.width == 288)
             #expect(control.accessibilityLabel() == "Settings tabs")
             #expect(control.canBecomeKeyView)
             #expect(control.acceptsFirstResponder)

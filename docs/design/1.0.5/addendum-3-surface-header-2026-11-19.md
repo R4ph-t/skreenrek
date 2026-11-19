@@ -19,6 +19,7 @@ The panel was slightly blue (#1E1E20) and Settings used the system window backgr
 - Text stays system: `labelColor` and `secondaryLabelColor`.
 - **Implementation:** one `SkreenrekSurface` enum (or asset catalog colours with Any/Dark) that every surface reads from. No hex literals in views.
   - Settings window: `backgroundColor = surface.base`, `titlebarAppearsTransparent = true`.
+  - Onboarding window: the same tokens. `surface.base` background under a transparent title bar (`.fullSizeContentView`, title hidden but kept for the Window menu and VoiceOver) with a 28 pt band at the top for the traffic lights; its cards are 10 pt `surface.cell` rects with the light 1 px black 8% edge, and rows inside a card are split by 1 px `surface.separator` lines inset 12 pt.
   - Form: `.formStyle(.grouped)`, `.scrollContentBackground(.hidden)`, `.background(surface.base)`, rows `.listRowBackground(surface.cell)`, with separators tinted `surface.separator`. If SwiftUI's grouped Form won't take the tint, build the sections as plain `VStack`s: 10 pt rounded rect `surface.cell`, 44 pt rows, `Divider` replaced by a 1 px `surface.separator` line.
 - Settings keeps the existing shadow and system window frame. Only the colours change.
 
@@ -32,16 +33,16 @@ Layout at 480 pt wide, y from the top of the window:
 | --- | --- | --- |
 | Title bar | y 0–28 | Traffic lights only. Title hidden (`titleVisibility = .hidden`). |
 | Header | y 28–84 (56 tall), x 16–464 | Same `surface.base`, no divider under it. |
-| App icon | 32 × 32 at x 16, vertically centred (y 40–72) | The real app icon (V1 diamond frame kit, `final-V1/`), not a tinted symbol. |
+| App icon | 32 × 32 at x 16, vertically centred (y 40–72) | The real app icon, not a tinted symbol: drawn from `NSApp.applicationIconImage`, so it is always the Dock's icon (no light variant). Unbundled runs (swift run, tests, renders) fall back to the V1 artwork the bundle icon was made from (`final-V1/`). |
 | Name | x 56, 13 semibold `labelColor` | `Skreenrek`. Lower-case "skreenrek" only in the wordmark asset; the UI string is capitalised like every other app name. |
 | Version | x 56, 12 regular `secondaryLabelColor`, 2 pt under the name | `Version 1.0.5` (from `CFBundleShortVersionString`). Name and version are centred together on the icon's centre line. |
-| Tabs | segmented control, 3 equal segments of 88 = 264 wide, right edge x 464, vertically centred on the icon | `General` · `Agents` · `Permissions`, text only, system `.segmented` style (regular size, 24 tall). |
+| Tabs | segmented control, 3 equal segments of 96 = 288 wide (x 176–464), right edge x 464, vertically centred on the icon | `General` · `Agents` · `Permissions`, text only, system `.segmented` style (regular size, 24 tall). |
 | Content | starts at y 92 (8 pt gap) | The existing grouped sections, with rows at the same x 28 / x 452 edges as before. |
 
 - **Window title:** `Skreenrek Settings`, constant. It isn't drawn, but it's what the Window menu, Mission Control, ⌘` and VoiceOver use. It no longer changes per tab.
 - **Version:** shown in the header only. The About section keeps the Updates row (its detail stays `Skreenrek 1.0.5 is up to date.`, which is a status, not a repeat label) and View on GitHub. There's no separate version row.
 - **Keyboard:** ⌘, opens Settings on the last tab used. The segmented control is Tab-reachable, and ←/→ switch tabs when it has focus. No numeric shortcuts (AZERTY).
-- **Height:** still fits each tab's content with no scroll view. Header plus title bar is 84 pt, about the old 80 pt toolbar, so the totals stay roughly as specced (General ≈ 592).
+- **Height:** still fits each tab's content with no scroll view. Header plus title bar is 84 pt, about the old 80 pt toolbar, so the totals stay roughly as specced. As built: General 627.5 pt, Agents 306.5 pt, Permissions 196.5 pt.
 - **Tab switch:** the content crossfades over 0.15 s while the window resizes with the system animation. Under Reduce Motion, both are instant.
 - **VoiceOver:** the header reads `Skreenrek, version 1.0.5`. The segmented control reads `Settings tabs, General, selected, 1 of 3`.
 

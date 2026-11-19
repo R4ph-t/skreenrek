@@ -148,7 +148,9 @@ public enum UIRenderer {
                 let defaults = UserDefaults(suiteName: name)!
                 defer { defaults.removePersistentDomain(forName: name) }
                 let model = OnboardingModel.preview(sample, defaults: defaults)
-                try save(host(OnboardingView(model: model), size: OnboardingView.size), "onboarding", sample.name)
+                try save(
+                    host(OnboardingView(model: model, drawsTrafficLights: true), size: OnboardingView.windowSize),
+                    "onboarding", sample.name)
             }
         }
         return written
