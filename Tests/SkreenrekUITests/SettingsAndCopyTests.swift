@@ -6,15 +6,11 @@ import Testing
 
 /// Each test runs its body on the main actor under a hard timeout.
 @Suite struct SettingsStoreTests {
-    static func suite() -> (UserDefaults, String) {
-        let name = "skreenrek.tests.\(UUID().uuidString)"
-        return (UserDefaults(suiteName: name)!, name)
-    }
-
     @Test func defaultsMatchTheController() async throws {
         try await onMain("defaultsMatchTheController") {
-            let (defaults, name) = Self.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
             let store = SettingsStore(defaults: defaults, home: home)
             #expect(
@@ -27,8 +23,9 @@ import Testing
 
     @Test func valuesRoundTrip() async throws {
         try await onMain("valuesRoundTrip") {
-            let (defaults, name) = Self.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             store.outputFolder = URL(fileURLWithPath: "/tmp/clips", isDirectory: true)
             store.fps = .fps30
@@ -57,8 +54,9 @@ import Testing
 
     @Test func badStoredValuesFallBack() async throws {
         try await onMain("badStoredValuesFallBack") {
-            let (defaults, name) = Self.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             defaults.set(45, forKey: SettingsStore.Key.fps)
             defaults.set("wide", forKey: SettingsStore.Key.size)
             let store = SettingsStore(defaults: defaults)

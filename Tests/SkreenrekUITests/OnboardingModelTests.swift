@@ -22,9 +22,9 @@ import Testing
     /// First launch on a fresh Mac: one step per permission, in order, each asking macOS only when its step asks.
     @Test(.timeLimit(.minutes(1))) func walksThePermissionsInOrderAndAsksOnlyOnItsStep() async throws {
         try await onMain("onboarding step order", seconds: 10) {
-            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let probe = FakePermissionProbe(screenRecording: .missing, directCapture: .missing, accessibility: .missing)
             let requester = TestPermissionRequester()
             var opened: [Permission] = []
@@ -78,9 +78,9 @@ import Testing
     /// Once completed, a missing permission reopens the flow on that step, without the agents, and Done closes it.
     @Test(.timeLimit(.minutes(1))) func reopensOnTheMissingStepAfterOnboarding() async throws {
         try await onMain("onboarding reopens", seconds: 10) {
-            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             defaults.set(true, forKey: "onboarding.completed")
             // macOS asks about direct capture again about once a month: the record expired.
             let probe = FakePermissionProbe(directCapture: .missing)
@@ -106,9 +106,9 @@ import Testing
     /// Direct capture can't be asked before Screen Recording is in effect: no request, a plain sentence instead.
     @Test(.timeLimit(.minutes(1))) func directCaptureWaitsForScreenRecording() async throws {
         try await onMain("direct capture waits", seconds: 10) {
-            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let probe = FakePermissionProbe(screenRecording: .missing, directCapture: .missing)
             let requester = TestPermissionRequester()
             let model = Self.make(probe, requester, defaults)
@@ -121,9 +121,9 @@ import Testing
 
     @Test func onlyCheckedDetectedAgentsReachInstallerAndEmptyNeverMeansAll() async throws {
         try await onMain("onboarding connects checked agents") {
-            let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             var calls: [[AgentClient]] = []
             let rows = AgentClient.allCases.map { OnboardingAgent(agent: $0, detected: $0 != .cursor) }
             let model = OnboardingModel(permissions: FakePermissionProbe(), requester: TestPermissionRequester(),
@@ -140,8 +140,9 @@ import Testing
     @Test func connectsThroughRealInstallerInAnIsolatedHome() async throws {
         try await onMain("onboarding installer integration") {
             let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let home = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             defer { try? FileManager.default.removeItem(at: home) }
             for folder in [".claude", ".codex"] {
@@ -177,8 +178,9 @@ import Testing
     @Test func partialConnectTriesEveryItemCompletesAndKeepsItsErrors() async throws {
         try await onMain("partial connect") {
             let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let home = FileManager.default.temporaryDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
             defer { try? FileManager.default.removeItem(at: home) }
             let model = try Self.connectModel(home: home, defaults: defaults)
@@ -208,8 +210,9 @@ import Testing
     @Test func connectWhereEverythingFailsSaysSoAndStaysOpen() async throws {
         try await onMain("all connects fail") {
             let name = "skreenrek-onboarding-test.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let home = FileManager.default.temporaryDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
             defer { try? FileManager.default.removeItem(at: home) }
             let model = try Self.connectModel(home: home, defaults: defaults)

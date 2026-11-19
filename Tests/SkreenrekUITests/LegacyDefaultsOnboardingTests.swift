@@ -14,14 +14,14 @@ import Testing
     /// is done", but not the record that the old ID was already prompted or approved.
     @Test(.timeLimit(.minutes(1))) func migratedSettingsStillLetOnboardingAskForTheNewID() async throws {
         try await onMain("migrated onboarding", seconds: 10) {
-            let oldName = "skreenrek-onboarding-old.\(UUID().uuidString)"
-            let newName = "skreenrek-onboarding-new.\(UUID().uuidString)"
-            let old = UserDefaults(suiteName: oldName)!
-            let new = UserDefaults(suiteName: newName)!
+            // Scratch suites named by path, read by the migration as domains, leave no plist behind.
+            let oldScratch = ScratchDefaults(), newScratch = ScratchDefaults()
             defer {
-                old.removePersistentDomain(forName: oldName)
-                new.removePersistentDomain(forName: newName)
+                oldScratch.remove()
+                newScratch.remove()
             }
+            let (old, oldName) = (oldScratch.defaults, oldScratch.suiteName)
+            let (new, newName) = (newScratch.defaults, newScratch.suiteName)
             old.set(true, forKey: OnboardingModel.completedKey)
             old.set(true, forKey: OnboardingModel.screenRecordingRequestedKey)
             old.set(Date(), forKey: DirectCaptureApproval.key)

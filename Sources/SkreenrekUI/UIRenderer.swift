@@ -101,11 +101,17 @@ public enum UIRenderer {
                     ).entries, width: MenuMetrics.sizeSubmenuWidth), "submenu", "size")
             try save(DropdownPreview(MenuModel.frameRateSubmenu(base.snapshot.fps).entries), "submenu", "framerate")
             for sample in settingsSamples {
-                try save(settingsView(sample, home: home), "settings", sample.name, active: true)
+                try withScratchDefaults { defaults in
+                    try save(
+                        settingsView(sample, home: home, defaults: defaults), "settings", sample.name, active: true)
+                }
             }
-            try save(
-                surfaceComparison(preview: thumbnail ?? swatch(width: 320, height: 200), home: home), "surface",
-                "panel-settings-general", active: true)
+            try withScratchDefaults { defaults in
+                try save(
+                    surfaceComparison(
+                        preview: thumbnail ?? swatch(width: 320, height: 200), home: home, defaults: defaults),
+                    "surface", "panel-settings-general", active: true)
+            }
             for sample in ControlBarRenderer.samples() {
                 try save(sample.view, "control-bar", sample.name, active: true)
             }
@@ -144,9 +150,9 @@ public enum UIRenderer {
                          "hud", contrast ? "regionoutline-contrast" : "regionoutline")
             }
             for sample in CaptureRenderSamples.onboardingStates {
-                let name = "skreenrek.render-onboarding.\(UUID().uuidString)"
-                let defaults = UserDefaults(suiteName: name)!
-                defer { defaults.removePersistentDomain(forName: name) }
+                let scratch = ScratchDefaults()
+                defer { scratch.remove() }
+                let defaults = scratch.defaults
                 let model = OnboardingModel.preview(sample, defaults: defaults)
                 try save(
                     host(OnboardingView(model: model, drawsTrafficLights: true), size: OnboardingView.windowSize),
@@ -305,12 +311,11 @@ public enum UIRenderer {
 
     /// A Settings window as it ships: a drawn stand-in for the title bar and toolbar tabs (an offscreen render can't
     /// draw a window toolbar), then the tab's content at the window's fixed height, all on the shared surface.
-    static func settingsView(_ sample: SettingsSample, home: URL) -> NSView {
-        RefitHostingView.fitted(settingsWindow(sample, home: home))
+    static func settingsView(_ sample: SettingsSample, home: URL, defaults: UserDefaults) -> NSView {
+        RefitHostingView.fitted(settingsWindow(sample, home: home, defaults: defaults))
     }
 
-    static func settingsWindow(_ sample: SettingsSample, home: URL) -> some View {
-        let defaults = UserDefaults(suiteName: "skreenrek.render-ui.\(UUID().uuidString)")!
+    static func settingsWindow(_ sample: SettingsSample, home: URL, defaults: UserDefaults) -> some View {
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
         store.settingsTab = sample.tab
@@ -334,7 +339,7 @@ public enum UIRenderer {
     }
 
     /// The menu panel next to Settings General on a neutral backdrop: both should sample the same base and cell.
-    static func surfaceComparison(preview: NSImage, home: URL) -> NSView {
+    static func surfaceComparison(preview: NSImage, home: URL, defaults: UserDefaults) -> NSView {
         let content = PanelModel.content(for: specArmed(updates: false), preview: readyStill)
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let window = RoundedRectangle(cornerRadius: PanelMetrics.radiusPanel, style: .continuous)
@@ -344,7 +349,7 @@ public enum UIRenderer {
                     content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview,
                     clipImage: preview, reduceMotion: true, onAction: { _ in })
                     .frame(width: PanelMetrics.width, height: height)
-                settingsWindow(SettingsSample(name: "general", tab: .general), home: home)
+                settingsWindow(SettingsSample(name: "general", tab: .general), home: home, defaults: defaults)
                     .clipShape(window)
                     .overlay(window.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
             }

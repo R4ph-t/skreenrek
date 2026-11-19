@@ -10,9 +10,9 @@ import Testing
     }
 
     @Test func approvedOnlyWithScreenRecordingAndForLessThanAMonth() {
-        let name = "skreenrek-direct-capture.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defer { defaults.removePersistentDomain(forName: name) }
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let defaults = scratch.defaults
         let clock = Clock()
         let approval = DirectCaptureApproval(defaults: defaults, now: { clock.now.withLock { $0 } })
         #expect(approval.status(screenRecording: .allowed) == .missing)
@@ -32,9 +32,9 @@ import Testing
     }
 
     @Test func aClockSetBackDoesNotCountAsApproved() {
-        let name = "skreenrek-direct-capture.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        defer { defaults.removePersistentDomain(forName: name) }
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let defaults = scratch.defaults
         let clock = Clock()
         let approval = DirectCaptureApproval(defaults: defaults, now: { clock.now.withLock { $0 } })
         approval.record()

@@ -3,21 +3,19 @@ import SkreenrekCore
 import Testing
 
 @Suite struct LegacyDefaultsMigrationTests {
-    /// Two throwaway suites standing in for the legacy and the new domain.
+    /// Two throwaway suites standing in for the legacy and the new domain. Their names are the scratch paths, so the
+    /// migration reads them by domain name like the real ones without leaving a plist in ~/Library/Preferences.
     private struct Domains {
-        let oldName = "skreenrek-migration-old.\(UUID().uuidString)"
-        let newName = "skreenrek-migration-new.\(UUID().uuidString)"
-        let old: UserDefaults
-        let new: UserDefaults
-
-        init() {
-            old = UserDefaults(suiteName: oldName)!
-            new = UserDefaults(suiteName: newName)!
-        }
+        let oldScratch = ScratchDefaults()
+        let newScratch = ScratchDefaults()
+        var oldName: String { oldScratch.suiteName }
+        var newName: String { newScratch.suiteName }
+        var old: UserDefaults { oldScratch.defaults }
+        var new: UserDefaults { newScratch.defaults }
 
         func cleanUp() {
-            old.removePersistentDomain(forName: oldName)
-            new.removePersistentDomain(forName: newName)
+            oldScratch.remove()
+            newScratch.remove()
         }
 
         @discardableResult
