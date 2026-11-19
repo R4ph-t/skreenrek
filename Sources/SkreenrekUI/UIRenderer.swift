@@ -286,6 +286,8 @@ public enum UIRenderer {
         var screenRecording: PermissionStatus = .allowed
         var accessibility: PermissionStatus = .allowed
         var latest = SkreenrekVersion.current
+        /// The newer release's notes, as GitHub returns them.
+        var notes = ""
     }
 
     static let settingsSamples = [
@@ -293,6 +295,9 @@ public enum UIRenderer {
         SettingsSample(name: "general", tab: .general),
         SettingsSample(name: "general-control-bar", tab: .general),
         SettingsSample(name: "updateavailable", tab: .general, latest: RenderSamples.newerVersion),
+        SettingsSample(
+            name: "updateavailable-notes", tab: .general, latest: RenderSamples.nextVersion,
+            notes: RenderSamples.releaseNotes),
         SettingsSample(name: "agents", tab: .agents),
         SettingsSample(name: "permissions", tab: .permissions),
         SettingsSample(
@@ -311,6 +316,7 @@ public enum UIRenderer {
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
         store.settingsTab = sample.tab
         defaults.set(sample.latest, forKey: UpdateChecker.Key.latestVersion)
+        defaults.set(sample.notes, forKey: UpdateChecker.Key.latestNotes)
         let updates = UpdateChecker(
             feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
             openURL: { _ in }, relaunch: {})
@@ -506,6 +512,34 @@ public enum RenderSamples {
     static let clipTitle = "Safari — localhost:3000"
     /// The newer release the update renders show.
     public static let newerVersion = "1.0.3"
+    /// A release newer than this build, so the Updates row offers it.
+    public static var nextVersion: String {
+        let current = SemanticVersion(SkreenrekVersion.current) ?? SemanticVersion(major: 1, minor: 0, patch: 0)
+        return SemanticVersion(major: current.major, minor: current.minor, patch: current.patch + 1).description
+    }
+    /// A real release body (the 1.0.6 notes, as `make release` publishes them), long enough to scroll.
+    static let releaseNotes = """
+        ## [1.0.6] - 2026-11-19
+
+        ### Added
+
+        - A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
+        - The picked window gets an outline on screen while the menu is open, and for a moment right after you pick it. The outline never appears in a recording.
+        - A control bar under the picked window sets its size and starts or stops the recording without opening the menu. It never appears in a recording, and Show Control Bar turns it off.
+        - During a recording the control bar follows the recording indicator: `--no-hud` or turning off Show recording indicator hides it, and when an agent records a window that isn't picked, the bar shows the timer and Stop until the clip ends.
+        - An X button at the end of the control bar clears the picked window.
+
+        ### Changed
+
+        - Recordings are now named after their folder (for example 2026-11-19_091629_safari.mp4) instead of clip.mp4.
+        - Settings is now a standard window with General, Agents, and Permissions tabs.
+        - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
+
+        ### Fixed
+
+        - The window outline and the control bar now follow the picked window when it moves or resizes, including after a clip.
+        - Custom… in the Size menu opens a panel that stays on screen when another app becomes active.
+        """
 
     public static let idle = Sample(name: "idle", context: context(ControllerSnapshot(state: .idle, fps: .fps60)))
     public static let armed = Sample(
