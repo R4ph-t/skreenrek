@@ -19,7 +19,7 @@ public enum SettingsChromeMetrics {
     /// The name and version start at x 56.
     public static let textGap: CGFloat = 8
     public static let nameVersionSpacing: CGFloat = 2
-    public static let segmentWidth: CGFloat = 88
+    public static let segmentWidth: CGFloat = 96
     public static let segmentHeight: CGFloat = 24
     public static var tabsWidth: CGFloat { segmentWidth * CGFloat(SettingsTab.allCases.count) }
     /// The content crossfade on a tab switch. Instant under Reduce Motion.
@@ -47,6 +47,26 @@ public struct SettingsHeaderModel: Equatable, Sendable {
         name = UIStrings.Settings.headerName
         self.version = UIStrings.Settings.headerVersion(version)
         accessibilityLabel = UIStrings.Settings.headerLabel(version)
+    }
+}
+
+/// Where the header's icon comes from: the Dock's icon (`NSApp.applicationIconImage`) when running from the .app
+/// bundle, so the two always match. An unbundled run (swift run, tests, offscreen renders) would get the generic
+/// executable icon, so it draws the V1 artwork the bundle icon was made from instead.
+enum SettingsHeaderIcon {
+    static func image(isAppBundle: Bool, applicationIcon: () -> NSImage, fallback: () -> NSImage) -> NSImage {
+        isAppBundle ? applicationIcon() : fallback()
+    }
+
+    static func isAppBundle(_ bundle: Bundle) -> Bool {
+        bundle.bundleURL.pathExtension == "app"
+    }
+
+    @MainActor
+    static func current(size: CGFloat) -> NSImage {
+        image(
+            isAppBundle: isAppBundle(.main), applicationIcon: { NSApp.applicationIconImage },
+            fallback: { BrandIcon.appIcon(size: size) })
     }
 }
 
@@ -111,7 +131,7 @@ struct SettingsHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: SettingsChromeMetrics.textGap) {
-                Image(nsImage: BrandIcon.appIcon(size: SettingsChromeMetrics.iconSize))
+                Image(nsImage: SettingsHeaderIcon.current(size: SettingsChromeMetrics.iconSize))
                     .resizable()
                     .interpolation(.high)
                     .frame(width: SettingsChromeMetrics.iconSize, height: SettingsChromeMetrics.iconSize)
@@ -137,7 +157,7 @@ struct SettingsHeader: View {
     }
 }
 
-/// `General | Agents | Permissions`: a system segmented control, 3 × 88 pt, Tab-reachable, with ←/→ switching tabs
+/// `General | Agents | Permissions`: a system segmented control, 3 × 96 pt, Tab-reachable, with ←/→ switching tabs
 /// while it has focus.
 struct SettingsTabsControl: NSViewRepresentable {
     @Binding var selection: SettingsTab
@@ -194,10 +214,15 @@ final class SettingsSegmentedControl: NSSegmentedControl {
         control.segmentDistribution = .fillEqually
         for (index, tab) in SettingsTab.allCases.enumerated() {
             control.setLabel(tab.title, forSegment: index)
-            control.setWidth(SettingsChromeMetrics.segmentWidth, forSegment: index)
         }
         control.setAccessibilityLabel(UIStrings.Settings.tabsLabel)
         return control
+    }
+
+    /// The whole control is `tabsWidth` (3 × 96 pt), border included, and `fillEqually` splits it into three equal
+    /// segments. Fixed 96 pt segments would make it 2 pt wider than its slot, overhanging x 464 by 1 pt.
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: SettingsChromeMetrics.tabsWidth, height: super.intrinsicContentSize.height)
     }
 
     override var canBecomeKeyView: Bool { true }

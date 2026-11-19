@@ -4,12 +4,33 @@ import SwiftUI
 
 public struct OnboardingView: View {
     @Bindable var model: OnboardingModel
+    /// Draws stand-in traffic lights in the title bar band, for the offscreen renders.
+    var drawsTrafficLights = false
+    @Environment(\.colorScheme) private var scheme
     public init(model: OnboardingModel) { self.model = model }
-    /// The size of every step: 24 pt margins, and the footer 24 pt below step 4's agent rows. Connect errors make the
-    /// window taller.
+    init(model: OnboardingModel, drawsTrafficLights: Bool) {
+        self.model = model
+        self.drawsTrafficLights = drawsTrafficLights
+    }
+    /// The size of every step below the title bar: 24 pt margins, and the footer 24 pt below step 4's agent rows.
+    /// Connect errors make the window taller.
     public static let size = CGSize(width: 520, height: 400)
     static let footerGap: CGFloat = 24
+    /// The transparent title bar's band over the content, where the traffic lights sit (as in Settings).
+    static let titleBarHeight = SettingsChromeMetrics.titleBarHeight
+    /// The whole window: the title bar band, then `size`.
+    public static var windowSize: CGSize { CGSize(width: size.width, height: size.height + titleBarHeight) }
     public var body: some View {
+        VStack(spacing: 0) {
+            SettingsTitleBarBand(drawsTrafficLights: drawsTrafficLights)
+            content
+        }
+        .frame(width: Self.size.width)
+        .background(SkreenrekSurface(scheme).base.color)
+        .ignoresSafeArea()
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
                 Text(model.step == .agents ? UIStrings.Onboarding.agentsTitle : UIStrings.Onboarding.title)
@@ -51,7 +72,6 @@ public struct OnboardingView: View {
             }
         }
         .padding(24).frame(width: Self.size.width).frame(minHeight: Self.size.height)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     /// One permission: the progress of all three, the row with its live status and System Settings link, and one
@@ -62,7 +82,7 @@ public struct OnboardingView: View {
             PermissionRow(title: Self.title(permission), detail: Self.detail(permission),
                           status: model.status(of: permission)) { model.openSystemSettings() }
                 .frame(height: 56)
-                .padding(.horizontal, 12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 12).surfaceCell()
             // One sentence: what macOS will ask, or, once it asked, the relaunch it needs.
             Text(model.needsRelaunch ? UIStrings.Onboarding.relaunchNote
                  : model.waitsForScreenRecording ? UIStrings.Onboarding.directCaptureWaiting
@@ -112,7 +132,7 @@ public struct OnboardingView: View {
 
     private var agents: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(model.agents) { row in
+            ForEach(Array(model.agents.enumerated()), id: \.element.id) { index, row in
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(isOn: Binding(get: { model.selected.contains(row.agent) }, set: {
                         if $0 { model.selected.insert(row.agent) } else { model.selected.remove(row.agent) }
@@ -129,8 +149,11 @@ public struct OnboardingView: View {
                             .fixedSize(horizontal: false, vertical: true).padding(.bottom, 8)
                     }
                 }
+                .padding(.horizontal, 12)
+                // Drawn over the row's top edge, so the separators don't change the card's height.
+                .overlay(alignment: .top) { if index > 0 { SurfaceRowSeparator() } }
             }
-        }.padding(.horizontal, 12).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+        }.surfaceCell()
     }
 }
 
@@ -149,9 +172,13 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         let host = NSHostingController(rootView: OnboardingView(model: model))
         host.sizingOptions = [.preferredContentSize]
         let window = NSWindow(contentViewController: host)
+        // The title stays for the Window menu and VoiceOver; the bar itself is the window's own surface.
         window.title = UIStrings.Onboarding.title
-        window.styleMask = [.titled, .closable]
-        window.setContentSize(OnboardingView.size)
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = SkreenrekSurface.baseColor
+        window.setContentSize(OnboardingView.windowSize)
         window.isReleasedWhenClosed = false
         return window
     }

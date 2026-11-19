@@ -346,9 +346,6 @@ struct SettingsSection<Content: View, Header: View, Footer: View>: View {
     @ViewBuilder let header: Header
     @ViewBuilder let footer: Footer
 
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.displayScale) private var displayScale
-
     init(
         @ViewBuilder content: () -> Content, @ViewBuilder header: () -> Header, @ViewBuilder footer: () -> Footer
     ) {
@@ -358,32 +355,17 @@ struct SettingsSection<Content: View, Header: View, Footer: View>: View {
     }
 
     var body: some View {
-        let surface = SkreenrekSurface(scheme)
-        let shape = RoundedRectangle(cornerRadius: SettingsMetrics.sectionRadius, style: .continuous)
         VStack(alignment: .leading, spacing: SettingsMetrics.headerGap) {
             header
             VStack(spacing: 0) {
                 Group(subviews: content) { rows in
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        if index > 0 {
-                            Rectangle()
-                                .fill(surface.separator.color)
-                                .frame(height: PanelSurface.pixel(displayScale: displayScale))
-                                .padding(.leading, SkreenrekSurface.separatorInset)
-                                .accessibilityHidden(true)
-                        }
+                        if index > 0 { SurfaceRowSeparator() }
                         row
                     }
                 }
             }
-            .background(shape.fill(surface.cell.color))
-            .overlay {
-                if let edge = surface.cellEdge {
-                    shape.strokeBorder(edge.color, lineWidth: PanelSurface.pixel(displayScale: displayScale))
-                        .allowsHitTesting(false)
-                }
-            }
-            .clipShape(shape)
+            .surfaceCell()
             footer
         }
     }
@@ -430,6 +412,45 @@ struct SettingsButton: View {
         }
         .frame(minWidth: width ?? SettingsMetrics.buttonMinWidth, maxWidth: width)
     }
+}
+
+/// A `surface.cell` card: the 10 pt rounded rect, with the light cells' 1 px `surface.cellEdge`. Settings sections and
+/// the onboarding cards.
+struct SurfaceCell: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
+
+    func body(content: Content) -> some View {
+        let surface = SkreenrekSurface(scheme)
+        let shape = RoundedRectangle(cornerRadius: SettingsMetrics.sectionRadius, style: .continuous)
+        content
+            .background(shape.fill(surface.cell.color))
+            .overlay {
+                if let edge = surface.cellEdge {
+                    shape.strokeBorder(edge.color, lineWidth: PanelSurface.pixel(displayScale: displayScale))
+                        .allowsHitTesting(false)
+                }
+            }
+            .clipShape(shape)
+    }
+}
+
+/// The 1 px `surface.separator` line between a card's rows, inset 12 pt from the card's leading edge.
+struct SurfaceRowSeparator: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        Rectangle()
+            .fill(SkreenrekSurface(scheme).separator.color)
+            .frame(height: PanelSurface.pixel(displayScale: displayScale))
+            .padding(.leading, SkreenrekSurface.separatorInset)
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    func surfaceCell() -> some View { modifier(SurfaceCell()) }
 }
 
 extension SettingsSection where Header == EmptyView, Footer == EmptyView {

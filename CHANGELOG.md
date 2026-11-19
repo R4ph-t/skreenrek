@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The preview has an accent outline while a window is picked, and a red one while recording.
 - Settings is now a standard window with General, Agents, and Permissions tabs.
 - The menu, the control bar, the recording indicator and Settings now share one neutral surface, so they match side by side in light and dark.
-- Settings has a header with the app icon, its name and version, and a General | Agents | Permissions switch, all in the same tone as the window, replacing the toolbar tabs. The window is titled Skreenrek Settings on every tab.
+- The setup window uses the same surface as Settings: one tone under a transparent title bar, with matching cards.
+- Settings has a header with the app's Dock icon, its name and version, and a General | Agents | Permissions switch, all in the same tone as the window, replacing the toolbar tabs. The window is titled Skreenrek Settings on every tab.
 - Everything in the menu lines up on one left and one right edge, and the button labels are centered.
 - The menu-bar panel now has a solid background instead of see-through glass.
 - The window picker's labels and the recording indicator are solid too, matching the menu.
