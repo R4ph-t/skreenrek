@@ -12,7 +12,7 @@ How it is used: UI copy and the product name are Skreenrek. The CLI command, the
 
 ## What it is
 
-One signed, unsandboxed macOS app (macOS 26 Tahoe; also runs on 15 Sequoia). It's also a CLI, a menu-bar app with a panel, a stdio MCP server and an agent skill. The job: pick a window (or region), resize it to an exact pixel size and verify that size by reading it back, record native 30/60 fps video at a constant frame rate, stop, and get back `clip.mp4`, `events.json` (cursor, clicks, mouse button, no keystrokes) and a short HyperFrames snippet. It's a sibling to [Fraime.it](http://Fraime.it), written fresh (path B, no code from Fraime). It ships as a notarized download, then as a Homebrew cask. Free and open source.
+One signed, unsandboxed macOS app (macOS 26 Tahoe; also runs on 15 Sequoia). It's also a CLI, a menu-bar app with a panel, a stdio MCP server and an agent skill. The job: pick a window (or region), resize it to an exact pixel size and verify that size by reading it back, record native 30/60 fps video at a constant frame rate, stop, and get back the movie (`<folder>.mp4`), `events.json` (cursor, clicks, mouse button, no keystrokes) and a short HyperFrames snippet. It's a sibling to [Fraime.it](http://Fraime.it), written fresh (path B, no code from Fraime). It ships as a notarized download, then as a Homebrew cask. Free and open source.
 
 Out of scope (from the brief): screenshots and grids, the editor, effects, webcam, microphone and system audio, Windows and Linux, an upstream HyperFrames component, and a public launch.
 
@@ -132,7 +132,7 @@ There is no preview and no Record button. VoiceOver reads the header as "No wind
 
 Red appears only while recording. The icon shape carries each empty state (the viewfinder, the lock, the slashed preview, the window with ×).
 
-**Last Clip.** One 44 pt row. The visible title is "Last Clip". The detail is `0:42 · 1080p · 60 fps`: duration, the preset name (or Custom), and the frame rate. The thumbnail (40 × 25, radius 4), the title or the detail opens `clip.mp4` and closes the panel. Tooltip: "Open Clip". VoiceOver: "Open last clip, <title>, <spoken duration>". The trailing icon buttons (Show in Finder, Copy File Path, Copy HyperFrames Snippet) do not open the clip, and the copy actions do not close the panel. Rest has no fill. Hover paints the main area (radius 6), darkens the thumbnail 22%, and shows a play glyph. Pressed is deeper, and the action fires on mouse-up inside the row. If the file is missing, the row is not clickable, the detail reads "Clip moved or deleted", Show in Finder is disabled, and VoiceOver reads "Last clip, moved or deleted".
+**Last Clip.** One 44 pt row. The visible title is "Last Clip". The detail is `0:42 · 1080p · 60 fps`: duration, the preset name (or Custom), and the frame rate. The thumbnail (40 × 25, radius 4), the title or the detail opens the movie and closes the panel. Tooltip: "Open Clip". VoiceOver: "Open last clip, <title>, <spoken duration>". The trailing icon buttons (Show in Finder, Copy File Path, Copy HyperFrames Snippet) do not open the clip, and the copy actions do not close the panel. Rest has no fill. Hover paints the main area (radius 6), darkens the thumbnail 22%, and shows a play glyph. Pressed is deeper, and the action fires on mouse-up inside the row. If the file is missing, the row is not clickable, the detail reads "Clip moved or deleted", Show in Finder is disabled, and VoiceOver reads "Last clip, moved or deleted".
 
 **Tokens.** System colours. Accent is `controlAccentColor` (Record, Pick, switches, the update icon). Red is `systemRed`, and only while recording. The preview fill is `quaternarySystemFill`. Cells and Open Settings… use `tertiarySystemFill`. Type is only 13/16 and 12/15. The timer is 13 pt semibold with tabular digits. Radii are only 10, 6 and 4, plus the system switch and the on-screen outline. Rows are 28 pt, the clip row 44, the hero 40, the cells 28, the icon buttons 24. Every hit target is at least 24 × 24. Focus rings follow the system's style and each control's radius.
 
@@ -235,7 +235,7 @@ $ skreenrek record --app Safari --size 1280x800 --fps 60
 
 $ skreenrek stop
 ✓ Saved 0:42 · 1280 × 800 px · 60 fps
-  clip    ~/Movies/Skreenrek/2026-11-17_104207_safari/clip.mp4
+  clip    ~/Movies/Skreenrek/2026-11-17_104207_safari/2026-11-17_104207_safari.mp4
   events  ~/Movies/Skreenrek/2026-11-17_104207_safari/events.json
   snippet ~/Movies/Skreenrek/2026-11-17_104207_safari/hyperframes.html
 ```
@@ -316,12 +316,12 @@ One skill, `record-window`, at `skills/record-window/SKILL.md` in the repo. `skr
 ```txt
 ~/Movies/Skreenrek/                               (Settings or --out)
 └── 2026-11-17_104207_safari/                     YYYY-MM-DD_HHMMSS_<app-slug>, local time; --name overrides the slug
-    ├── clip.mp4                                  H.264, constant frame rate, exact px
+    ├── 2026-11-17_104207_safari.mp4              named after the folder; H.264, constant frame rate, exact px
     ├── events.json                               omitted with --no-events
     └── hyperframes.html                          the snippet, plain text
 ```
 
-Decisions: one folder per clip, with fixed file names inside, so agents never parse file names. The names are lowercase with no spaces, so they're shell-safe. A collision within the same second adds `-2`. A partial clip after a failure keeps the same layout and gets `"complete": false` in events.json.
+Decisions: one folder per clip. The movie is named after its folder (collision suffix included), so it stays recognisable once copied out; `events.json` and `hyperframes.html` keep fixed names, and agents read the movie's path from `files.clip`, never by parsing names. The names are lowercase with no spaces, so they're shell-safe. A collision within the same second adds `-2`. A partial clip after a failure keeps the same layout and gets `"complete": false` in events.json.
 
 ## events.json schema (shape only)
 
@@ -333,7 +333,7 @@ Decisions: one folder per clip, with fixed file names inside, so agents never pa
     "id": "2026-11-17_104207_safari",
     "startedAt": "2026-11-17T10:42:07.120+01:00",
     "duration": 42.0, "fps": 60,
-    "video": { "file": "clip.mp4", "width": 1280, "height": 800, "scale": 2, "codec": "h264" },
+    "video": { "file": "2026-11-17_104207_safari.mp4", "width": 1280, "height": 800, "scale": 2, "codec": "h264" },
     "source": { "kind": "window", "app": "Safari", "bundleId": "com.apple.Safari", "title": "localhost:3000", "windowId": 4127,
                 "frame": { "x": 120, "y": 80, "width": 640, "height": 400, "unit": "pt" } },
     "startedBy": "mcp", "client": "Claude Code"
@@ -438,7 +438,7 @@ Agents can pick the file format, codec and compression. Defaults don't change: H
 - `--quality` and `--bitrate` can't be combined. With `--bitrate`, the encoder targets that average bitrate. With `--quality`, the engine picks a bitrate that scales with width × height × fps, so `high` looks the same at any size.
 - `prores` needs `--format mov`. It's ProRes 422, and `--quality` picks the flavour: `low` = Proxy, `medium` = LT, `high` = 422, `max` = 422 HQ. ProRes doesn't take `--bitrate`.
 - `max` is the name for the "near-lossless" preset. Don't call it lossless, because it isn't.
-- The clip file follows the format: `clip.mp4` or `clip.mov`. The snippet and `files.clip` point at the real file name.
+- The clip file follows the format: `<folder>.mp4` or `<folder>.mov`. The snippet and `files.clip` point at the real file name.
 - When the codec is `prores`, human output adds one line after `✓ Saved …`: `note:  ProRes doesn't play in Chrome or Firefox. Use --codec h264 for web pages.` `--json` and `--quiet` don't print it.
 - Human success line, non-default case only: `✓ Saved 0:42 · 1280 × 800 px · 60 fps · HEVC MOV · 9.8 Mbps`. With the defaults it stays as it is now.
 
@@ -452,7 +452,7 @@ Same keys in `record --json`, `stop --json` (inside `recording`), `skreenrek_sto
 
 ```json
 "video": {
-  "file": "clip.mov",
+  "file": "2026-11-17_104207_safari.mov",
   "container": "mov",
   "codec": "hevc",
   "profile": "main",
@@ -512,4 +512,4 @@ Settings: agents have their own tab (section 6, updated for 1.0.5).
 - `ffprobe` on each combination (h264/hevc × mp4/mov, prores × mov) reports the codec and container the read-back says, and the constant-frame-rate check from criterion 2 still passes.
 - `--bitrate 8` gives an actual `bitrateMbps` within ±15% of 8 on a 60 s recording with motion.
 - Each error above can be triggered, exits 2 before anything is resized, and prints that exact copy.
-- With no new flags, output is identical to today: `clip.mp4`, H.264, and the same success line.
+- With no new flags, output is identical to today: `<folder>.mp4`, H.264, and the same success line.

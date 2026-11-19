@@ -15,11 +15,11 @@ public struct VideoReadback: Sendable, Hashable, Codable {
     public var height: Int
     public var scale: Double
 
-    public init(file: String? = nil, width: Int, height: Int, scale: Double, codec: VideoCodec,
+    public init(file: String, width: Int, height: Int, scale: Double, codec: VideoCodec,
         container: VideoContainer = .mp4, profile: String? = nil, quality: QualityPreset? = .high,
         requestedBitrateMbps: Double? = nil, bitrateMbps: Double? = nil
     ) {
-        self.file = file ?? container.fileName
+        self.file = file
         self.container = container
         self.codec = codec
         self.profile = profile ?? (codec == .h264 ? "high" : codec == .hevc ? "main" : "422")
@@ -31,8 +31,9 @@ public struct VideoReadback: Sendable, Hashable, Codable {
         self.scale = scale
     }
 
-    public init(settings: OutputSettings, size: PixelSize, scale: Double = 1) {
-        self.init(width: size.width, height: size.height, scale: scale, codec: settings.codec,
+    /// `file` is the movie's name in its folder (see `VideoContainer.fileName(forFolder:)`).
+    public init(settings: OutputSettings, size: PixelSize, scale: Double = 1, file: String) {
+        self.init(file: file, width: size.width, height: size.height, scale: scale, codec: settings.codec,
             container: settings.container, profile: settings.profile, quality: settings.quality,
             requestedBitrateMbps: settings.requestedBitrateMbps)
     }

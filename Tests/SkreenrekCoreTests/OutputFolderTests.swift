@@ -68,6 +68,31 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: third.path, isDirectory: &isDirectory) && isDirectory.boolValue)
     }
 
+    @Test func theMovieIsNamedAfterItsFolder() throws {
+        let folder = URL(fileURLWithPath: "/m/2026-11-19_091629_grok-bot", isDirectory: true)
+        #expect(OutputFolder.movieURL(in: folder, container: .mp4).path
+            == "/m/2026-11-19_091629_grok-bot/2026-11-19_091629_grok-bot.mp4")
+        #expect(OutputFolder.movieURL(in: folder, container: .mov).lastPathComponent == "2026-11-19_091629_grok-bot.mov")
+        #expect(VideoContainer.mov.fileName(forFolderNamed: "2026-11-19_091629_grok-bot")
+            == "2026-11-19_091629_grok-bot.mov")
+    }
+
+    @Test func aCollisionFolderKeepsItsSuffixInTheMovieName() throws {
+        let temp = try TempFolder("movie-names")
+        defer { temp.cleanUp() }
+        func make() throws -> URL {
+            try OutputFolder.create(
+                in: temp.url, target: .window(Fixtures.safari), name: nil, date: Self.date, timeZone: Self.paris)
+        }
+        let first = try make()
+        let second = try make()
+        #expect(OutputFolder.movieURL(in: first, container: .mp4).lastPathComponent == "2026-11-17_104207_safari.mp4")
+        #expect(OutputFolder.movieURL(in: second, container: .mp4).lastPathComponent == "2026-11-17_104207_safari-2.mp4")
+        #expect(OutputFolder.movieURL(in: second, container: .mov).lastPathComponent == "2026-11-17_104207_safari-2.mov")
+        #expect(OutputFolder.movieURL(in: second, container: .mp4).deletingLastPathComponent().lastPathComponent
+            == second.lastPathComponent)
+    }
+
     @Test func anUnwritableParentFailsBeforeRecording() throws {
         let temp = try TempFolder("unwritable")
         defer { temp.cleanUp() }

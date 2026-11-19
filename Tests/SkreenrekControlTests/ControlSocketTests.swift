@@ -66,7 +66,7 @@ import Testing
 
         let fm = FileManager.default
         let folder = h.temp.output.appendingPathComponent(start.recordingId)
-        #expect(stop.files.clip == folder.appendingPathComponent("clip.mp4").path)
+        #expect(stop.files.clip == folder.appendingPathComponent("\(start.recordingId).mp4").path)
         #expect(stop.files.events == folder.appendingPathComponent("events.json").path)
         #expect(stop.files.snippet == folder.appendingPathComponent("hyperframes.html").path)
         for path in [stop.files.clip, stop.files.events!, stop.files.snippet] {

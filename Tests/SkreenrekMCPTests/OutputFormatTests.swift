@@ -61,7 +61,9 @@ import Testing
             #expect(stopped["recording"]?["video"]?["container"] == "mov")
             #expect(stopped["recording"]?["video"]?["profile"] == "high")
             #expect(stopped["recording"]?["video"]?["bitrateMbps"] != .null)
-            #expect(stopped["files"]?["clip"]?.stringValue?.hasSuffix("/clip.mov") == true)
+            let id = try #require(stopped["recording"]?["id"]?.stringValue)
+            #expect(stopped["files"]?["clip"]?.stringValue?.hasSuffix("/\(id)/\(id).mov") == true)
+            #expect(stopped["recording"]?["video"]?["file"]?.stringValue == "\(id).mov")
             let status = try await h.call("skreenrek_status").structured()
             #expect(status["lastClip"] == stopped)
         }

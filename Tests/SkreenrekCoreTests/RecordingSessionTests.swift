@@ -290,7 +290,7 @@ extension RecorderSuites {
                 options: RecordingOptions(fps: .fps60), folder: folder)
             clock.advance(to: 0.5)
             await eventually { await session.framesReceived >= 5 }
-            #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("clip.mp4").path))
+            #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("\(folder.lastPathComponent).mp4").path))
             await session.discard()
             #expect(!FileManager.default.fileExists(atPath: folder.path))
             let result = try await withTestDeadline { await session.waitForEnd() }
