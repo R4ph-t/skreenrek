@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Skreenrek now updates itself with Sparkle: Check for Updates… in the menu and in Settings, and an Automatically check for updates switch. Updates are verified and installed in place, including Homebrew cask installs.
+
+### Changed
+
+- 1.0.6 can't update itself: install 1.0.7 once by hand (`brew upgrade --cask skreenrek` or the download); later versions install on their own.
+
+### Removed
+
+- The in-app What's new is gone; Sparkle's update window shows the release notes.
+
 ### Fixed
 
-- What's new in Settings shows the release notes as separate lines (section names, then one line per change) instead of one run-on paragraph, and Settings grows to fit them when an update is found while it's open, so nothing is cut off at the bottom.
 - Settings chosen from the menu opens in front of other apps' windows, including when it was already open behind them.
 
 ## [1.0.6] - 2026-11-19

@@ -14,8 +14,8 @@ public protocol UIEffects: AnyObject {
     func openClip(at url: URL)
     func copy(_ text: String)
     func openSettings()
-    /// Opens Settings on General, where the Updates row is.
-    func showUpdates()
+    /// Check for Updates…: Sparkle checks now and shows its own window.
+    func checkForUpdates()
     /// Opens onboarding on step 1 (the permissions), even after onboarding was completed.
     func showPermissions()
     /// The "Discard this recording?" alert; true for Discard.
@@ -87,9 +87,9 @@ public final class AppModel {
     /// Record was clicked and the recorder isn't running yet.
     public private(set) var recordStarting = false
     @ObservationIgnored private var refusals = 0
-    /// A newer release's version, from `UpdateChecker`, for the dropdown's footer line.
-    public var updateAvailable: String? {
-        didSet { if updateAvailable != oldValue { onChange?() } }
+    /// The footer's Check for Updates… item, following Sparkle (hidden where it doesn't run).
+    public var checkForUpdates = CheckForUpdatesItem.hidden {
+        didSet { if checkForUpdates != oldValue { onChange?() } }
     }
 
     public init(
@@ -111,7 +111,7 @@ public final class AppModel {
             recordingIndicator: settings.hud,
             permissionsMissing: permissions.map { !$0.canCapture || $0.accessibility != .allowed }
                 ?? false,
-            updateAvailable: updateAvailable)
+            checkForUpdates: checkForUpdates)
     }
 
     public var icon: StatusIcon { StatusIconModel.icon(for: context) }
@@ -203,8 +203,8 @@ public final class AppModel {
             effects.open(settings.outputFolder)
         case .openSettings:
             effects.openSettings()
-        case .showUpdate:
-            effects.showUpdates()
+        case .checkForUpdates:
+            effects.checkForUpdates()
         case .showPermissions:
             effects.showPermissions()
         case .quit:

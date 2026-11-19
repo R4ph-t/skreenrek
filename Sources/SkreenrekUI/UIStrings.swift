@@ -87,6 +87,7 @@ public enum UIStrings {
         public static let copyFilePath = "Copy File Path"
         public static let copySnippet = "Copy HyperFrames Snippet"
         public static let openOutputFolder = "Open Output Folder"
+        public static let checkForUpdates = "Check for Updates…"
         public static let settings = "Settings…"
         public static let quit = "Quit Skreenrek"
         public static let stopRecording = "Stop Recording"
@@ -416,8 +417,6 @@ public enum UIStrings {
         public static let accessibilityNotAllowed =
             "Accessibility isn't allowed. Skreenrek can record, but windows keep their current size."
 
-        /// `Updates, Skreenrek 1.0.5 is up to date.`
-        public static func updatesLabel(_ detail: String) -> String { "\(Updates.title), \(detail)" }
         /// `Screen Recording, allowed.`
         public static func permissionAllowedLabel(_ title: String) -> String { "\(title), allowed." }
         /// `Accessibility, required for exact window sizes, not allowed, Open System Settings…`. VoiceOver adds
@@ -434,33 +433,11 @@ public enum UIStrings {
 
     public enum Updates {
         public static let title = "Updates"
-        public static let checkForUpdates = "Check for Updates"
-        public static let checking = "Checking…"
-        public static let update = "Update"
-        public static let download = "Download…"
-        public static let retry = "Retry"
-        public static let relaunch = "Relaunch"
-        public static let openReleasePage = "Open Release Page"
-        public static let failed = "Couldn't check for updates."
-        public static let installing = "Updating with Homebrew…"
-        public static let installFailed = "Homebrew couldn't update Skreenrek."
-        /// The dropdown's footer line while a newer release waits.
-        public static let menuAvailable = "Update available"
-        /// The Settings disclosure that shows the newer release's notes.
-        public static let whatsNew = "What's new"
+        public static let checkForUpdates = "Check for Updates…"
+        public static let automaticallyCheck = "Automatically check for updates"
 
-        /// `Skreenrek 1.0.2`, before the first check.
+        /// `Skreenrek 1.0.7`: the Updates row's title.
         public static func currentVersion(_ version: String) -> String { "Skreenrek \(version)" }
-        /// `Skreenrek 1.0.2 is up to date.`
-        public static func upToDate(_ version: String) -> String { "Skreenrek \(version) is up to date." }
-        /// `Skreenrek 1.0.3 is available. You have 1.0.2.`
-        public static func available(_ version: String, current: String) -> String {
-            "Skreenrek \(version) is available. You have \(current)."
-        }
-        /// `Skreenrek 1.0.3 is installed. Relaunch to use it.`
-        public static func installed(_ version: String) -> String {
-            "Skreenrek \(version) is installed. Relaunch to use it."
-        }
     }
 
     // MARK: - Dropdown header, Last Clip row and the project link
@@ -541,9 +518,7 @@ public enum UIStrings {
         Panel.custom, Panel.previewUnavailable, Panel.openSettings, Panel.windowClosed, Panel.clipMissing,
         Panel.clipMissingLabel, Panel.openClip, Panel.previewFailedHelp, Panel.stopHelp, Panel.noWindow,
         Panel.pickWindowToRecord, Panel.clearWindow, Panel.clearPickedWindow, Panel.noWindowLabel,
-        Updates.title, Updates.checkForUpdates, Updates.checking, Updates.update, Updates.download, Updates.retry,
-        Updates.relaunch, Updates.openReleasePage, Updates.failed, Updates.installing, Updates.installFailed,
-        Updates.menuAvailable, Updates.whatsNew,
+        Updates.title, Updates.checkForUpdates, Updates.automaticallyCheck, Menu.checkForUpdates,
         Menu.showControlBar, Settings.showControlBar, ControlBar.sizeHelp, ControlBar.recordHelp,
         ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked, ControlBar.accessibilityOff,
         ControlBar.clearWindow, ControlBar.clearPickedWindow, ControlBar.saved, ControlBar.copyFilePathLabel,

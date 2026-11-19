@@ -29,8 +29,8 @@ public enum MenuAction: Sendable, Hashable {
     case chooseOutputFolder
     /// Opens onboarding step 1, where each missing permission can be allowed.
     case showPermissions
-    /// The footer's Update available line: opens Settings, where the Updates row installs it.
-    case showUpdate
+    /// Check for Updates…: Sparkle checks now and shows its own window.
+    case checkForUpdates
 }
 
 /// A key equivalent shown in the dropdown. No numeric shortcuts.
@@ -216,18 +216,19 @@ public enum MenuModel {
         return entries
     }
 
-    /// Open Output Folder, Settings…, Quit, after `Update available · 1.0.3` while a newer release waits.
+    /// Open Output Folder, Check for Updates… (where Sparkle runs), Settings…, Quit.
     private static func footer(_ context: MenuContext) -> [MenuEntry] {
-        let update = context.updateAvailable.map {
-            MenuEntry.item(
-                MenuItemModel(
-                    UIStrings.Updates.menuAvailable + UIStrings.Menu.separator + $0, action: .showUpdate))
+        var entries: [MenuEntry] = [.item(MenuItemModel(UIStrings.Menu.openOutputFolder, action: .openOutputFolder))]
+        if context.checkForUpdates != .hidden {
+            entries.append(
+                .item(
+                    MenuItemModel(
+                        UIStrings.Menu.checkForUpdates, action: .checkForUpdates,
+                        enabled: context.checkForUpdates == .enabled)))
         }
-        return [update].compactMap { $0 } + [
-            .item(MenuItemModel(UIStrings.Menu.openOutputFolder, action: .openOutputFolder)),
-            .item(MenuItemModel(UIStrings.Menu.settings, action: .openSettings, shortcut: .settings)),
-            .item(MenuItemModel(UIStrings.Menu.quit, action: .quit, shortcut: .quit)),
-        ]
+        entries.append(.item(MenuItemModel(UIStrings.Menu.settings, action: .openSettings, shortcut: .settings)))
+        entries.append(.item(MenuItemModel(UIStrings.Menu.quit, action: .quit, shortcut: .quit)))
+        return entries
     }
 
     // MARK: - Status rows

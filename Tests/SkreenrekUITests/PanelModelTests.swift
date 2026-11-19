@@ -489,13 +489,13 @@ import Testing
 
     // MARK: - Fixtures
 
-    /// Armed at 1080p. By default with the update row and a last clip: the 647.5 pt panel.
+    /// Armed at 1080p. By default with Check for Updates… and a last clip: the 647.5 pt panel.
     private static func armed(
         phase: PanelPreviewPhase = .ready(still), spinner: Bool = false, fileExists: Bool = true, clip: Bool = true,
         update: Bool = true
     ) -> PanelContent {
         var context = RenderSamples.armed.context
-        context.updateAvailable = update ? "1.0.4" : nil
+        context.checkForUpdates = update ? .enabled : .hidden
         context.sizeChoice = .size(SizePreset.p1080.size)
         if !clip { context.snapshot.lastClip = nil }
         return PanelModel.content(
@@ -504,7 +504,7 @@ import Testing
 
     private static func idle(clip: Bool, update: Bool) -> MenuContext {
         var context = RenderSamples.idle.context
-        context.updateAvailable = update ? "1.0.4" : nil
+        context.checkForUpdates = update ? .enabled : .hidden
         if clip {
             context.snapshot.lastClip = RenderSamples.clip()
             context.lastClipTitle = "Safari — localhost:3000"
@@ -524,7 +524,7 @@ import Testing
 
     private static func recording(update: Bool = true) throws -> PanelContent {
         var context = try #require(RenderSamples.states.first { $0.name == "recording" }).context
-        context.updateAvailable = update ? "1.0.4" : nil
+        context.checkForUpdates = update ? .enabled : .hidden
         return PanelModel.content(for: context, preview: .ready(still))
     }
 

@@ -114,40 +114,32 @@ import Testing
         }
     }
 
-    /// Release notes found after the window was built (the launch or hourly check) make General taller: the window
-    /// grows once to fit them, keeping its top edge, and tab switches still never resize it.
-    @Test func notesThatArriveAfterTheWindowIsBuiltGrowItOnceAndNothingClips() async throws {
-        try await onMain("settings notes refit") {
+    /// The Updates section is there only with an updater: a dev or ad-hoc build has neither the section nor its two
+    /// rows, and the other tabs are the same either way.
+    @Test func theUpdatesSectionAddsTwoRowsOnlyWithSparkle() async throws {
+        try await onMain("settings updates rows") {
             let (defaults, name) = SettingsStoreTests.suite()
             defer { defaults.removePersistentDomain(forName: name) }
             let store = SettingsStore(defaults: defaults)
-            let feed = FakeReleaseFeed(latest: "99.0.0", notes: RenderSamples.releaseNotes)
-            let updates = UpdateChecker(
-                feed: feed, installer: nil, method: .releasePage, defaults: defaults, openURL: { _ in }, relaunch: {})
-            let panel = Self.panel(updates: updates)
-            let controller = SettingsWindowController(store: store, panel: panel, actions: .none)
-            let window = controller.prepareWindow()
-            defer { window.contentViewController = nil }
-            let before = controller.contentHeight
-            let top = window.frame.maxY
-            await updates.checkNow()
-            // The refit runs on the main actor right after the state change; yield until it has (no clock involved).
-            for _ in 0..<100 where controller.contentHeight == before { await Task.yield() }
-            let needed = SettingsWindowController.tallestTabHeight(store: store, panel: panel, actions: .none)
-            #expect(needed > before + WhatsNewNotes.maxHeight)
-            #expect(controller.contentHeight == needed)
-            #expect(window.contentLayoutRect.height == needed, "\(window.contentLayoutRect)")
-            #expect(window.frame.maxY == top)
-            let frame = window.frame
-            for tab in SettingsTab.allCases + SettingsTab.allCases {
-                controller.select(tab)
-                window.contentView?.layoutSubtreeIfNeeded()
-                #expect(window.frame == frame, "\(tab)")
-            }
-            // Measuring again with nothing new changes nothing.
-            controller.fitHeight(allowShrink: true)
-            #expect(window.frame == frame)
+            let with = try await Self.rowFrames(
+                tab: .general, count: 10, store: store, panel: Self.panel(updates: StaticUpdater()))
+            #expect(with.count == 10)
+            let without = try await Self.rowFrames(tab: .general, count: 8, store: store, panel: Self.panel(updates: nil))
+            #expect(without.count == 8)
+            let tall = NSHostingView(
+                rootView: SettingsView(
+                    tab: .general, store: store, panel: Self.panel(updates: StaticUpdater()), actions: .none))
+            let short = NSHostingView(
+                rootView: SettingsView(tab: .general, store: store, panel: Self.panel(updates: nil), actions: .none))
+            #expect(tall.fittingSize.height > short.fittingSize.height + 2 * SettingsMetrics.rowHeight)
         }
+    }
+
+    @Test func theUpdatesCopyIsSparkles() {
+        #expect(UIStrings.Updates.title == "Updates")
+        #expect(UIStrings.Updates.checkForUpdates == "Check for Updates…")
+        #expect(UIStrings.Updates.automaticallyCheck == "Automatically check for updates")
+        #expect(UIStrings.Updates.currentVersion("1.0.7") == "Skreenrek 1.0.7")
     }
 
     @Test func theIdentityRowShowsTheNameAndTheCurrentVersion() {
@@ -193,7 +185,7 @@ import Testing
         #expect(!SettingsHeaderIcon.isAppBundle(.main))
     }
 
-    @Test(arguments: [(SettingsTab.general, 9), (.agents, 4), (.permissions, 2)])
+    @Test(arguments: [(SettingsTab.general, 10), (.agents, 4), (.permissions, 2)])
     func everyRowIsFortyFourTallOnTheLabelAndTrailingEdges(tab: SettingsTab, rows: Int) async throws {
         try await onMain("settings rows") {
             let (defaults, name) = SettingsStoreTests.suite()
@@ -210,11 +202,7 @@ import Testing
     }
 
     @MainActor
-    private static func panel(updates: UpdateChecker? = nil) -> SettingsPanelState {
-        let defaults = UserDefaults(suiteName: "skreenrek.tests.\(UUID().uuidString)")!
-        let updates = updates ?? UpdateChecker(
-            feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
-            openURL: { _ in }, relaunch: {})
+    private static func panel(updates: (any AppUpdater)? = StaticUpdater()) -> SettingsPanelState {
         // An empty home folder: the installer only reads it, and every agent shows as not installed.
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("skreenrek-settings-\(UUID().uuidString)")
         let agents = AgentsPanelState(installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: ""))
