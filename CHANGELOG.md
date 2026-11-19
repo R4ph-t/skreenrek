@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-11-19
+
 ### Added
 
 - Skreenrek now updates itself with Sparkle: Check for Updates… in the menu and in Settings, and an Automatically check for updates switch. Updates are verified and installed in place, including Homebrew cask installs.
