@@ -180,6 +180,11 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let onboarding = OnboardingWindowController(model: onboardingModel)
         onboarding.onClose = { [weak dragHelper] in dragHelper?.dismiss(from: .onboarding) }
         onboardingModel.didLeaveStep = { [weak dragHelper] _ in dragHelper?.dismiss(from: .onboarding) }
+        // "Allow …" raises macOS's prompt, whose own Open System Settings button we never see: the helper waits
+        // for System Settings' window instead.
+        onboardingModel.didRequest = { [weak dragHelper] permission in
+            dragHelper?.arm(permission, from: .onboarding)
+        }
         self.onboarding = onboarding
         let updater = makeUpdater(model: model, effects: effects)
         let panel = SettingsPanelState(

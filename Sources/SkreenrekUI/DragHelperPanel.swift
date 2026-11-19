@@ -330,6 +330,16 @@ public final class DragHelperController {
 
     /// `Open System Settings…` for `permission`. A helper already up changes its copy in place.
     public func show(_ permission: Permission, from source: Source) {
+        show(permission, from: source, trigger: .openedSettings)
+    }
+
+    /// A request for `permission` whose macOS prompt can send the user to System Settings: the helper waits for
+    /// System Settings' window and shows beside it, or gives up silently (granted first, or 60 s with no window).
+    public func arm(_ permission: Permission, from source: Source) {
+        show(permission, from: source, trigger: .requested)
+    }
+
+    private func show(_ permission: Permission, from source: Source, trigger: DragHelperState.Trigger) {
         guard DragHelperPane.applies(to: permission) else { return }
         let eligibility = eligibility()
         guard eligibility == .eligible else {
@@ -338,7 +348,7 @@ public final class DragHelperController {
         }
         self.source = source
         if let model, !model.state.isClosed {
-            model.state.switchPane(to: permission, now: now())
+            model.state.switchPane(to: permission, now: now(), trigger: trigger)
             return tick()
         }
         // One fading out after a grant gives way to the new one.
@@ -346,7 +356,8 @@ public final class DragHelperController {
         self.source = source
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let model = DragHelperViewModel(
-            state: DragHelperState(permission: permission, now: now(), reduceMotion: reduceMotion),
+            state: DragHelperState(
+                permission: permission, now: now(), reduceMotion: reduceMotion, trigger: trigger),
             icon: icon(), increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
             bundleURL: Bundle.main.bundleURL)
         model.onClose = { [weak self] in self?.close(.closeButton) }

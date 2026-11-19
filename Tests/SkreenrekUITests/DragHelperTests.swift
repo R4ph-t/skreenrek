@@ -175,6 +175,109 @@ import Testing
         #expect(state.appearedAt == 0)
     }
 
+    // MARK: Armed by a request
+
+    /// Armed by "Allow …" at `t`: macOS's prompt, not us, may open System Settings.
+    static func armed(at t: TimeInterval = 0, _ permission: Permission = .screenRecording) -> DragHelperState {
+        DragHelperState(permission: permission, now: t, reduceMotion: false, trigger: .requested)
+    }
+
+    @Test func armedByARequestShowsOnceSystemSettingsAppears() {
+        var state = Self.armed()
+        #expect(state.trigger == .requested)
+        // The prompt is up; the user reads it for a while. No dock at 3 s.
+        for tick in 1...40 {
+            state.update(now: Double(tick) * 0.25, window: .notRunning, screens: Self.screens, granted: false)
+        }
+        state.update(now: 10.25, window: .hidden, screens: Self.screens, granted: false)
+        #expect(state.phase == .waiting)
+        #expect(!state.onScreen)
+        #expect(state.placement == nil)
+        // Open System Settings on the prompt: System Settings' window shows, and the panel goes beside it.
+        state.update(now: 10.5, window: .visible(Self.window), screens: Self.screens, granted: false)
+        #expect(state.phase == .shown)
+        #expect(state.onScreen)
+        #expect(state.appearedAt == 10.5)
+        #expect(state.placement?.side == .right)
+        // From then on it behaves like an opened one: granted holds, then closes.
+        state.update(now: 12, window: .visible(Self.window), screens: Self.screens, granted: true)
+        #expect(state.phase == .granted(at: 12))
+        state.update(now: 13.5, window: .visible(Self.window), screens: Self.screens, granted: true)
+        #expect(state.phase == .closed(.granted))
+    }
+
+    @Test func armedByARequestNeverShowsWithoutSystemSettingsAndGivesUp() {
+        // Deny or close on the prompt: System Settings never opens. Unreadable bounds don't dock it either.
+        var state = Self.armed()
+        var t = 0.25
+        while t < M.requestTimeout {
+            let window: SystemSettingsWindow = Int(t * 4) % 3 == 0 ? .unreadable : .notRunning
+            state.update(now: t, window: window, screens: Self.screens, granted: false)
+            #expect(!state.onScreen)
+            #expect(state.appearedAt == nil)
+            t += 0.25
+        }
+        #expect(state.phase == .waiting)
+        state.update(now: M.requestTimeout, window: .notRunning, screens: Self.screens, granted: false)
+        #expect(state.phase == .closed(.timedOut))
+        #expect(!state.onScreen)
+        #expect(state.appearedAt == nil)
+        // Gone for good: a later System Settings window doesn't bring it back.
+        state.update(now: M.requestTimeout + 1, window: .visible(Self.window), screens: Self.screens, granted: false)
+        #expect(state.phase == .closed(.timedOut))
+        #expect(state.appearedAt == nil)
+    }
+
+    @Test func armedByARequestAndGrantedBeforeSystemSettingsNeverShows() {
+        // Accessibility applies live: granted while the prompt or System Settings is still coming up.
+        var waiting = Self.armed(.accessibility)
+        waiting.update(now: 0.25, window: .notRunning, screens: Self.screens, granted: false)
+        waiting.update(now: 0.5, window: .notRunning, screens: Self.screens, granted: true)
+        #expect(waiting.phase == .closed(.notNeeded))
+        #expect(waiting.appearedAt == nil)
+        // Already granted on the poll that first sees System Settings: not shown.
+        var appearing = Self.armed(.accessibility)
+        appearing.update(now: 0.25, window: .visible(Self.window), screens: Self.screens, granted: true)
+        #expect(appearing.phase == .closed(.notNeeded))
+        #expect(!appearing.onScreen)
+        #expect(appearing.appearedAt == nil)
+    }
+
+    @Test func openSystemSettingsOnAnArmedHelperDocksThreeSecondsAfterTheClick() {
+        var state = Self.armed()
+        state.update(now: 5, window: .notRunning, screens: Self.screens, granted: false)
+        #expect(!state.onScreen)
+        state.switchPane(to: .screenRecording, now: 5, trigger: .openedSettings)
+        #expect(state.trigger == .openedSettings)
+        state.update(now: 7.75, window: .notRunning, screens: Self.screens, granted: false)
+        #expect(!state.onScreen)
+        state.update(now: 8, window: .notRunning, screens: Self.screens, granted: false)
+        #expect(state.onScreen)
+        #expect(state.placement?.side == .docked)
+        // A request on an opened helper keeps it opened.
+        var opened = DragHelperState(permission: .screenRecording, now: 0, reduceMotion: false)
+        opened.switchPane(to: .accessibility, now: 1, trigger: .requested)
+        #expect(opened.trigger == .openedSettings)
+        #expect(opened.permission == .accessibility)
+    }
+
+    @Test func openSystemSettingsKeepsTheThreeSecondDock() {
+        let state = DragHelperState(permission: .screenRecording, now: 0, reduceMotion: false)
+        #expect(state.trigger == .openedSettings)
+        var granted = state
+        // An opened helper still shows (then reads granted) when the permission is already on.
+        granted.update(now: 0.25, window: .visible(Self.window), screens: Self.screens, granted: true)
+        #expect(granted.appearedAt == 0.25)
+        #expect(granted.phase == .granted(at: 0.25))
+        // And never times out: it docks at 3 s and stays.
+        var docked = state
+        docked.update(now: 3, window: .notRunning, screens: Self.screens, granted: false)
+        docked.update(now: 120, window: .notRunning, screens: Self.screens, granted: false)
+        #expect(docked.onScreen)
+        #expect(docked.placement?.side == .docked)
+        #expect(docked.phase == .shown)
+    }
+
     // MARK: The loop
 
     @Test func loopTimings() throws {
@@ -355,6 +458,38 @@ import Testing
                 helper.show(.screenRecording, from: .settings)
                 #expect(helper.state == nil)
             }
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func armsForARequestAndGoesWithTheStep() async throws {
+        try await onMain("drag helper armed", seconds: 10) {
+            let helper = Self.make()
+            helper.arm(.directCapture, from: .onboarding)
+            #expect(helper.state == nil)
+            helper.arm(.screenRecording, from: .onboarding)
+            #expect(helper.state?.trigger == .requested)
+            #expect(helper.state?.phase == .waiting)
+            // The step is left (or onboarding closes): it goes, unseen.
+            helper.dismiss(from: .onboarding)
+            #expect(helper.state == nil)
+            // Open System Settings… after a request: the same helper, now with the dock fallback.
+            helper.arm(.accessibility, from: .onboarding)
+            helper.show(.accessibility, from: .onboarding)
+            #expect(helper.state?.trigger == .openedSettings)
+            helper.close(.appQuit)
+            #expect(helper.state == nil)
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func anArmedHelperGoesWhenThePermissionIsGranted() async throws {
+        try await onMain("drag helper armed granted", seconds: 10) {
+            let probe = FakePermissionProbe(screenRecording: .missing, accessibility: .allowed)
+            let helper = DragHelperController(
+                probe: probe, windows: FakeSettingsWindow(), now: { 0 }, eligibility: { .eligible },
+                icon: { NSImage() })
+            // The first poll runs on arm: already granted, so it tears down without a panel.
+            helper.arm(.accessibility, from: .onboarding)
+            #expect(helper.state == nil)
         }
     }
 
