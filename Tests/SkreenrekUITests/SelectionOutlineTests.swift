@@ -9,24 +9,24 @@ import Testing
 
 /// The on-screen outline: when it shows, where, how it looks, and how its timing runs on the manual clock.
 @Suite struct SelectionOutlineModelTests {
-    private static let frame = PointRect(x: 100, y: 200, width: 640, height: 400)
-    private static let target: SelectionOutlineTarget = {
+    static let frame = PointRect(x: 100, y: 200, width: 640, height: 400)
+    static let target: SelectionOutlineTarget = {
         var window = RenderSamples.safari
         window.frame = frame
         return SelectionOutlineTarget(window: window)
     }()
 
-    private static func input(
-        picks: Int = 0, capturing: Bool = false, picker: Bool = false, panel: Bool = false, bar: Bool = false,
-        closed: Bool = false, reduceMotion: Bool = false, contrast: Bool = false,
+    static func input(
+        picks: Int = 0, capture: SelectionOutlineCapture = .none, picker: Bool = false, panel: Bool = false,
+        bar: Bool = false, closed: Bool = false, reduceMotion: Bool = false, contrast: Bool = false,
         target: SelectionOutlineTarget? = target
     ) -> SelectionOutlineInput {
         SelectionOutlineInput(
-            target: target, pickCount: picks, capturing: capturing, pickerOpen: picker, panelOpen: panel,
+            target: target, pickCount: picks, capture: capture, pickerOpen: picker, panelOpen: panel,
             controlBarVisible: bar, windowClosed: closed, reduceMotion: reduceMotion, increaseContrast: contrast)
     }
 
-    private static func model(_ first: SelectionOutlineInput = input(), macOS: Int = 26) -> SelectionOutlineModel {
+    static func model(_ first: SelectionOutlineInput = input(), macOS: Int = 26) -> SelectionOutlineModel {
         var model = SelectionOutlineModel(macOSMajorVersion: macOS)
         model.update(first, now: 0)
         return model
@@ -79,9 +79,9 @@ import Testing
         #expect(model.nextDeadline(after: 1000) == nil)
     }
 
-    @Test func itStillHidesWhileRecordingEvenIfTheBarIsVisible() {
+    @Test func aRecordingWithoutTheIndicatorHidesItEvenIfTheBarIsVisible() {
         var model = Self.model()
-        model.update(Self.input(picks: 1, capturing: true, bar: true), now: 0)
+        model.update(Self.input(picks: 1, capture: .recordingHidden, bar: true), now: 0)
         #expect(model.display(at: 0) == .hidden)
         #expect(!model.wantsTracking(at: 0))
     }
@@ -106,7 +106,8 @@ import Testing
     }
 
     @Test(arguments: [
-        input(capturing: true, panel: true), input(picker: true, panel: true), input(panel: true, closed: true),
+        input(capture: .recordingHidden, panel: true), input(capture: .saving(keepsPick: false), panel: true),
+        input(picker: true, panel: true), input(panel: true, closed: true),
         input(panel: true, target: nil),
     ])
     func itNeverShowsInTheExcludedStates(_ input: SelectionOutlineInput) {
@@ -197,14 +198,14 @@ import Testing
         #expect(model.display(at: 1.8) == .hidden)
     }
 
-    @Test func clearingAndRecordingHideItAtOnce() {
+    @Test func clearingAndARecordingWithoutTheIndicatorHideItAtOnce() {
         var cleared = Self.model(Self.input(panel: true))
         cleared.update(Self.input(panel: true, target: nil), now: 1)
         #expect(cleared.display(at: 1) == .hidden)
         #expect(cleared.nextDeadline(after: 1) == nil)
         var recording = Self.model()
         recording.update(Self.input(picks: 1), now: 0)
-        recording.update(Self.input(picks: 1, capturing: true), now: 0.5)
+        recording.update(Self.input(picks: 1, capture: .recordingHidden), now: 0.5)
         #expect(recording.display(at: 0.5) == .hidden)
     }
 
@@ -223,7 +224,7 @@ import Testing
             SelectionOutlineInput(
                 snapshot: snapshot, panelOpen: false, windowClosed: false, reduceMotion: false,
                 increaseContrast: false
-            ).capturing)
+            ).capture == .saving(keepsPick: false))
     }
 
     // MARK: - The window server's description
@@ -247,8 +248,13 @@ import Testing
     private final class FakeSurface: SelectionOutlineSurface {
         var log: [String] = []
         var onHide: (() -> Void)?
-        func show(_ appearance: SelectionOutlineAppearance) { log.append("show \(appearance.frame.x)") }
-        func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) { log.append("fade") }
+        func show(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+            let tone = appearance.tone == .record ? " red" : ""
+            log.append("show \(appearance.frame.x)\(tone)" + (crossfade > 0 ? " crossfade \(crossfade)" : ""))
+        }
+        func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) {
+            log.append(abs(duration - 0.3) < 0.0001 ? "fade" : "fade \(duration)")
+        }
         func hide() {
             log.append("hide")
             onHide?()
@@ -338,5 +344,285 @@ import Testing
         #expect(panel.sharingType == .none)
         #expect(!panel.collectionBehavior.contains(.transient))
         #expect(panel.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle])
+    }
+}
+
+/// The red recording outline (control bar addendum 2, §A): colour per state, geometry, crossfades and fades, regions,
+/// and the indicator rule.
+@Suite struct RecordingOutlineTests {
+    private typealias T = SelectionOutlineModelTests
+    private static let display = DisplayInfo(
+        id: 1, name: "Built-in Retina Display", scale: 2, frame: PointRect(x: 0, y: 0, width: 1512, height: 982),
+        visibleFrame: PointRect(x: 0, y: 33, width: 1512, height: 949))
+
+    private func shown(_ display: SelectionOutlineDisplay) -> SelectionOutlineAppearance? {
+        if case .shown(let appearance) = display { return appearance }
+        return nil
+    }
+
+    /// Picked with the bar up, then the recording starts.
+    private func recording(reduceMotion: Bool = false, bar: Bool = true) -> SelectionOutlineModel {
+        var model = T.model(T.input(bar: bar, reduceMotion: reduceMotion))
+        model.update(T.input(capture: .recordingWindow, bar: bar, reduceMotion: reduceMotion), now: 1)
+        return model
+    }
+
+    @Test func idlePickedIsTheAccent() throws {
+        let appearance = try #require(shown(T.model(T.input(bar: true)).display(at: 0)))
+        #expect(appearance.tone == .accent)
+    }
+
+    @Test func recordingIsRedWithThePickGeometry() throws {
+        let model = recording()
+        let red = try #require(shown(model.display(at: 1)))
+        #expect(red.tone == .record)
+        #expect(red.frame == SelectionOutlineModel.outlineFrame(around: T.frame))
+        #expect(red.strokeWidth == 3)
+        #expect(red.cornerRadius == 19)
+        #expect(red.hairlineWidth == 0.5)
+        #expect(red.hairlineOpacity == 0.3)
+        #expect(red.windowID == T.target.window.id)
+        var old = T.model(T.input(), macOS: 15)
+        old.update(T.input(capture: .recordingWindow, contrast: true), now: 0)
+        let contrast = try #require(shown(old.display(at: 0)))
+        #expect(contrast.cornerRadius == 13)
+        #expect(contrast.hairlineWidth == 1)
+        #expect(contrast.hairlineOpacity == 0.6)
+    }
+
+    @Test func theRedFrameShowsWithThePanelAndTheBarDownAndNeverExpires() throws {
+        let model = recording(bar: false)
+        #expect(shown(model.display(at: 1000))?.tone == .record)
+        #expect(model.nextDeadline(after: 1000) == nil)
+        #expect(model.wantsTracking(at: 1000))
+    }
+
+    @Test(arguments: [(false, 0.2), (true, 0.0)])
+    func recordStartCrossfadesTheAccentToRed(reduceMotion: Bool, seconds: Double) {
+        var model = T.model(T.input(bar: true, reduceMotion: reduceMotion))
+        let before = model.display(at: 0)
+        model.update(T.input(capture: .recordingWindow, bar: true, reduceMotion: reduceMotion), now: 1)
+        let after = model.display(at: 1)
+        #expect(model.crossfade(from: before, to: after) == seconds)
+        #expect(model.crossfade(from: after, to: after) == 0)
+        #expect(model.crossfade(from: .hidden, to: after) == 0)
+    }
+
+    @Test(arguments: [(false, 0.2), (true, 0.0)])
+    func savingWithTheBarOnGoesBackToTheAccent(reduceMotion: Bool, seconds: Double) throws {
+        var model = recording(reduceMotion: reduceMotion)
+        let before = model.display(at: 2)
+        model.update(T.input(capture: .saving(keepsPick: true), bar: true, reduceMotion: reduceMotion), now: 2)
+        let after = model.display(at: 2)
+        let accent = try #require(shown(after))
+        #expect(accent.tone == .accent)
+        #expect(model.crossfade(from: before, to: after) == seconds)
+        #expect(shown(model.display(at: 100))?.tone == .accent)
+        model.update(T.input(bar: true, reduceMotion: reduceMotion), now: 3)
+        #expect(shown(model.display(at: 3))?.tone == .accent)
+    }
+
+    @Test func savingWithThePickDroppedFadesOutOverAThirdOfASecond() {
+        var model = recording()
+        model.update(T.input(capture: .saving(keepsPick: false)), now: 2)
+        guard case .fading(let appearance, let remaining) = model.display(at: 2) else {
+            Issue.record("Expected the fade, got \(model.display(at: 2))")
+            return
+        }
+        #expect(appearance.tone == .record)
+        #expect(abs(remaining - 0.3) < 0.0001)
+        #expect(model.nextDeadline(after: 2) == 2.3)
+        #expect(model.display(at: 2.3) == .hidden)
+        #expect(!model.wantsTracking(at: 2))
+    }
+
+    /// An agent's recording of the user's picked window: the pick goes when the clip is saved, and the fade runs on.
+    @Test func anAgentRecordingThatDropsThePickKeepsFadingAfterTheTargetGoes() {
+        var model = recording()
+        model.update(T.input(capture: .saving(keepsPick: false)), now: 2)
+        model.update(T.input(target: nil), now: 2.1)
+        guard case .fading(_, let remaining) = model.display(at: 2.1) else {
+            Issue.record("Expected the fade to carry on")
+            return
+        }
+        #expect(abs(remaining - 0.2) < 0.0001)
+        #expect(model.display(at: 2.31) == .hidden)
+    }
+
+    @Test func reduceMotionDropsTheSavingFade() {
+        var model = recording(reduceMotion: true)
+        model.update(T.input(capture: .saving(keepsPick: false), reduceMotion: true), now: 2)
+        #expect(model.display(at: 2) == .hidden)
+    }
+
+    @Test func theBarOffWithThePickKeptStillFades() {
+        var model = recording(bar: false)
+        model.update(T.input(capture: .saving(keepsPick: true)), now: 2)
+        guard case .fading(let appearance, _) = model.display(at: 2) else {
+            Issue.record("Expected the fade")
+            return
+        }
+        #expect(appearance.tone == .record)
+        #expect(model.display(at: 2.3) == .hidden)
+    }
+
+    @Test func itFollowsTheWindowWhileRecordingAndAfterTheClip() throws {
+        var model = recording()
+        let moved = PointRect(x: 300, y: 250, width: 500, height: 300)
+        model.update(presence: .onScreen(moved))
+        #expect(shown(model.display(at: 1))?.frame == SelectionOutlineModel.outlineFrame(around: moved))
+        model.update(T.input(capture: .saving(keepsPick: true), bar: true), now: 2)
+        model.update(T.input(bar: true), now: 3)
+        let after = try #require(shown(model.display(at: 3)))
+        #expect(after.frame == SelectionOutlineModel.outlineFrame(around: moved))
+        #expect(after.tone == .accent)
+    }
+
+    @Test func aMinimisedWindowHidesTheRedFrameUntilItComesBack() {
+        var model = recording()
+        model.update(presence: .notVisible)
+        #expect(model.display(at: 1) == .hidden)
+        #expect(model.wantsTracking(at: 1))
+        model.update(presence: .onScreen(T.frame))
+        #expect(shown(model.display(at: 1))?.tone == .record)
+    }
+
+    // MARK: - From the snapshot
+
+    private func snapshot(
+        state: ControllerState = .recording, window: Bool = true, region: PixelRect? = nil, hud: Bool = true,
+        keeps: Bool = false
+    ) -> ControllerSnapshot {
+        var snapshot = ControllerSnapshot(state: state, fps: .fps30, hud: hud, display: Self.display)
+        snapshot.window = window ? T.target.window : nil
+        snapshot.region = region
+        snapshot.keepsWindowPicked = keeps
+        return snapshot
+    }
+
+    private func capture(_ snapshot: ControllerSnapshot, indicator: Bool = true) -> SelectionOutlineCapture {
+        SelectionOutlineInput(
+            snapshot: snapshot, panelOpen: false, windowClosed: false, reduceMotion: false, increaseContrast: false,
+            recordingIndicator: indicator
+        ).capture
+    }
+
+    @Test func aWindowRecordingAsksForTheRedFrame() {
+        #expect(capture(snapshot()) == .recordingWindow)
+    }
+
+    @Test func theIndicatorSettingOrNoHUDHidesIt() {
+        let region = PixelRect(x: 200, y: 100, width: 800, height: 600)
+        #expect(capture(snapshot(), indicator: false) == .recordingHidden)
+        #expect(capture(snapshot(hud: false)) == .recordingHidden)
+        #expect(capture(snapshot(window: false, region: region), indicator: false) == .recordingHidden)
+        #expect(capture(snapshot(window: false, region: region, hud: false)) == .recordingHidden)
+        var model = T.model(T.input(bar: true))
+        model.update(T.input(capture: .recordingHidden, bar: true), now: 1)
+        #expect(model.display(at: 1) == .hidden)
+    }
+
+    @Test func savingCarriesWhetherThePickStays() {
+        #expect(capture(snapshot(state: .writing, keeps: true)) == .saving(keepsPick: true))
+        #expect(capture(snapshot(state: .writing, keeps: false)) == .saving(keepsPick: false))
+        #expect(capture(snapshot(state: .writing, window: false, keeps: true)) == .saving(keepsPick: false))
+        #expect(capture(snapshot(state: .armed)) == .none)
+    }
+
+    @Test func aRegionGetsASquareRedFrameJustOutsideIt() throws {
+        let region = PixelRect(x: 200, y: 100, width: 800, height: 600)
+        let rect = PointRect(x: 100, y: 50, width: 400, height: 300)
+        #expect(SelectionOutlineModel.regionFrame(region, on: Self.display) == rect)
+        #expect(capture(snapshot(window: false, region: region)) == .recordingRegion(rect))
+        var model = SelectionOutlineModel(macOSMajorVersion: 26)
+        model.update(SelectionOutlineInput(target: nil, capture: .recordingRegion(rect)), now: 0)
+        let frame = try #require(shown(model.display(at: 0)))
+        #expect(frame.frame == PointRect(x: 97, y: 47, width: 406, height: 306))
+        #expect(frame.cornerRadius == 0)
+        #expect(frame.tone == .record)
+        #expect(frame.windowID == nil)
+        #expect(!model.wantsTracking(at: 0))
+        model.update(SelectionOutlineInput(target: nil, capture: .saving(keepsPick: false)), now: 5)
+        guard case .fading(let fading, _) = model.display(at: 5) else {
+            Issue.record("Expected the region frame to fade")
+            return
+        }
+        #expect(fading.frame == frame.frame)
+        #expect(model.display(at: 5.3) == .hidden)
+    }
+
+    @Test func aFullScreenRecordingGetsNoFrame() {
+        let whole = PixelRect(x: 0, y: 0, width: 3024, height: 1964)
+        #expect(capture(snapshot(window: false, region: whole)) == .recordingHidden)
+        #expect(SelectionOutlineModel.coversScreen(PointRect(x: 0, y: 0, width: 1512, height: 982), display: Self.display))
+    }
+
+    @Test func theTokenIsTheSystemRed() {
+        #expect(BrandTheme.recordRed == NSColor.systemRed)
+        #expect(SelectionOutlineView.color(.record) == NSColor.systemRed)
+        #expect(SelectionOutlineView.color(.accent) == NSColor.controlAccentColor)
+    }
+}
+
+/// The controller drives the crossfades and fades on the overlay.
+@Suite struct RecordingOutlineControllerTests {
+    @MainActor
+    private final class Surface: SelectionOutlineSurface {
+        var log: [String] = []
+        func show(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+            log.append("show \(appearance.tone == .record ? "red" : "accent") \(crossfade)")
+        }
+        func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) {
+            log.append("fade \(appearance.tone == .record ? "red" : "accent") \((duration * 10).rounded() / 10)")
+        }
+        func hide() { log.append("hide") }
+        func keepAbove(_ window: WindowID) {}
+        func announce(_ text: String) {}
+    }
+
+    @MainActor
+    private final class Tracker: WindowFrameTracking {
+        var onChange: (@MainActor (WindowPresence) -> Void)?
+        func start(_ window: WindowInfo, onChange: @escaping @MainActor (WindowPresence) -> Void) {
+            self.onChange = onChange
+            onChange(.onScreen(window.frame))
+        }
+        func stop() { onChange = nil }
+    }
+
+    private static let target = SelectionOutlineTarget(window: RenderSamples.safari)
+
+    @Test(arguments: [false, true])
+    func barOnTurnsRedAndBack(reduceMotion: Bool) async throws {
+        try await onMain("red and back") {
+            let surface = Surface()
+            let controller = SelectionOutlineController(
+                surface: surface, tracker: Tracker(), clock: ManualClock(), macOSMajorVersion: 26)
+            let fade = reduceMotion ? 0.0 : 0.2
+            func input(_ capture: SelectionOutlineCapture) -> SelectionOutlineInput {
+                SelectionOutlineInput(
+                    target: Self.target, capture: capture, controlBarVisible: true, reduceMotion: reduceMotion)
+            }
+            controller.update(input(.none))
+            controller.update(input(.recordingWindow))
+            controller.update(input(.saving(keepsPick: true)))
+            #expect(surface.log == ["show accent 0.0", "show red \(fade)", "show accent \(fade)"])
+        }
+    }
+
+    @Test func barOffFadesTheRedOut() async throws {
+        try await onMain("red fade") {
+            let surface = Surface()
+            let tracker = Tracker()
+            let controller = SelectionOutlineController(
+                surface: surface, tracker: tracker, clock: ManualClock(), macOSMajorVersion: 26)
+            controller.update(SelectionOutlineInput(target: Self.target, capture: .recordingWindow))
+            #expect(surface.log == ["show red 0.0"])
+            let moved = PointRect(x: 40, y: 50, width: 300, height: 200)
+            tracker.onChange?(.onScreen(moved))
+            #expect(surface.log.last == "show red 0.0")
+            controller.update(SelectionOutlineInput(target: Self.target, capture: .saving(keepsPick: false)))
+            #expect(surface.log.last == "fade red 0.3")
+        }
     }
 }

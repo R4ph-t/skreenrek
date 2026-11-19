@@ -98,7 +98,7 @@ enum PanelSurface {
     static let secondaryText = Color(nsColor: .secondaryLabelColor)
     static let tertiaryText = Color(nsColor: .tertiaryLabelColor)
     static let accent = Color(nsColor: .controlAccentColor)
-    static let stop = Color(nsColor: .systemRed)
+    static let stop = Color(nsColor: BrandTheme.recordRed)
 
     /// The label on a hero button: white on its solid fill, tertiary when disabled.
     static func heroForeground(enabled: Bool) -> Color {

@@ -6,6 +6,7 @@ Builds on: *Skreenrek 1.0.5 menu panel and Settings spec 2026-11-18* (panel rows
 Code baseline: `R4ph-t/skreenrek` main at `a7ad1af` (`SelectionOutlineModel.swift`, `SelectionOutlineWindow.swift`, `RecordingHUD.swift`, `HUDModel.swift`, `PanelModel.swift`, `MenuPanelView.swift`, `SettingsStore.swift`, `SettingsView.swift`, `UIStrings.swift`, `SizePreset`/`WindowFitFailure` in `WindowFit.swift`). Copy comes from `UIStrings` unless it's marked **new**.
 Sequencing: per the lead (2026-11-18 14:13), this is built now. It no longer waits for v1 core-capture acceptance.
 Amended by: [`addendum-1-2026-11-18.md`](addendum-1-2026-11-18.md) (after PR #47 at `11f9be4`), folded into the sections below. Its item 8 is about the picker's size chip, not the bar: see `docs/design-spec.md`.
+Amended by: [`addendum-2-2026-11-19.md`](addendum-2-2026-11-19.md) (red recording outline, Clear on the bar, Saved on the bar), folded into §2, §3, §3.2, §7 and §8. Where this spec and addendum 2 disagree, the addendum wins.
 Box folder: `/workspace/design-skreenrek-controlbar-2026-11-18/` (`renders/`, `redlines/`, `boards/`, `src/`). The mockups use Inter in place of SF Pro (tabular figures stand in for `.monospacedDigit()`) and hand-drawn stand-ins for SF Symbols. Build with the system font and real symbols.
 
 ## 1. What it is
@@ -14,12 +15,13 @@ A small, opaque, floating bar centred under the picked window. It holds the Size
 ## 2. Anatomy and sizes (pt). Redlines: `redlines/redline-{idle,recording}-{light,dark}@2x.png`
 | Part | Size | Notes |
 |---|---|---|
-| Bar | **300 × 36** (192 × 36 compact) | r**10** continuous. Horizontal padding 6, vertical padding 6. Gaps of 12 between the three slots. The width is the same in idle, recording and disabled, so the bar never jumps when the state changes. |
+| Bar | **336 × 36** (228 × 36 compact) | r**10** continuous. Horizontal padding 6, vertical padding 6. Gaps of 12 between the slots and Clear. The width is the same in idle, recording, saving, Saved and disabled, so the bar never jumps when the state changes. (Was 300 / 192 before Clear, PR #51, addendum 2 §B.) |
 | Slot 1 (idle): **Size pop-up** | 84 × 24, r6 | Cell fill. Value: preset name, 13 medium, at x 8 inside the slot. `chevron.up.chevron.down` 9 pt semibold secondary, right edge 8 from the slot's end. No "Size" label (the bar is too small and the value is self-evident). VoiceOver supplies "Size". |
 | Slot 1 (recording): **status** | 84 × 24 | Red dot 8 pt `systemRed` at bar x 14. Timer 13 regular `labelColor` `.monospacedDigit()` at bar x 30 (dot + 8). Format `TimeFormat.elapsed`, the QuickTime pattern: m:ss under an hour (`0:12`, `59:59`), h:mm:ss from an hour (`1:02:03`). All fit in the slot, so the bar stays 300 wide and the readout doesn't move. |
 | Slot 2: **readout** | 96 wide, text centred, 15 tall | 12/15 `secondaryLabelColor` `.monospacedDigit()`: `1920 × 1080 px`. 96 fits any 4 + 4 digit size, so changing presets doesn't change the width. It's the first thing dropped (§5). |
 | Slot 3: **Record / Stop** | 84 × 24, r6 | Record: solid `controlAccentColor`, white Skreenrek mark 16 pt (the same mark as the panel's Record), 6, `Record` 13 semibold, centred. Stop: solid `systemRed`, white 10 pt rounded square (r2), 6, `Stop` 13 semibold, centred. |
-| Bar x positions | 6 · 90 · 102 · 198 · 210 · 294 | Slot edges inside the 300 pt bar. |
+| **Clear** | 24 × 24, r6 | `xmark` at the trailing edge, the panel's hover 8%/5% and pressed 12%/9% tones. Tooltip `Clear Window`, VoiceOver `Clear picked window` (the panel's strings). Action = the panel's Clear: the pick is dropped, and the bar and the outline go away. **Hidden** (not just disabled) while recording and saving; its slot stays, so nothing reflows. Shown again in Saved. |
+| Bar x positions | 6 · 90 · 102 · 198 · 210 · 294 · 306 · 330 | Slot edges inside the 336 pt bar (Clear at 306–330; compact: 6 · 90 · 102 · 186 · 198 · 222). |
 
 Radii: 10 for the bar, 6 for the controls, 4 for the tooltip. Nothing else. The controls use r6 rather than a concentric r4, so they match every other 24 pt control in Skreenrek (Settings push buttons and segmented controls).
 Type: 13 (values, timer, button labels) and 12 (readout, tooltip). Nothing else.
@@ -49,9 +51,19 @@ No NSVisualEffectView, no material, no vibrancy.
 | **Resize refused** (the app didn't change size at all) | — | reverts to the previous value | triangle + previous size for 4 s, then plain `W × H px` | Record |
 | **Disabled** (Record unavailable) | `bar-disabled` | Size pop-up (still usable) | px | Disabled Record: triangle replaces the mark. Tooltip carries the reason (§3.1) |
 | **Recording** | `bar-recording` | status: dot + timer | px (unchanged) | Stop |
-| **Saving** (writing the file) | `control-bar-saving` in `render-ui` | Slots 1 and 2 become one area (bar x 6–198). `ProgressView` small (16), or `arrow.down.circle` under Reduce Motion, sits directly left of `Saving clip…` (`Menu.savingClip`, 12/15 secondary) with a 6 pt gap, and the pair is centred together in that area. The indicator is never pinned to the left edge | (part of the area) | Record disabled, no triangle. Returns to Idle when the clip is written |
+| **Saving** (writing the file) | `control-bar-saving` in `render-ui` | Slots 1 and 2 become one area (bar x 6–198). `ProgressView` small (16), or `arrow.down.circle` under Reduce Motion, sits directly left of `Saving clip…` (`Menu.savingClip`, 12/15 secondary) with a 6 pt gap, and the pair is centred together in that area. The indicator is never pinned to the left edge | (part of the area) | Record disabled, no triangle. Turns into Saved when the clip is written (§3.2) |
+| **Saved** (the clip was just written, bar on screen) | `control-bar-saved`, `-saved-compact`, `-saved-copied` | Status area 6–198: `checkmark.circle.fill` 16 `systemGreen` at x 14, `Saved · 0:07` 13 medium at x 36, `folder` 146–170, `doc.on.doc` 174–198 | (part of the area) | Record, enabled. × shown |
 
-The size control is **hidden** while recording and saving: the timer takes its slot. Size can't change mid-clip.
+The size control is **hidden** while recording and saving: the timer takes its slot. Size can't change mid-clip. Clear is hidden too, in the same slot.
+
+### 3.2 Saved on the bar (addendum 2, §C)
+If the bar is on screen when a save finishes, the bar turns into Saved and the HUD's Saved doesn't appear. Otherwise (region and full-screen clips, bar off or hidden, an agent's recording that dropped the pick) the HUD shows Saved as before. `--no-hud` or Show recording indicator off: neither.
+- Same frame, surface and padding. Nothing moves: the spinner crossfades into the check and `Saving clip…` into `Saved · 0:07` over 0.2 s, and the buttons, Record and × fade in with them.
+- Icon buttons 24 × 24, r6, no fill at rest, the panel's hover and pressed tones. Show in Finder (tooltip and VoiceOver `Show in Finder`) reveals the file and ends Saved. Copy (tooltip `Copy File Path`, VoiceOver `Copy file path`) copies the path, and its glyph reads `checkmark` with `Copied` for 1.5 s.
+- Compact (228): slot 1 is the check and `Saved`, and the duration moves into the tooltip and VoiceOver. `folder` at 116–140 and `doc.on.doc` at 148–172 replace Record until Idle.
+- Saved lasts 6 s, then crossfades to Idle over 0.2 s. The pointer over the bar pauses the countdown, and leaving restarts it at 6 s. Record, a new size, Show in Finder and × end it at once. × is Clear Window: it drops the pick. Under Reduce Motion every change is one frame.
+- VoiceOver: `Clip saved, 7 seconds` is announced. The status reads `Saved, 7 seconds, clip.mp4`.
+- The outline is the accent during Saved.
 
 ### 3.1 Disabled: reasons, in priority order (the first that applies wins)
 | Cause | Tooltip and VoiceOver (on the disabled Record) |
@@ -110,13 +122,15 @@ Tracking: reuse the outline's tracking (`WindowFrameTracking`: AXObserver moved 
 - Not draggable. It's anchored to the window.
 - **Full screen:** a full-screen target has no room above or below, so the bar docks inside its bottom edge on that full-screen Space (`.fullScreenAuxiliary`). With auto-hiding Dock, `V` is the whole screen, so the docked rule still applies.
 - **Multi-display:** the window's display decides `V` (§5). When the window is dragged across, the bar jumps to the new display once most of the window is there. Mixed scale factors don't matter: everything is in points.
-- **Relation to the recording HUD:** while the bar is visible and a recording runs, the HUD's recording and saving states are **suppressed**. There's one timer and one Stop on screen, and they're on the bar. The HUD's Saved and Stopped states still appear as today. If the bar is off or hidden (window minimised, other Space), the HUD behaves exactly as today under `Show recording indicator`. With `--no-hud` or that setting off, neither the bar nor the HUD's recording state shows.
+- **Relation to the recording HUD:** while the bar is visible and a recording runs, the HUD's recording and saving states are **suppressed**. There's one timer and one Stop on screen, and they're on the bar. If the bar is up when the save finishes, Saved shows on the bar and the HUD's Saved is suppressed (§3.2). The HUD's Stopped state still appears as today. If the bar is off or hidden (window minimised, other Space), the HUD behaves exactly as today under `Show recording indicator`. With `--no-hud` or that setting off, neither the bar nor the HUD's recording or Saved state shows.
+- **Agent recordings that drop the pick:** the bar goes away when saving starts.
+- **Recording outline (addendum 2, §A):** while recording, the outline around the window is `systemRed` (token `record-red`) with the pick outline's geometry, and it shows whether or not the bar or the panel is up. It goes back to the accent at saving when the window stays picked with the bar on, and fades out over 0.3 s otherwise. Region recordings get a square red frame just outside the region; full-screen recordings get none.
 
 ## 8. Never in a clip (hard requirement)
 - `sharingType = .none` on the bar's panels. This is what keeps the bar out of every capture.
 - **Do not add the bar to `exceptingWindows`** of any `SCContentFilter`: that would put it back into the capture.
 - Region captures already exclude the whole app, and a window-only filter never includes the bar, docked or not.
-- Same as the outline: §4 of the 1.0.5 spec.
+- Same as the outline: §4 of the 1.0.5 spec. The red recording outline keeps `sharingType = .none` and is in no `exceptingWindows` either (addendum 2, §A).
 - Acceptance: the bar never appears in a clip, whether the clip is a window, a region or a full-screen capture.
 
 ## 9. Keyboard and VoiceOver

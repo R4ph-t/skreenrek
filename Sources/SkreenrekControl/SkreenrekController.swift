@@ -192,6 +192,7 @@ public actor SkreenrekController {
             break
         case .recording(let active), .writing(let active):
             s.hud = active.options.hud
+            s.keepsWindowPicked = active.keptTarget != nil
             s.elapsed = seams.clock.now() - active.startHostTime
             switch active.target {
             case .window(let window): s.window = window

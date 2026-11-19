@@ -491,16 +491,14 @@ private enum Bar {
 
     @Test func clearIsOfferedOnlyWhileTheWindowCanBeForgotten() throws {
         let idle = try #require(Bar.model().display(at: 0)?.content.clear)
+        #expect(idle.visible)
         #expect(idle.enabled)
         #expect(idle.action == .clearWindow)
-        #expect(idle.help == "Clear window")
-        #expect(idle.accessibilityLabel == "Clear window")
-        let busy = [
-            Bar.input(activity: .starting), Bar.input(activity: .recording(seconds: 1)), Bar.input(activity: .saving),
-            Bar.input(resize: .resizing),
-        ]
-        for input in busy {
+        #expect(idle.help == "Clear Window")
+        #expect(idle.accessibilityLabel == "Clear picked window")
+        for input in [Bar.input(activity: .starting), Bar.input(resize: .resizing)] {
             let clear = try #require(Bar.model(input).display(at: 0)?.content.clear)
+            #expect(clear.visible)
             #expect(!clear.enabled)
             #expect(clear.action == nil)
         }
@@ -629,8 +627,12 @@ private final class FakeBarSurface: ControlBarSurface {
 private final class FakeOutlineSurface: SelectionOutlineSurface {
     var hidden = 0
     var frames: [PointRect] = []
+    var tones: [SelectionOutlineTone] = []
     var onHide: (() -> Void)?
-    func show(_ appearance: SelectionOutlineAppearance) { frames.append(appearance.frame) }
+    func show(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+        frames.append(appearance.frame)
+        tones.append(appearance.tone)
+    }
     func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) {}
     func hide() {
         hidden += 1
@@ -800,19 +802,24 @@ private final class FakeBarTracker: WindowFrameTracking {
         }
     }
 
-    /// The bar stays up during the clip, so the one tracker keeps running and the outline picks up its latest report.
+    /// The bar and the red outline stay up during the clip on the one tracker, so both follow a move and come back
+    /// around the window's current frame, never its recording-start frame.
     @Test func theOutlineAndBarComeBackAroundAWindowMovedDuringAClip() async throws {
         try await onMain("moved during clip") {
             let scene = SharedTrackerScene()
             scene.render(.idle)
             #expect(scene.outlineSurface.frames.last == SelectionOutlineModel.outlineFrame(around: Bar.window))
             scene.render(.recording(seconds: 1))
-            #expect(scene.outlineSurface.hidden == 1)
+            #expect(scene.outlineSurface.tones.last == .record)
+            #expect(scene.outlineSurface.hidden == 0)
             #expect(scene.source.stops == 0)
             let moved = PointRect(x: 200, y: 150, width: 800, height: 500)
             scene.source.onChange?(.onScreen(moved))
+            #expect(scene.outlineSurface.frames.last == SelectionOutlineModel.outlineFrame(around: moved))
+            #expect(scene.outlineSurface.tones.last == .record)
             scene.render(.saving)
-            #expect(scene.outlineSurface.frames.count == 1)
+            #expect(scene.outlineSurface.tones.last == .accent)
+            scene.expectBoth(around: moved)
             scene.render(.idle)
             scene.expectBoth(around: moved)
             let later = PointRect(x: 300, y: 180, width: 700, height: 400)
@@ -871,9 +878,14 @@ private final class FakeBarTracker: WindowFrameTracking {
             var input = Bar.input(activity: activity)
             input.recordingChrome = chrome
             bar.update(input)
-            let capturing = activity != .idle && activity != .starting
+            let capture: SelectionOutlineCapture =
+                switch activity {
+                case .recording: chrome ? .recordingWindow : .recordingHidden
+                case .saving: .saving(keepsPick: true)
+                case .idle, .starting: .none
+                }
             outline.update(
-                SelectionOutlineInput(target: Bar.target(), capturing: capturing, controlBarVisible: bar.isVisible))
+                SelectionOutlineInput(target: Bar.target(), capture: capture, controlBarVisible: bar.isVisible))
         }
 
         func expectBoth(around window: PointRect) {
@@ -1476,5 +1488,378 @@ private final class FakeBarTracker: WindowFrameTracking {
             #expect(names.contains(name), "\(name)")
         }
         #expect(UIRenderer.settingsSamples.contains { $0.name == "general-control-bar" })
+    }
+}
+
+// MARK: - Addendum 2: Clear while recording, Saved on the bar
+
+private enum Saved {
+    static let narrow = PointRect(x: 100, y: 100, width: 260, height: 400)
+    static let clip = ControlBarClip(id: "fresh", duration: 7.4, path: "/tmp/skreenrek/clip-1/clip.mp4")
+
+    /// The bar while saving, then the save finishing at `now` with the window still picked.
+    static func model(
+        frame: PointRect = Bar.window, reduceMotion: Bool = false, chrome: Bool = true, keepsPick: Bool = true,
+        presence: WindowPresence? = nil, now: TimeInterval = 0
+    ) -> (model: ControlBarModel, announcement: String?) {
+        var input = Bar.input(frame: frame, activity: .saving, reduceMotion: reduceMotion)
+        input.recordingChrome = chrome
+        input.keepsPick = keepsPick
+        var model = Bar.model(input, presence: presence)
+        input.activity = .idle
+        input.recordingChrome = true
+        input.keepsPick = true
+        input.lastClip = clip
+        let announcement = model.update(input, now: now)
+        if presence != nil { model.update(presence: .onScreen(frame)) }
+        return (model, announcement)
+    }
+
+    static func content(_ model: ControlBarModel, at now: TimeInterval = 0) -> ControlBarContent? {
+        model.display(at: now)?.content
+    }
+
+    static func status(_ content: ControlBarContent?) -> ControlBarSaved? {
+        if case .saved(let saved)? = content?.leading { return saved }
+        return nil
+    }
+}
+
+@Suite struct ControlBarClearAddendumTests {
+    @Test(arguments: [ControlBarActivity.recording(seconds: 3), .saving])
+    func clearIsHiddenNotJustDisabledWhileRecordingAndSaving(activity: ControlBarActivity) throws {
+        let clear = try #require(Bar.model(Bar.input(activity: activity)).display(at: 0)?.content.clear)
+        #expect(!clear.visible)
+        #expect(clear.action == nil)
+        #expect(clear.help == "Clear Window")
+        #expect(clear.accessibilityLabel == "Clear picked window")
+    }
+
+    @Test func clearIsShownInIdleAndSaved() throws {
+        let idle = try #require(Bar.model().display(at: 0)?.content.clear)
+        #expect(idle.visible && idle.action == .clearWindow)
+        let saved = try #require(Saved.content(Saved.model().model)?.clear)
+        #expect(saved.visible && saved.action == .clearWindow)
+    }
+
+    @Test(arguments: [(Bar.window, 336.0), (Saved.narrow, 228.0)])
+    func theWidthHoldsAcrossIdleRecordingSavingAndSaved(frame: PointRect, width: Double) throws {
+        var frames: [Double] = []
+        for activity in [ControlBarActivity.idle, .recording(seconds: 4), .saving] {
+            frames.append(try #require(Bar.model(Bar.input(frame: frame, activity: activity)).display(at: 0)).frame.width)
+        }
+        frames.append(try #require(Saved.model(frame: frame).model.display(at: 0)).frame.width)
+        #expect(frames == [width, width, width, width])
+    }
+
+    /// Reads the drawn pixels: in recording and saving the Clear slot is bar fill, in idle it is the cell.
+    @MainActor
+    @Test(arguments: [UIRenderer.Appearance.light, .dark])
+    func theHiddenClearLeavesItsSlotEmpty(appearance: UIRenderer.Appearance) throws {
+        let palette = PanelPalette(appearance == .dark ? .dark : .light)
+        for (activity, visible) in [
+            (ControlBarActivity.idle, true), (.recording(seconds: 2), false), (.saving, false),
+        ] {
+            let content = try #require(Bar.model(Bar.input(activity: activity)).display(at: 0)).content
+            let view = NSHostingView(
+                rootView: ControlBarView(presentation: ControlBarPresentation(content: content), onAction: { _ in }))
+            view.sizingOptions = []
+            view.frame = NSRect(x: 0, y: 0, width: content.width.points, height: ControlBarMetrics.height)
+            let image = try #require(
+                NSBitmapImageRep(data: try UIRenderer.png(view, appearance: appearance, active: true)))
+            #expect(image.pixelsWide == 672)
+            var pixel = [Int](repeating: 0, count: 4)
+            image.getPixel(&pixel, atX: 308 * 2, y: 8 * 2)
+            let fill = palette.fill
+            let isFill = pixel == [Int(fill.red), Int(fill.green), Int(fill.blue), 255]
+            #expect(isFill == !visible, "\(activity)")
+        }
+    }
+}
+
+@Suite struct ControlBarSavedTests {
+    @Test func aSaveWithTheBarUpTurnsTheBarIntoSaved() throws {
+        let (model, announcement) = Saved.model()
+        #expect(announcement == "Clip saved, 7 seconds")
+        let content = try #require(Saved.content(model))
+        #expect(content.phase == .saved)
+        let status = try #require(Saved.status(content))
+        #expect(status.title == "Saved · 0:07")
+        #expect(status.duration == "0:07")
+        #expect(status.help == nil)
+        #expect(status.accessibilityLabel == "Saved, 7 seconds, clip.mp4")
+        let files = try #require(status.files)
+        #expect(content.files == files)
+        #expect(files.placement == .status)
+        #expect(files.path == Saved.clip.path)
+        #expect(files.revealHelp == "Show in Finder")
+        #expect(files.revealLabel == "Show in Finder")
+        #expect(files.copyGlyph == "doc.on.doc")
+        #expect(files.copyHelp == "Copy File Path")
+        #expect(files.copyLabel == "Copy file path")
+        #expect(content.action.style == .record)
+        #expect(content.readout == nil)
+        #expect(content.width == .regular)
+    }
+
+    @Test func theCompactBarPutsTheDurationInTheTooltipAndTheFilesInRecordsPlace() throws {
+        let content = try #require(Saved.content(Saved.model(frame: Saved.narrow).model))
+        #expect(content.width == .compact)
+        let status = try #require(Saved.status(content))
+        #expect(status.title == "Saved")
+        #expect(status.duration == nil)
+        #expect(status.help == "Saved · 0:07")
+        #expect(status.accessibilityLabel == "Saved, 7 seconds, clip.mp4")
+        #expect(status.files == nil)
+        #expect(content.files?.placement == .action)
+    }
+
+    @Test func theLayoutAddsUpToTheSpecsXPositions() {
+        let metrics = ControlBarMetrics.self
+        // Full: the status area is 6–198, Copy ends it at 174–198 and Show in Finder sits 4 pt before it.
+        let areaEnd = metrics.padding + ControlBarWidth.regular.leadingAreaWidth
+        #expect(areaEnd == 198)
+        #expect(areaEnd - metrics.fileButton == 174)
+        #expect(areaEnd - metrics.fileButton * 2 - metrics.fileButtonGap == 146)
+        // The check at x 14 and the title at x 36.
+        #expect(metrics.padding + metrics.slotInset == 14)
+        #expect(metrics.padding + metrics.slotInset + metrics.markSize + metrics.labelGap == 36)
+        // Compact: the two buttons centred in Record's slot, 102–186, land at 116–140 and 148–172.
+        let slot = metrics.padding + ControlBarWidth.compact.leadingAreaWidth + metrics.slotGap
+        #expect(slot == 102)
+        let inset = (metrics.actionWidth - metrics.fileButton * 2 - metrics.compactFileButtonGap) / 2
+        #expect(slot + inset == 116)
+        #expect(slot + inset + metrics.fileButton + metrics.compactFileButtonGap == 148)
+    }
+
+    @Test func itLastsSixSecondsThenGoesBackToIdle() throws {
+        let model = Saved.model(now: 10).model
+        #expect(Saved.content(model, at: 15.99)?.phase == .saved)
+        #expect(model.nextDeadline(after: 10) == 16)
+        #expect(Saved.content(model, at: 16)?.phase == .idle)
+        #expect(Saved.content(model, at: 16)?.clear.visible == true)
+    }
+
+    @Test func hoverPausesTheCountdownAndLeavingRestartsItAtSix() {
+        var model = Saved.model().model
+        model.hover(true, now: 3)
+        #expect(Saved.content(model, at: 100)?.phase == .saved)
+        #expect(model.nextDeadline(after: 100) == nil)
+        model.hover(false, now: 100)
+        #expect(model.nextDeadline(after: 100) == 106)
+        #expect(Saved.content(model, at: 105.9)?.phase == .saved)
+        #expect(Saved.content(model, at: 106)?.phase == .idle)
+    }
+
+    @Test func copyReadsCopiedForOneAndAHalfSeconds() throws {
+        var model = Saved.model().model
+        model.copied(now: 1)
+        let copied = try #require(Saved.content(model, at: 1)?.files)
+        #expect(copied.copyGlyph == "checkmark")
+        #expect(copied.copyHelp == "Copied")
+        #expect(copied.copyLabel == "Copied")
+        #expect(model.nextDeadline(after: 1) == 2.5)
+        let back = try #require(Saved.content(model, at: 2.5)?.files)
+        #expect(back.copyGlyph == "doc.on.doc")
+        #expect(back.copyLabel == "Copy file path")
+    }
+
+    @Test func showInFinderAndClearEndItAtOnce() throws {
+        var model = Saved.model().model
+        model.endSaved()
+        #expect(Saved.content(model)?.phase == .idle)
+        #expect(model.nextDeadline(after: 0) == nil)
+        // × in Saved is Clear Window: it drops the pick.
+        let clear = try #require(Saved.content(Saved.model().model)?.clear.action)
+        #expect(clear == .clearWindow)
+    }
+
+    @Test func recordingAgainEndsItAtOnce() {
+        var model = Saved.model().model
+        var input = model.input
+        input.activity = .starting
+        model.update(input, now: 1)
+        input.activity = .idle
+        model.update(input, now: 1)
+        #expect(Saved.content(model, at: 1)?.phase == .idle)
+    }
+
+    @Test func choosingASizeEndsItAtOnce() {
+        var model = Saved.model().model
+        var input = model.input
+        input.sizeChoice = .size(Bar.p720)
+        input.resize = .resizing
+        model.update(input, now: 1)
+        #expect(Saved.content(model, at: 1)?.phase == .idle)
+    }
+
+    @Test(arguments: [(false, 0.2), (true, 0.0)])
+    func theCrossfadesAreAFifthOfASecondOrNoneUnderReduceMotion(reduceMotion: Bool, seconds: Double) {
+        #expect(Saved.content(Saved.model(reduceMotion: reduceMotion).model)?.crossfade == seconds)
+        #expect(Bar.model(Bar.input(activity: .saving, reduceMotion: reduceMotion)).display(at: 0)?.content.crossfade
+            == seconds)
+    }
+
+    @Test func noBarAtTheSaveMeansNoSavedOnTheBar() {
+        // `--no-hud` or the indicator off: the bar was hidden while saving.
+        let noChrome = Saved.model(chrome: false)
+        #expect(noChrome.announcement == nil)
+        #expect(Saved.content(noChrome.model)?.phase == .idle)
+        // An agent's recording that drops the pick: the bar went away when saving started.
+        let dropped = Saved.model(keepsPick: false)
+        #expect(dropped.announcement == nil)
+        // The window was minimised or on another Space.
+        let away = Saved.model(presence: .notVisible)
+        #expect(away.announcement == nil)
+        #expect(Saved.content(away.model)?.phase == .idle)
+    }
+
+    @Test func anAgentRecordingThatDropsThePickTakesTheBarAwayWhenSavingStarts() {
+        var input = Bar.input(activity: .saving)
+        input.keepsPick = false
+        #expect(Bar.model(input).display(at: 0) == nil)
+        input.keepsPick = true
+        #expect(Bar.model(input).display(at: 0) != nil)
+    }
+
+    @Test func theSameClipNeverShowsSavedTwice() {
+        var model = Saved.model().model
+        model.endSaved()
+        var input = model.input
+        input.activity = .saving
+        model.update(input, now: 1)
+        input.activity = .idle
+        #expect(model.update(input, now: 2) == nil)
+        #expect(Saved.content(model, at: 2)?.phase == .idle)
+    }
+
+    @Test func theStringsAreTheSpecs() {
+        #expect(UIStrings.ControlBar.savedAnnouncement(seconds: 7) == "Clip saved, 7 seconds")
+        #expect(UIStrings.ControlBar.savedStatus(seconds: 7, file: "clip.mp4") == "Saved, 7 seconds, clip.mp4")
+        #expect(UIStrings.ControlBar.savedTitle(7) == "Saved · 0:07")
+        for text in ["Clear Window", "Clear picked window", "Saved", "Show in Finder", "Copy File Path",
+                     "Copy file path", "Copied"] {
+            #expect(UIStrings.allFixed.contains(text), "\(text)")
+        }
+    }
+}
+
+@Suite struct ControlBarSavedControllerTests {
+    @MainActor
+    private static func make(clock: ManualClock) -> (ControlBarController, FakeBarSurface) {
+        let surface = FakeBarSurface()
+        let controller = ControlBarController(
+            surface: surface, tracker: FakeBarTracker(), clock: clock, permissions: FakePermissionProbe(),
+            displays: { [Bar.screen] })
+        return (controller, surface)
+    }
+
+    @MainActor
+    private static func save(_ controller: ControlBarController) {
+        var input = Bar.input(activity: .saving)
+        controller.update(input)
+        input.activity = .idle
+        input.lastClip = Saved.clip
+        controller.update(input)
+    }
+
+    @Test func savedIsAnnouncedAndEndsOnTheClock() async throws {
+        try await onMain("saved timeout") {
+            let clock = ManualClock()
+            let (controller, surface) = Self.make(clock: clock)
+            Self.save(controller)
+            #expect(surface.log.contains("say Clip saved, 7 seconds"))
+            #expect(controller.showsSaved)
+            #expect(controller.isVisible)
+            await clock.waitForSleepers()
+            #expect(clock.nextDeadline == 6)
+            await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                surface.onUpdate = { done.resume() }
+                clock.advance(to: 6)
+            }
+            #expect(!controller.showsSaved)
+            #expect(surface.last?.content.phase == .idle)
+        }
+    }
+
+    @Test func hoverAndCopyAndEndGoThroughTheController() async throws {
+        try await onMain("saved actions") {
+            let clock = ManualClock()
+            let (controller, surface) = Self.make(clock: clock)
+            Self.save(controller)
+            controller.hover(true)
+            clock.advance(to: 50)
+            controller.copied()
+            #expect(surface.last?.content.files?.copyGlyph == "checkmark")
+            #expect(controller.showsSaved)
+            controller.endSaved()
+            #expect(!controller.showsSaved)
+            #expect(surface.last?.content.phase == .idle)
+            #expect(controller.isVisible)
+        }
+    }
+}
+
+@Suite struct ControlBarSavedHUDTests {
+    private static func saved(
+        controlBarSaved: Bool, indicator: Bool = true, hud: Bool = true
+    ) -> HUDState {
+        var model = HUDModel()
+        var snapshot = UIFixtures.recording(.menu)
+        snapshot.hud = hud
+        model.observe(snapshot, now: 0, indicatorEnabled: indicator, controlBarVisible: true)
+        snapshot.state = .writing
+        model.observe(snapshot, now: 1, indicatorEnabled: indicator, controlBarVisible: true)
+        snapshot = UIFixtures.idle
+        snapshot.lastClip = RenderSamples.clip()
+        model.observe(
+            snapshot, now: 2, indicatorEnabled: indicator, controlBarVisible: controlBarSaved,
+            controlBarSaved: controlBarSaved)
+        return model.state
+    }
+
+    @Test func savedOnTheBarSuppressesTheHUD() {
+        #expect(Self.saved(controlBarSaved: true) == .hidden)
+    }
+
+    @Test func withoutTheBarTheHUDShowsSavedAsToday() {
+        #expect(Self.saved(controlBarSaved: false).kind == .saved)
+    }
+
+    @Test func noHUDOrTheIndicatorOffShowsNeither() {
+        #expect(Self.saved(controlBarSaved: false, indicator: false) == .hidden)
+        #expect(Self.saved(controlBarSaved: false, hud: false) == .hidden)
+    }
+
+    @Test func aRegionClipStillGetsTheHUD() {
+        var model = HUDModel()
+        var snapshot = UIFixtures.recording(.menu)
+        snapshot.window = nil
+        snapshot.region = PixelRect(x: 0, y: 0, width: 400, height: 300)
+        model.observe(snapshot, now: 0)
+        snapshot = UIFixtures.idle
+        snapshot.lastClip = RenderSamples.clip()
+        model.observe(snapshot, now: 1)
+        #expect(model.state.kind == .saved)
+    }
+}
+
+@Suite struct ControlBarKeepsPickTests {
+    @Test func aBarRecordingSaysTheWindowStaysPickedAndAnAgentsDoesNot() async throws {
+        try await onMain("keeps pick") {
+            let h = MenuHarness(frames: 31)
+            defer { h.cleanUp() }
+            await h.perform(.pickWindow)
+            await h.model.recordFromBar()
+            #expect(await h.controller.snapshot().keepsWindowPicked)
+            await h.perform(.stop)
+            #expect(!h.model.snapshot.keepsWindowPicked)
+            _ = try await h.controller.start(
+                StartParams(windowId: UIFixtures.safari.id.rawValue), startedBy: .mcp, client: "Claude Code")
+            let agent = await h.controller.snapshot()
+            #expect(agent.state == .recording)
+            #expect(!agent.keepsWindowPicked)
+            _ = try await h.controller.stop()
+        }
     }
 }
