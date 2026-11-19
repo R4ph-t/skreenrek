@@ -284,8 +284,8 @@ import Testing
 
     @Test func copyTable() {
         #expect(S.title == "Drag Skreenrek into the list")
-        #expect(S.detail(.screenRecording) == "Drop it on Screen Recording to allow it.")
-        #expect(S.detail(.accessibility) == "Drop it on Accessibility to allow it.")
+        #expect(S.detail(.screenRecording) == "Drop it on Screen Recording.")
+        #expect(S.detail(.accessibility) == "Drop it on Accessibility.")
         #expect(S.grantedTitle == "Skreenrek is allowed")
         #expect(S.grantedDetail == "You can close System Settings.")
         #expect(S.iconHelp
