@@ -212,7 +212,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
     }
 
     @Test func lastClipDetailAppendsANonDefaultFormat() {
-        let mov = RenderSamples.clip(file: "clip.mov")
+        let mov = RenderSamples.clip(container: .mov)
         #expect(
             MenuModel.lastClipDetail(mov, timeZone: UIFixtures.paris, locale: UIFixtures.british)
                 == "0:42 · 1280 × 800 px · 60 fps · H.264 MOV")
@@ -220,7 +220,7 @@ func lines(_ context: MenuContext) -> [String] { MenuModel.entries(for: context)
         #expect(
             MenuModel.lastClipDetail(hevc, timeZone: UIFixtures.paris, locale: UIFixtures.british)
                 == "0:42 · 1280 × 800 px · 60 fps · HEVC MP4")
-        let prores = RenderSamples.clip(codec: .prores, file: "clip.mov")
+        let prores = RenderSamples.clip(codec: .prores, container: .mov)
         #expect(
             MenuModel.lastClipDetail(prores, timeZone: UIFixtures.paris, locale: UIFixtures.british)
                 == "0:42 · 1280 × 800 px · 60 fps · ProRes MOV")

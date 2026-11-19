@@ -12,8 +12,6 @@ import os
 /// With `EncoderPolicy.requireHardware` it asks VideoToolbox for the hardware encoder and falls back to software
 /// (logged, and reported as `encoder: software`) when the writer can't start with it.
 public final class ClipWriter: PixelBufferSink, @unchecked Sendable {
-    public static let fileName = "clip.mp4"
-
     public let settings: ClipWriterSettings
     public private(set) var encoder: EncoderKind
     public private(set) var videoReadback: VideoReadback?

@@ -88,7 +88,7 @@ import Testing
             #expect(fm.fileExists(atPath: path), "\(key) at \(path)")
         }
         let clip = try #require(files["clip"]?.stringValue)
-        #expect(clip.hasSuffix("/\(recordingId)/clip.mp4"))
+        #expect(clip.hasSuffix("/\(recordingId)/\(recordingId).mp4"))
         #expect(try String(contentsOfFile: try #require(files["snippet"]?.stringValue), encoding: .utf8) == snippet)
         let events = try JSONValue.parse(Data(contentsOf: URL(fileURLWithPath: try #require(files["events"]?.stringValue))))
         #expect(events["recording"]?["startedBy"] == "mcp")

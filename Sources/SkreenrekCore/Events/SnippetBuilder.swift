@@ -44,7 +44,7 @@ public enum SnippetBuilder {
     public enum CopyHint: Sendable, Hashable {
         /// The clip was copied to `<assetsDir>/<clip-id>.mp4`: no copy command.
         case none
-        /// `cp <clipFolder>/clip.mp4 assets/<clip-id>.mp4`, with `homeDirectory` written as `~`.
+        /// `cp <clipFolder>/<folder name>.mp4 assets/<clip-id>.mp4`, with `homeDirectory` written as `~`.
         case copyCommand(clipFolder: URL, homeDirectory: URL)
     }
 
@@ -58,7 +58,7 @@ public enum SnippetBuilder {
         var lines = ["<!-- \(parts.joined(separator: " · ")) -->"]
         let asset = "assets/\(input.clipId).\(input.container.rawValue)"
         if case .copyCommand(let folder, let home) = copy {
-            let clip = displayPath(folder.appendingPathComponent(input.container.fileName), home: home)
+            let clip = displayPath(OutputFolder.movieURL(in: folder, container: input.container), home: home)
             lines.append("<!-- Copy the clip first: cp \(clip) \(asset) -->")
         }
         lines.append("<video class=\"clip\" src=\"\(asset)\"")
@@ -68,7 +68,7 @@ public enum SnippetBuilder {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Writes the snippet into `clipFolder` and returns the same text. With `assetsDir`, first copies `clip.mp4` to
+    /// Writes the snippet into `clipFolder` and returns the same text. With `assetsDir`, first copies the movie to
     /// `<assetsDir>/<clip-id>.mp4` (creating the folder, replacing an older copy) and leaves the copy command out.
     @discardableResult
     public static func write(
@@ -86,7 +86,7 @@ public enum SnippetBuilder {
         return snippet
     }
 
-    /// Copies `clip.mp4` to `<assetsDir>/<clip-id>.mp4` and returns the destination.
+    /// Copies the movie (`<folder name>.mp4`) to `<assetsDir>/<clip-id>.mp4` and returns the destination.
     @discardableResult
     public static func copyClip(from clipFolder: URL, clipId: String, to assetsDir: URL,
         container: VideoContainer = .mp4) throws -> URL {
@@ -94,7 +94,7 @@ public enum SnippetBuilder {
         try fm.createDirectory(at: assetsDir, withIntermediateDirectories: true)
         let destination = assetsDir.appendingPathComponent("\(clipId).\(container.rawValue)")
         if fm.fileExists(atPath: destination.path) { try fm.removeItem(at: destination) }
-        try fm.copyItem(at: clipFolder.appendingPathComponent(container.fileName), to: destination)
+        try fm.copyItem(at: OutputFolder.movieURL(in: clipFolder, container: container), to: destination)
         return destination
     }
 

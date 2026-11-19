@@ -89,7 +89,8 @@ public struct RecordingResult: Sendable, Hashable {
         self.width = width
         self.height = height
         self.codec = video?.codec ?? codec
-        self.video = video ?? VideoReadback(width: width, height: height, scale: 1, codec: codec)
+        self.video = video ?? VideoReadback(
+            file: VideoContainer.mp4.fileName(forFolder: folder), width: width, height: height, scale: 1, codec: codec)
         self.startedAt = startedAt
         self.origin = origin
         self.folder = folder

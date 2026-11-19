@@ -26,7 +26,8 @@ enum EventFixtures {
         }
         return EventsFile.Recording(
             id: "2026-11-17_104207_safari", startedAt: "2026-11-17T10:42:07.120+01:00", duration: duration, fps: 60,
-            video: EventsFile.Video(width: size.width, height: size.height, scale: display.scale, codec: .h264),
+            video: EventsFile.Video(
+                file: "2026-11-17_104207_safari.mp4", width: size.width, height: size.height, scale: display.scale, codec: .h264),
             source: EventsFile.Source(target: target), startedBy: .mcp, client: client, stats: stats)
     }
 
@@ -220,7 +221,7 @@ enum EventFixtures {
         "startedAt":"2026-11-17T10:42:07.120+01:00","startedBy":"mcp",\
         "stats":{"encoder":"hardware","framesDropped":2,"framesFresh":2400,"framesRepeatedIdle":118,\
         "pixelFormat":"420v","slotsWritten":2520,"sourceFramesSkipped":1,"startToFirstFrameMs":84.5,"stopToFinalizedMs":41.25},\
-        "video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"clip.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":2,"width":1280}},\
+        "video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"2026-11-17_104207_safari.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":2,"width":1280}},\
         "schema":"skreenrek.events/1"}
 
         """
@@ -240,7 +241,7 @@ enum EventFixtures {
         #expect(json.contains(#""client":null"#))
         #expect(json.contains(#""complete":false"#))
         #expect(json.contains(#""clicks":[]"#) && json.contains(#""events":[]"#))
-        #expect(json.contains(#""video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"clip.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":1,"width":1280}"#))
+        #expect(json.contains(#""video":{"bitrateMbps":null,"codec":"h264","container":"mp4","file":"2026-11-17_104207_safari.mp4","height":800,"profile":"high","quality":"high","requestedBitrateMbps":null,"scale":1,"width":1280}"#))
     }
 
     @Test func roundTrips() throws {
@@ -333,7 +334,7 @@ enum EventFixtures {
 
     static let golden = """
         <!-- Skreenrek · Safari — localhost:3000 · 1280×800 px · 60 fps · 42.0 s · clicks: events.json -->
-        <!-- Copy the clip first: cp ~/Movies/Skreenrek/2026-11-17_104207_safari/clip.mp4 assets/2026-11-17_104207_safari.mp4 -->
+        <!-- Copy the clip first: cp ~/Movies/Skreenrek/2026-11-17_104207_safari/2026-11-17_104207_safari.mp4 assets/2026-11-17_104207_safari.mp4 -->
         <video class="clip" src="assets/2026-11-17_104207_safari.mp4"
                data-start="0" data-duration="42.0" data-track-index="0" muted playsinline></video>
 
@@ -404,7 +405,7 @@ enum EventFixtures {
         #expect(!text.contains(NSUserName()))
         #expect(!text.contains(" /"))
         #expect(!text.contains("\"/"))
-        #expect(text.contains("cp ~/Movies/Skreenrek/2026-11-17_104207_safari/clip.mp4 "))
+        #expect(text.contains("cp ~/Movies/Skreenrek/2026-11-17_104207_safari/2026-11-17_104207_safari.mp4 "))
     }
 
     @Test func writesTheSnippetAndCopiesIntoTheAssetsFolder() throws {
@@ -412,7 +413,7 @@ enum EventFixtures {
         defer { try? FileManager.default.removeItem(at: root) }
         let clipFolder = root.appendingPathComponent("2026-11-17_104207_safari")
         try FileManager.default.createDirectory(at: clipFolder, withIntermediateDirectories: true)
-        try Data("not really a movie".utf8).write(to: clipFolder.appendingPathComponent("clip.mp4"))
+        try Data("not really a movie".utf8).write(to: clipFolder.appendingPathComponent("2026-11-17_104207_safari.mp4"))
         let assets = root.appendingPathComponent("project/assets")
 
         let text = try SnippetBuilder.write(input(), clipFolder: clipFolder, assetsDir: assets, homeDirectory: root)
@@ -423,7 +424,7 @@ enum EventFixtures {
         #expect(try FileManager.default.contentsOfDirectory(atPath: assets.path) == ["2026-11-17_104207_safari.mp4"])
 
         // A second write replaces the older copy.
-        try Data("newer".utf8).write(to: clipFolder.appendingPathComponent("clip.mp4"))
+        try Data("newer".utf8).write(to: clipFolder.appendingPathComponent("2026-11-17_104207_safari.mp4"))
         try SnippetBuilder.write(input(), clipFolder: clipFolder, assetsDir: assets, homeDirectory: root)
         #expect(try Data(contentsOf: copy) == Data("newer".utf8))
     }
@@ -446,7 +447,7 @@ enum EventFixtures {
         let root = try F.temporaryFolder()
         let folder = root.appendingPathComponent("Movies/Skreenrek/2026-11-17_104207_safari")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try Data("mp4".utf8).write(to: folder.appendingPathComponent("clip.mp4"))
+        try Data("mp4".utf8).write(to: folder.appendingPathComponent("2026-11-17_104207_safari.mp4"))
         return (root, folder)
     }
 
@@ -462,7 +463,7 @@ enum EventFixtures {
         let data = try Data(contentsOf: try #require(written.eventsFile))
         #expect(String(decoding: data, as: UTF8.self) == EventsFileTests.golden)
         #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
-            == ["clip.mp4", "events.json", "hyperframes.html"])
+            == ["2026-11-17_104207_safari.mp4", "events.json", "hyperframes.html"])
     }
 
     @Test func eventsOffWritesNoEventsFile() throws {
@@ -473,7 +474,7 @@ enum EventFixtures {
             clipFolder: folder, homeDirectory: root)
         #expect(written.eventsFile == nil)
         #expect(!written.snippet.contains("clicks"))
-        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.path)) == ["clip.mp4", "hyperframes.html"])
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.path)) == ["2026-11-17_104207_safari.mp4", "hyperframes.html"])
     }
 
     @Test func partialClipIsMarkedIncomplete() throws {
