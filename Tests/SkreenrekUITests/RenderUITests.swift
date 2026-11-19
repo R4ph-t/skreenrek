@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SkreenrekCore
 import SkreenrekUI
 import Synchronization
 import Testing
@@ -41,6 +42,7 @@ import Vision
             ] {
                 expected.append("settings-\(state)-\(appearance)@2x.png")
             }
+            expected.append("surface-panel-settings-general-\(appearance)@2x.png")
             expected.append("picker-empty-\(appearance)@2x.png")
             for state in ["keyboard", "window-contrast", "region-contrast"] {
                 expected.append("picker-\(state)-\(appearance)@2x.png")
@@ -211,7 +213,7 @@ import Vision
         defer { try? FileManager.default.removeItem(at: folder) }
         #expect(try await Self.run(["debug", "render-ui", "--out", folder.path]) == 0)
 
-        for (appearance, red, blue) in [("light", 0xF6, 0xF8), ("dark", 0x1E, 0x20)] {
+        for (appearance, red, blue) in [("light", 0xF5, 0xF5), ("dark", 0x1E, 0x1E)] {
             for state in ["idle", "picked", "recording", "nowindow"] {
                 let name = "panel-\(state)-\(appearance)@2x.png"
                 let data = try Data(contentsOf: folder.appendingPathComponent(name))
@@ -228,6 +230,64 @@ import Vision
                 // The hairline sits on the fill, so the edge is opaque too.
                 #expect(rep.colorAt(x: 0, y: rep.pixelsHigh / 2)?.alphaComponent == 1, "\(name) edge")
             }
+        }
+    }
+
+    /// Addendum 3: the panel and Settings sample the same base and cell, Settings is one tone from its top edge
+    /// through the header, and the header carries the name and version on the left and the tabs on the right.
+    @Test func panelAndSettingsShareOneSurface() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skreenrek-render-shared-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(try await Self.run(["debug", "render-ui", "--out", folder.path]) == 0)
+
+        func image(_ name: String) throws -> NSBitmapImageRep {
+            let data = try Data(contentsOf: folder.appendingPathComponent(name))
+            return try #require(NSBitmapImageRep(data: data), "\(name)")
+        }
+        // Raw bytes: the PNG is tagged sRGB, and `colorAt` would convert them again.
+        func pixel(_ rep: NSBitmapImageRep, _ x: Int, _ y: Int) -> [Int] {
+            var value = [Int](repeating: 0, count: 4)
+            rep.getPixel(&value, atX: x, y: y)
+            return Array(value.prefix(3))
+        }
+        for (appearance, base, cell) in [("dark", 0x1E, 0x2A), ("light", 0xF5, 0xFF)] {
+            let both = try image("surface-panel-settings-general-\(appearance)@2x.png")
+            // At 2×: the panel at x 40–340 pt, Settings at x 380–860 pt, both 40 pt down.
+            let panelBase = pixel(both, 100, 1000)
+            let panelCell = pixel(both, 200, 605)
+            let settingsBase = pixel(both, 1100, 230)
+            let settingsCell = pixel(both, 1300, 420)
+            #expect(panelBase == [base, base, base], "\(appearance) panel base \(panelBase)")
+            #expect(settingsBase == panelBase, "\(appearance) settings base \(settingsBase)")
+            #expect(panelCell == [cell, cell, cell], "\(appearance) panel cell \(panelCell)")
+            #expect(settingsCell == panelCell, "\(appearance) settings cell \(settingsCell)")
+            for tab in ["general", "agents", "permissions"] {
+                let name = "settings-\(tab)-\(appearance)@2x.png"
+                let rep = try image(name)
+                // The top edge, the title bar, the header and the gap above the first section: one tone.
+                for y in [1, 30, 60, 100, 170, 180] {
+                    let value = pixel(rep, 300, y)
+                    #expect(value == [base, base, base], "\(name) y \(y): \(value)")
+                }
+                let section = pixel(rep, 500, 300)
+                #expect(section == [cell, cell, cell], "\(name) section \(section)")
+            }
+            // The header at 2×: y 56–168. Name and version left of x 200 pt, the tabs from x 200 to 464 pt.
+            let general = try image("settings-general-\(appearance)@2x.png")
+            let cg = try #require(general.cgImage)
+            let left = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 100, y: 56, width: 300, height: 112))))
+            #expect(left.contains("Skreenrek"), "\(left)")
+            #expect(left.contains("Version \(SkreenrekVersion.current)"), "\(left)")
+            let right = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 400, y: 56, width: 560, height: 112))))
+            for tab in ["General", "Agents", "Permissions"] {
+                #expect(right.contains(tab), "\(right)")
+            }
+            // About: the Updates status, and no separate version line below the header.
+            let body = try Self.recognizedText(
+                in: try #require(cg.cropping(to: CGRect(x: 0, y: 184, width: 960, height: general.pixelsHigh - 184))))
+            #expect(body.contains("is up to date"), "\(body)")
+            #expect(!body.contains("Version"), "\(body)")
         }
     }
 

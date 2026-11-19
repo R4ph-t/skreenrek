@@ -13,13 +13,9 @@ enum BrandTheme {
         nsColor: NSColor(name: nil) { appearance in
             NSColor(white: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 0.22 : 0.16, alpha: 1)
         })
-    /// The menu material's tone, for the composed renders (an offscreen `NSMenu` can't be drawn).
+    /// The shared surface's base, for the composed renders (an offscreen `NSMenu` can't be drawn).
     static let menuBackground = Color(nsColor: menuBackgroundColor)
-    static let menuBackgroundColor = NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0.17, green: 0.17, blue: 0.18, alpha: 1)
-            : NSColor(srgbRed: 0.96, green: 0.96, blue: 0.96, alpha: 1)
-    }
+    static var menuBackgroundColor: NSColor { SkreenrekSurface.baseColor }
 
     /// The header band: neutral, red while recording, orange for an error. Increase Contrast makes it stronger and
     /// adds a stroke.

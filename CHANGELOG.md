@@ -24,10 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recordings are now named after their folder (for example 2026-11-19_091629_safari.mp4) instead of clip.mp4.
 - While the control bar is on, a window you record from the menu or the bar stays picked after the clip is saved.
 - The control bar's X button is hidden while recording and saving. The bar keeps its width, so nothing moves.
-- With `--no-hud` or Show recording indicator off, the Saved indicator no longer appears after a clip.
+- With `--no-hud` (CLI) or `hud: false` (MCP), or Show recording indicator off, no Saved confirmation appears after a clip, on the bar or as the separate indicator. Agents get the clip's paths from the CLI output or the MCP stop result.
+- The control bar's X button has no background at rest, like the Saved buttons, and only highlights on hover and press.
 - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
 - The preview has an accent outline while a window is picked, and a red one while recording.
 - Settings is now a standard window with General, Agents, and Permissions tabs.
+- The menu, the control bar, the recording indicator and Settings now share one neutral surface, so they match side by side in light and dark.
+- Settings has a header with the app icon, its name and version, and a General | Agents | Permissions switch, all in the same tone as the window, replacing the toolbar tabs. The window is titled Skreenrek Settings on every tab.
 - Everything in the menu lines up on one left and one right edge, and the button labels are centered.
 - The menu-bar panel now has a solid background instead of see-through glass.
 - The window picker's labels and the recording indicator are solid too, matching the menu.

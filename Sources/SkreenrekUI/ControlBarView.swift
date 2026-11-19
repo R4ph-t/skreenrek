@@ -318,8 +318,8 @@ private struct ControlBarFileButtons: View {
     }
 }
 
-/// Forgets the window. Dimmed while the window can't be forgotten, and hidden while recording and saving. Its slot
-/// stays either way, so the bar never reflows.
+/// Forgets the window. A borderless icon button like Saved's, dimmed while the window can't be forgotten, and hidden
+/// while recording and saving. Its slot stays either way, so the bar never reflows.
 private struct ControlBarClearButton: View {
     var clear: ControlBarClear
     var onAction: (MenuAction) -> Void
@@ -330,11 +330,15 @@ private struct ControlBarClearButton: View {
         } label: {
             Image(systemName: "xmark")
                 .font(.system(size: ControlBarMetrics.clearGlyph, weight: .semibold))
-                .foregroundStyle(clear.enabled ? PanelSurface.secondaryText : PanelSurface.tertiaryText)
                 .frame(width: ControlBarMetrics.clearWidth, height: ControlBarMetrics.controlHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(ControlBarCellButtonStyle())
+        // The same borderless icon button as Saved's folder and copy: no cell at rest, only the hover and pressed
+        // tones, in every bar state.
+        .buttonStyle(
+            PanelIconButtonStyle(
+                rest: clear.enabled ? PanelSurface.secondaryText : PanelSurface.tertiaryText,
+                active: PanelSurface.primaryText, forcedState: nil))
         .disabled(!clear.enabled || !clear.visible)
         .accessibilityLabel(clear.accessibilityLabel)
         .modifier(PanelHelp(text: clear.enabled && clear.visible ? clear.help : nil))

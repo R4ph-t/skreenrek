@@ -11,12 +11,12 @@ import Testing
     private let light = PanelPalette(.light)
 
     @Test func theSurfaceFillsAreOpaqueAndMatchTheAddendum() {
-        #expect(dark.fill == PanelTone(red: 0x1E, green: 0x1E, blue: 0x20))
-        #expect(light.fill == PanelTone(red: 0xF6, green: 0xF6, blue: 0xF8))
-        #expect(dark.cellFill == PanelTone(red: 0x2C, green: 0x2C, blue: 0x2F))
+        #expect(dark.fill == PanelTone(red: 0x1E, green: 0x1E, blue: 0x1E))
+        #expect(light.fill == PanelTone(red: 0xF5, green: 0xF5, blue: 0xF5))
+        #expect(dark.cellFill == PanelTone(red: 0x2A, green: 0x2A, blue: 0x2A))
         #expect(light.cellFill == PanelTone(red: 0xFF, green: 0xFF, blue: 0xFF))
-        #expect(dark.wellFill == PanelTone(red: 0x2C, green: 0x2C, blue: 0x2F))
-        #expect(light.wellFill == PanelTone(red: 0xE9, green: 0xE9, blue: 0xEE))
+        #expect(dark.wellFill == PanelTone(red: 0x2A, green: 0x2A, blue: 0x2A))
+        #expect(light.wellFill == PanelTone(red: 0xEB, green: 0xEB, blue: 0xEB))
         for palette in [dark, light] {
             for tone in [palette.fill, palette.cellFill, palette.wellFill] {
                 #expect(tone.opacity == 1, "\(tone)")
@@ -29,7 +29,7 @@ import Testing
         #expect(light.hairline(increaseContrast: false) == .black(0.10))
         #expect(dark.hairline(increaseContrast: true) == .white(0.25))
         #expect(light.hairline(increaseContrast: true) == .black(0.25))
-        #expect(dark.separator == .white(0.10))
+        #expect(dark.separator == .white(0.08))
         #expect(light.separator == .black(0.08))
         #expect(dark.cellHairline == nil)
         #expect(light.cellHairline == .black(0.08))

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// An sRGB colour from the solid-panel addendum, kept as numbers so the tests can read the spec's values.
+/// An sRGB colour from the surface tokens, kept as numbers so the tests can read the spec's values.
 struct PanelTone: Hashable, Sendable {
     var red: UInt8
     var green: UInt8
@@ -55,7 +55,8 @@ enum PanelInteraction: Hashable, Sendable {
     }
 }
 
-/// The menu panel's solid surface, for one appearance (addendum of 2026-11-18). Nothing here is a material.
+/// The menu panel's solid surface, for one appearance. Every colour forwards to `SkreenrekSurface`, so the panel,
+/// the control bar, the HUDs and Settings share one tone. Nothing here is a material.
 struct PanelPalette: Hashable, Sendable {
     var isDark: Bool
 
@@ -63,27 +64,28 @@ struct PanelPalette: Hashable, Sendable {
         isDark = scheme == .dark
     }
 
-    var fill: PanelTone { .hex(isDark ? 0x1E1E20 : 0xF6F6F8) }
-    var separator: PanelTone { isDark ? .white(0.10) : .black(0.08) }
-    var cellFill: PanelTone { .hex(isDark ? 0x2C2C2F : 0xFFFFFF) }
+    var surface: SkreenrekSurface { SkreenrekSurface(isDark: isDark) }
+
+    var fill: PanelTone { surface.base }
+    var separator: PanelTone { surface.separator }
+    var cellFill: PanelTone { surface.cell }
     /// Light cells only: a dark cell already stands out from the panel.
-    var cellHairline: PanelTone? { isDark ? nil : .black(0.08) }
-    var wellFill: PanelTone { .hex(isDark ? 0x2C2C2F : 0xE9E9EE) }
+    var cellHairline: PanelTone? { surface.cellEdge }
+    var wellFill: PanelTone { surface.well }
     var dropShadow: PanelShadow {
         isDark ? PanelShadow(opacity: 0.35, blur: 24, y: 8) : PanelShadow(opacity: 0.15, blur: 20, y: 6)
     }
 
     func hairline(increaseContrast: Bool) -> PanelTone {
-        let opacity = increaseContrast ? 0.25 : 0.10
-        return isDark ? .white(opacity) : .black(opacity)
+        surface.hairline(increaseContrast: increaseContrast)
     }
 
     /// The row highlight. Nil at rest.
     func rowFill(_ interaction: PanelInteraction) -> PanelTone? {
         switch interaction {
         case .rest: nil
-        case .hover: isDark ? .white(0.08) : .black(0.05)
-        case .pressed: isDark ? .white(0.12) : .black(0.09)
+        case .hover: surface.hover
+        case .pressed: surface.pressed
         }
     }
 

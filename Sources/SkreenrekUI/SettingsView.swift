@@ -91,7 +91,7 @@ public struct SettingsActions {
     public static let none = SettingsActions(chooseOutputFolder: {}, openPrivacyPane: { _ in }, settingsChanged: {})
 }
 
-/// The Settings window's tabs, in toolbar order.
+/// The Settings window's tabs, in the header's segmented control order.
 public enum SettingsTab: String, CaseIterable, Sendable {
     case general
     case agents
@@ -126,13 +126,15 @@ public enum SettingsMetrics {
     /// Every Agents button, so they line up as one column.
     public static let agentButtonWidth: CGFloat = 88
 
-    /// A grouped `Form` puts its own space around rows, and has no setting for it. It keeps 20 pt around each group,
-    /// 10 inside it, 10.5 above and below a row, and 32 above a section header. These turn that into the design's 16,
-    /// 12, 44 and 16.
-    static let formMarginAdjustment: CGFloat = -4
-    static let rowInsetAdjustment: CGFloat = 2
-    static let formRowVerticalInset: CGFloat = 10.5
-    static let sectionHeaderAdjustment: CGFloat = -16
+    /// Sections run x 16–464 (the header's edges).
+    public static let sectionInset: CGFloat = 16
+    /// A row's content sits 12 pt inside its section: labels at x 28, trailing controls ending at x 452.
+    public static let rowInset: CGFloat = 12
+    public static let sectionRadius: CGFloat = 10
+    /// Between sections, and under the last one.
+    public static let sectionSpacing: CGFloat = 16
+    /// Between a section's header (or footer) and the section.
+    public static let headerGap: CGFloat = 6
 }
 
 /// One permission's row. The shape of the status icon carries the state, so colour is never the only cue.
@@ -183,19 +185,23 @@ public struct SettingsView: View {
         self.actions = actions
     }
 
+    @Environment(\.colorScheme) private var scheme
+
+    /// Plain sections on `surface.base`: a grouped `Form` won't take `surface.cell` as its row background (it draws
+    /// its own section fill), so the sections are built here, addendum 3's fallback.
     public var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: SettingsMetrics.sectionSpacing) {
             switch tab {
             case .general: general
             case .agents: agents
             case .permissions: permissions
             }
         }
-        .formStyle(.grouped)
-        .contentMargins(SettingsMetrics.formMarginAdjustment, for: .scrollContent)
-        .scrollDisabled(true)
-        .frame(width: SettingsMetrics.width)
+        .padding(.horizontal, SettingsMetrics.sectionInset)
+        .padding(.bottom, SettingsMetrics.sectionSpacing)
+        .frame(width: SettingsMetrics.width, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
+        .background(SkreenrekSurface(scheme).base.color)
         .onChange(of: store.controllerSettings) { actions.settingsChanged() }
         .onChange(of: store.showControlBar) { actions.settingsChanged() }
     }
@@ -204,7 +210,7 @@ public struct SettingsView: View {
 
     @ViewBuilder
     private var general: some View {
-        Section {
+        SettingsSection {
             SettingsRow {
                 SettingsRowText(
                     title: UIStrings.Settings.outputFolder, detail: store.outputFolderDisplayPath,
@@ -221,7 +227,7 @@ public struct SettingsView: View {
                     isOn: Binding(get: { panel.openAtLogin }, set: { panel.setOpenAtLogin($0) }))
             }
         }
-        Section {
+        SettingsSection {
             SettingsRow {
                 SettingsRowText(title: UIStrings.Settings.defaultFrameRate)
             } trailing: {
@@ -239,7 +245,7 @@ public struct SettingsView: View {
         } header: {
             SettingsSectionHeader(title: UIStrings.Settings.recording)
         }
-        Section {
+        SettingsSection {
             if let updates = panel.updates { UpdatesRows(checker: updates) }
             GitHubRow()
         } header: {
@@ -260,7 +266,7 @@ public struct SettingsView: View {
     @ViewBuilder
     private var agents: some View {
         if let agents = panel.agents {
-            Section {
+            SettingsSection {
                 ForEach(agents.rows) { row in
                     SettingsRow {
                         SettingsRowText(title: row.title, detail: row.status, detailHelp: row.statusHelp)
@@ -276,7 +282,7 @@ public struct SettingsView: View {
                 Text(UIStrings.Agents.footer)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .padding(.leading, SettingsMetrics.rowInsetAdjustment)
+                    .padding(.leading, SettingsMetrics.rowInset)
             }
         }
     }
@@ -284,7 +290,7 @@ public struct SettingsView: View {
     // MARK: - Permissions
 
     private var permissions: some View {
-        Section {
+        SettingsSection {
             SettingsPermissionRow(model: PermissionRowModel(.screenRecording, status: panel.screenRecording)) {
                 actions.openPrivacyPane(.screenRecording)
             }
@@ -311,7 +317,7 @@ struct SettingsRow<Label: View, Trailing: View>: View {
     }
 }
 
-/// Puts a row's content on the design's edges, inside the space the form adds around it.
+/// Puts a row's content on the design's edges: 12 pt inside its section, 44 pt tall.
 struct SettingsRowLayout: ViewModifier {
     @Environment(\.settingsRowProbe) private var probe
 
@@ -328,9 +334,58 @@ struct SettingsRowLayout: ViewModifier {
                     }
                 }
             }
-            .padding(.horizontal, SettingsMetrics.rowInsetAdjustment)
+            .padding(.horizontal, SettingsMetrics.rowInset)
             .frame(height: SettingsMetrics.rowHeight)
-            .padding(.vertical, -SettingsMetrics.formRowVerticalInset)
+    }
+}
+
+/// One Settings section: an optional header, the rows on a 10 pt `surface.cell` rect (with the light cells' 1 px
+/// edge), 1 px `surface.separator` lines between rows inset 12 pt from the leading edge, and an optional footer.
+struct SettingsSection<Content: View, Header: View, Footer: View>: View {
+    @ViewBuilder let content: Content
+    @ViewBuilder let header: Header
+    @ViewBuilder let footer: Footer
+
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
+
+    init(
+        @ViewBuilder content: () -> Content, @ViewBuilder header: () -> Header, @ViewBuilder footer: () -> Footer
+    ) {
+        self.content = content()
+        self.header = header()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        let surface = SkreenrekSurface(scheme)
+        let shape = RoundedRectangle(cornerRadius: SettingsMetrics.sectionRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: SettingsMetrics.headerGap) {
+            header
+            VStack(spacing: 0) {
+                Group(subviews: content) { rows in
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(surface.separator.color)
+                                .frame(height: PanelSurface.pixel(displayScale: displayScale))
+                                .padding(.leading, SkreenrekSurface.separatorInset)
+                                .accessibilityHidden(true)
+                        }
+                        row
+                    }
+                }
+            }
+            .background(shape.fill(surface.cell.color))
+            .overlay {
+                if let edge = surface.cellEdge {
+                    shape.strokeBorder(edge.color, lineWidth: PanelSurface.pixel(displayScale: displayScale))
+                        .allowsHitTesting(false)
+                }
+            }
+            .clipShape(shape)
+            footer
+        }
     }
 }
 
@@ -377,6 +432,24 @@ struct SettingsButton: View {
     }
 }
 
+extension SettingsSection where Header == EmptyView, Footer == EmptyView {
+    init(@ViewBuilder content: () -> Content) {
+        self.init(content: content, header: { EmptyView() }, footer: { EmptyView() })
+    }
+}
+
+extension SettingsSection where Footer == EmptyView {
+    init(@ViewBuilder content: () -> Content, @ViewBuilder header: () -> Header) {
+        self.init(content: content, header: header, footer: { EmptyView() })
+    }
+}
+
+extension SettingsSection where Header == EmptyView {
+    init(@ViewBuilder content: () -> Content, @ViewBuilder footer: () -> Footer) {
+        self.init(content: content, header: { EmptyView() }, footer: footer)
+    }
+}
+
 /// A section header at 13 semibold, on the labels' edge.
 struct SettingsSectionHeader: View {
     let title: String
@@ -385,8 +458,8 @@ struct SettingsSectionHeader: View {
         Text(title)
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(.primary)
-            .padding(.leading, SettingsMetrics.rowInsetAdjustment)
-            .padding(.top, SettingsMetrics.sectionHeaderAdjustment)
+            .padding(.leading, SettingsMetrics.rowInset)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -459,7 +532,8 @@ struct UpdatesRows: View {
         }
         if let notes = row.notes {
             WhatsNewNotes(markdown: notes)
-                .padding(.horizontal, SettingsMetrics.rowInsetAdjustment)
+                .padding(.horizontal, SettingsMetrics.rowInset)
+                .padding(.vertical, 8)
         }
     }
 

@@ -58,20 +58,100 @@ import Testing
         }
     }
 
-    @Test func theWindowHasToolbarTabsOpeningOnTheLastOneUsed() async throws {
-        try await onMain("settings tabs") {
+    @Test func theWindowIsOneToneUnderATransparentTitleBarWithAConstantTitle() async throws {
+        try await onMain("settings window") {
             let (defaults, name) = SettingsStoreTests.suite()
             defer { defaults.removePersistentDomain(forName: name) }
             let store = SettingsStore(defaults: defaults)
             store.settingsTab = .agents
-            let tabs = SettingsTabsController(
-                store: store, panel: Self.panel(), actions: .none)
-            #expect(tabs.tabStyle == .toolbar)
-            #expect(tabs.tabViewItems.map(\.label) == ["General", "Agents", "Permissions"])
-            #expect(tabs.tabViewItems.allSatisfy { $0.image != nil })
-            #expect(tabs.selectedTabViewItemIndex == 1)
-            tabs.select(.general)
-            #expect(tabs.selectedTabViewItemIndex == 0)
+            let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
+            let window = controller.prepareWindow()
+            defer { window.contentViewController = nil }
+            #expect(window.styleMask.contains(.fullSizeContentView))
+            #expect(window.titlebarAppearsTransparent)
+            #expect(window.titleVisibility == .hidden)
+            #expect(window.toolbar == nil)
+            #expect(window.backgroundColor == SkreenrekSurface.baseColor)
+            #expect(window.contentViewController is NSHostingController<SettingsWindowContent>)
+            // It opens on the tab used last.
+            #expect(store.settingsTab == .agents)
+            #expect(window.title == "Skreenrek Settings")
+            for tab in SettingsTab.allCases.reversed() + SettingsTab.allCases {
+                controller.select(tab)
+                #expect(store.settingsTab == tab)
+                #expect(window.title == "Skreenrek Settings", "\(tab)")
+            }
+        }
+    }
+
+    @Test func theHeaderShowsTheNameAndTheCurrentVersion() {
+        let header = SettingsHeaderModel()
+        #expect(header.name == "Skreenrek")
+        #expect(header.version == "Version \(SkreenrekVersion.current)")
+        #expect(header.accessibilityLabel == "Skreenrek, version \(SkreenrekVersion.current)")
+        #expect(SettingsHeaderModel(version: "2.0.0").version == "Version 2.0.0")
+        #expect(UIStrings.Settings.windowTitle == "Skreenrek Settings")
+        #expect(UIStrings.Settings.tabsLabel == "Settings tabs")
+    }
+
+    @Test func theHeaderLayoutIsTheAddendums() {
+        #expect(SettingsChromeMetrics.titleBarHeight == 28)
+        #expect(SettingsChromeMetrics.headerHeight == 56)
+        #expect(SettingsChromeMetrics.headerBottom == 84)
+        #expect(SettingsChromeMetrics.contentTop == 92)
+        #expect(SettingsChromeMetrics.headerInset == 16)
+        #expect(SettingsChromeMetrics.iconSize == 32)
+        #expect(SettingsChromeMetrics.headerInset + SettingsChromeMetrics.iconSize + SettingsChromeMetrics.textGap == 56)
+        #expect(SettingsChromeMetrics.tabsWidth == 264)
+        #expect(SettingsChromeMetrics.segmentHeight == 24)
+        #expect(SettingsMetrics.width - SettingsChromeMetrics.headerInset == 464)
+        #expect(SettingsChromeMetrics.crossfade == 0.15)
+    }
+
+    @Test func arrowsMoveOneTabAndStopAtTheEnds() {
+        #expect(SettingsTab.general.moved(by: 1) == .agents)
+        #expect(SettingsTab.agents.moved(by: 1) == .permissions)
+        #expect(SettingsTab.permissions.moved(by: 1) == .permissions)
+        #expect(SettingsTab.permissions.moved(by: -1) == .agents)
+        #expect(SettingsTab.general.moved(by: -1) == .general)
+        #expect(SettingsTab.general.moved(by: 5) == .permissions)
+    }
+
+    @Test func theSegmentedControlSwitchesAndRemembersTheTab() async throws {
+        try await onMain("settings segmented control") {
+            let (defaults, name) = SettingsStoreTests.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let store = SettingsStore(defaults: defaults)
+            let coordinator = SettingsTabsControl.Coordinator(
+                selection: Binding(get: { store.settingsTab }, set: { store.settingsTab = $0 }))
+            let control = SettingsSegmentedControl.make()
+            control.target = coordinator
+            control.action = #selector(SettingsTabsControl.Coordinator.changed(_:))
+            control.onMove = { coordinator.move(by: $0) }
+            #expect(control.segmentCount == 3)
+            #expect((0..<3).map { control.label(forSegment: $0) } == ["General", "Agents", "Permissions"])
+            #expect((0..<3).map { control.width(forSegment: $0) } == [88, 88, 88])
+            #expect(control.accessibilityLabel() == "Settings tabs")
+            #expect(control.canBecomeKeyView)
+            #expect(control.acceptsFirstResponder)
+
+            // A click on Permissions.
+            control.selectedSegment = 2
+            coordinator.changed(control)
+            #expect(store.settingsTab == .permissions)
+            #expect(SettingsStore(defaults: defaults).settingsTab == .permissions)
+
+            // → at the last tab stays there; ← walks back and stops at General.
+            control.keyDown(with: Self.arrow(right: true))
+            #expect(store.settingsTab == .permissions)
+            control.keyDown(with: Self.arrow(right: false))
+            #expect(store.settingsTab == .agents)
+            control.keyDown(with: Self.arrow(right: false))
+            control.keyDown(with: Self.arrow(right: false))
+            #expect(store.settingsTab == .general)
+            control.keyDown(with: Self.arrow(right: true))
+            #expect(store.settingsTab == .agents)
+            #expect(SettingsStore(defaults: defaults).settingsTab == .agents)
         }
     }
 
@@ -91,24 +171,32 @@ import Testing
         }
     }
 
-    @Test func theWindowFitsEachTabsContent() async throws {
+    @Test func theWindowFitsEachTabsContentUnderTheHeader() async throws {
         try await onMain("settings window height") {
             let (defaults, name) = SettingsStoreTests.suite()
             defer { defaults.removePersistentDomain(forName: name) }
-            let tabs = SettingsTabsController(
-                store: SettingsStore(defaults: defaults), panel: Self.panel(), actions: .none)
-            let window = NSWindow(contentViewController: tabs)
+            let store = SettingsStore(defaults: defaults)
+            let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
+            let window = controller.prepareWindow()
             defer { window.contentViewController = nil }
-            for (tab, height) in [(SettingsTab.general, 552.0), (.permissions, 120.0)] {
-                tabs.select(tab)
-                tabs.view.layoutSubtreeIfNeeded()
-                let child = try #require(tabs.tabViewItems[tabs.selectedTabViewItemIndex].viewController)
-                child.view.layoutSubtreeIfNeeded()
-                tabs.fitWindow()
-                let content = window.contentLayoutRect.height
-                #expect(abs(content - height) <= 4, "\(tab) is \(content)")
+            // The title bar and header (84) and the gap (8) over each tab's sections. No scroll view.
+            for (tab, height) in [(SettingsTab.general, 627.5), (.permissions, 196.5), (.agents, 306.5)] {
+                controller.select(tab)
+                window.contentView?.layoutSubtreeIfNeeded()
+                controller.fitWindow(animated: false)
+                #expect(abs(window.frame.height - height) <= 4, "\(tab) is \(window.frame.height)")
+                #expect(window.frame.width == SettingsMetrics.width)
             }
         }
+    }
+
+    @MainActor
+    private static func arrow(right: Bool) -> NSEvent {
+        let key = String(UnicodeScalar(UInt16(right ? NSRightArrowFunctionKey : NSLeftArrowFunctionKey))!)
+        return NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [.numericPad, .function], timestamp: 0, windowNumber: 0,
+            context: nil, characters: key, charactersIgnoringModifiers: key, isARepeat: false,
+            keyCode: right ? 124 : 123)!
     }
 
     @MainActor
