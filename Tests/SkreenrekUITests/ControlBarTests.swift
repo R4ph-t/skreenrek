@@ -1407,9 +1407,28 @@ private final class FakeBarTracker: WindowFrameTracking {
         #expect(!isTone(292, 18, palette.fill), "Record end")
         #expect(isTone(295, 18, palette.fill), "after Record")
         #expect(isTone(305, 18, palette.fill), "before Clear")
-        #expect(isTone(307, 18, palette.cellFill), "Clear start")
-        #expect(isTone(328, 18, palette.cellFill), "Clear end")
+        // Clear is a borderless icon button: no cell at rest, so its slot edges read the bar's fill.
+        #expect(isTone(307, 18, palette.fill), "Clear start, no cell at rest")
+        #expect(isTone(328, 18, palette.fill), "Clear end, no cell at rest")
         #expect(isTone(331, 18, palette.fill), "after Clear")
+    }
+
+    /// Saved draws Clear the same way as idle: the bar's fill around the glyph, with no cell behind it.
+    @Test(arguments: [UIRenderer.Appearance.light, .dark])
+    func clearHasNoCellInSaved(appearance: UIRenderer.Appearance) throws {
+        let palette = PanelPalette(appearance == .dark ? .dark : .light)
+        let saved = try #require(Saved.content(Saved.model().model))
+        #expect(saved.clear.visible)
+        let data = try UIRenderer.png(hosted(saved), appearance: appearance, active: true)
+        let image = try #require(NSBitmapImageRep(data: data))
+        func isTone(_ x: Int, _ y: Int, _ tone: PanelTone) -> Bool {
+            var pixel = [Int](repeating: 0, count: 4)
+            image.getPixel(&pixel, atX: x * 2, y: y * 2)
+            return pixel == [Int(tone.red), Int(tone.green), Int(tone.blue), 255]
+        }
+        for x in [305, 307, 309, 326, 328, 331] {
+            #expect(isTone(x, 9, palette.fill), "Clear slot at \(x) pt")
+        }
     }
 
     /// Reads the drawn pixels left of Record: the indicator and the text form one centred group, 6 pt apart.
@@ -1552,7 +1571,8 @@ private enum Saved {
         #expect(frames == [width, width, width, width])
     }
 
-    /// Reads the drawn pixels: in recording and saving the Clear slot is bar fill, in idle it is the cell.
+    /// Reads the drawn pixels: Clear has no cell in any state, and its glyph is drawn in idle only, not while recording or
+    /// saving.
     @MainActor
     @Test(arguments: [UIRenderer.Appearance.light, .dark])
     func theHiddenClearLeavesItsSlotEmpty(appearance: UIRenderer.Appearance) throws {
@@ -1568,11 +1588,17 @@ private enum Saved {
             let image = try #require(
                 NSBitmapImageRep(data: try UIRenderer.png(view, appearance: appearance, active: true)))
             #expect(image.pixelsWide == 672)
-            var pixel = [Int](repeating: 0, count: 4)
-            image.getPixel(&pixel, atX: 308 * 2, y: 8 * 2)
             let fill = palette.fill
-            let isFill = pixel == [Int(fill.red), Int(fill.green), Int(fill.blue), 255]
-            #expect(isFill == !visible, "\(activity)")
+            func isFill(_ x: Int, _ y: Int) -> Bool {
+                var pixel = [Int](repeating: 0, count: 4)
+                image.getPixel(&pixel, atX: x, y: y)
+                return pixel == [Int(fill.red), Int(fill.green), Int(fill.blue), 255]
+            }
+            // No cell behind Clear in any state: the slot's corner is the bar's fill.
+            #expect(isFill(308 * 2, 8 * 2), "slot corner, \(activity)")
+            // The glyph, centred in the 306-330 slot: drawn only while Clear is visible.
+            let inked = (312 * 2..<324 * 2).contains { x in (12 * 2..<24 * 2).contains { y in !isFill(x, y) } }
+            #expect(inked == visible, "glyph, \(activity)")
         }
     }
 }

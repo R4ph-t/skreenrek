@@ -85,7 +85,11 @@ public enum MCPTool: String, Sendable, CaseIterable {
                 ],
                 "cursor": ["type": "boolean", "default": true, "description": "Show the cursor in the video."],
                 "events": ["type": "boolean", "default": true, "description": "Write events.json."],
-                "hud": ["type": "boolean", "default": true, "description": "Show the recording indicator."],
+                "hud": [
+                    "type": "boolean", "default": true,
+                    "description":
+                        "Show the recording indicator and the Saved confirmation. With false, neither shows; the clip's paths come back in skreenrek_stop_recording's result.",
+                ],
                 "outDir": [
                     "type": "string",
                     "description": "The folder for the clip folder (default: ~/Movies/Skreenrek or Settings).",

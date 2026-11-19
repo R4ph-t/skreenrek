@@ -78,7 +78,8 @@ struct RecordCommand: ParsableCommand {
     var duration: String?
     @Flag(help: "Hide the cursor in the video.") var noCursor = false
     @Flag(help: "Don't write events.json.") var noEvents = false
-    @Flag(help: "Don't show the recording indicator.") var noHud = false
+    @Flag(help: "Don't show the recording indicator or the Saved confirmation. The clip's paths are in the output.")
+    var noHud = false
     @Option(help: ArgumentHelp("The folder for the clip folder.", valueName: "DIR")) var out: String?
     @Option(help: ArgumentHelp("The clip folder's name instead of the app.", valueName: "SLUG")) var name: String?
     @Option(help: ArgumentHelp("Also copy the clip into this HyperFrames assets folder.", valueName: "DIR"))

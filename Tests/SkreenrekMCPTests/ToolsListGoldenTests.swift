@@ -170,7 +170,7 @@ import Testing
                   },
                   "hud" : {
                     "default" : true,
-                    "description" : "Show the recording indicator.",
+                    "description" : "Show the recording indicator and the Saved confirmation. With false, neither shows; the clip's paths come back in skreenrek_stop_recording's result.",
                     "type" : "boolean"
                   },
                   "outDir" : {
