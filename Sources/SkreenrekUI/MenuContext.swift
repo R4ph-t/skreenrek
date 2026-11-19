@@ -61,8 +61,8 @@ public struct MenuContext: Sendable, Hashable {
     public var recordingIndicator: Bool
     /// Screen Recording or Accessibility is missing: the dropdown offers "Permissions needed…".
     public var permissionsMissing: Bool
-    /// A newer release's version (`1.0.3`): the footer shows `Update available · 1.0.3`.
-    public var updateAvailable: String?
+    /// The footer's Check for Updates… item.
+    public var checkForUpdates: CheckForUpdatesItem
     /// For the Last Clip row's start time.
     public var timeZone: TimeZone
     public var locale: Locale
@@ -71,10 +71,10 @@ public struct MenuContext: Sendable, Hashable {
         snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, lastClipTitle: String? = nil,
         sizeChoice: SizeChoice = .default, display: DisplayInfo? = nil, cursor: Bool = true, events: Bool = true,
         showControlBar: Bool = true, recordingIndicator: Bool = true, permissionsMissing: Bool = false,
-        updateAvailable: String? = nil, timeZone: TimeZone = .current, locale: Locale = .current
+        checkForUpdates: CheckForUpdatesItem = .hidden, timeZone: TimeZone = .current, locale: Locale = .current
     ) {
         self.permissionsMissing = permissionsMissing
-        self.updateAvailable = updateAvailable
+        self.checkForUpdates = checkForUpdates
         self.snapshot = snapshot
         self.actionError = actionError
         self.lastClipTitle = lastClipTitle
@@ -133,4 +133,12 @@ public struct MenuContext: Sendable, Hashable {
         guard let elapsed = snapshot.elapsed, elapsed.isFinite else { return 0 }
         return max(0, Int(elapsed.rounded(.down)))
     }
+}
+
+/// The footer's Check for Updates… item: hidden where Sparkle doesn't run (dev and ad-hoc builds), disabled while
+/// Sparkle is already checking or showing its window.
+public enum CheckForUpdatesItem: Sendable, Hashable {
+    case hidden
+    case enabled
+    case disabled
 }

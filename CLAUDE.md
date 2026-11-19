@@ -40,7 +40,8 @@ onboarding, settings), and the `skreenrek` executable. `make app` (added by hand
   `RecordingStats` on every recording, and the perf suites in `swift test`. Real-capture targets run by hand with
   `make perf`.
 - No SwiftPM `resources:` (resource bundles break the app bundle's signature). Embed text as Swift string literals.
-- Dependencies: Apple frameworks plus `swift-argument-parser` (pinned with `exact:`). Nothing else without a spec.
+- Dependencies: Apple frameworks plus `swift-argument-parser` and Sparkle (auto-updates, `SkreenrekUI` only, approved
+  by Raph 2026-11-19), both pinned with `exact:`. Nothing else without a spec.
 - UI copy says Skreenrek; the command, MCP tool prefix (`skreenrek_…`) and Application Support folder say `skreenrek`.
   No "Raph" or "CTO" in any string the app, CLI, MCP or skill shows.
 

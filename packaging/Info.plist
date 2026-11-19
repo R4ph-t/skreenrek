@@ -32,5 +32,11 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 the Skreenrek contributors. Released under the MIT License.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/R4ph-t/skreenrek/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>7uv/ca5Plq03VT5kH490hKhCBcLKCsr7rofoiAhLHI8=</string>
 </dict>
 </plist>

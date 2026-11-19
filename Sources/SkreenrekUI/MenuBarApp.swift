@@ -11,13 +11,9 @@ import os
 /// so the tab controller never resizes the window: a tab click just swaps the content, with no animation.
 final class SettingsTabsController: NSTabViewController {
     private let store: SettingsStore
-    private let panel: SettingsPanelState
-    private let actions: SettingsActions
 
     init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions, height: CGFloat) {
         self.store = store
-        self.panel = panel
-        self.actions = actions
         super.init(nibName: nil, bundle: nil)
         tabStyle = .toolbar
         transitionOptions = []
@@ -43,16 +39,6 @@ final class SettingsTabsController: NSTabViewController {
         selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: tab) ?? 0
     }
 
-    /// Gives every tab the window's new fixed height. The window is resized first, so the tab controller has nothing
-    /// to animate.
-    func setHeight(_ height: CGFloat) {
-        for (tab, item) in zip(SettingsTab.allCases, tabViewItems) {
-            guard let hosting = item.viewController as? NSHostingController<SettingsTabContent> else { continue }
-            hosting.rootView = SettingsTabContent(tab: tab, store: store, panel: panel, actions: actions, height: height)
-            hosting.preferredContentSize = NSSize(width: SettingsMetrics.width, height: height)
-        }
-    }
-
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         super.tabView(tabView, didSelect: tabViewItem)
         store.settingsTab = SettingsTab.allCases[selectedTabViewItemIndex]
@@ -62,8 +48,6 @@ final class SettingsTabsController: NSTabViewController {
 /// The Settings window: standard toolbar tabs on the shared solid surface, one tone from the top edge down (the
 /// toolbar draws no band of its own). One fixed content height, the tallest tab's, measured once when the window is
 /// built; shorter tabs sit at the top. Nothing reports heights back and nothing resizes the window on a tab switch.
-/// The one exception is What's new: release notes that arrive while the window exists (the launch or hourly check)
-/// make General taller, so the window grows once to fit them, without animation. It shrinks back only while hidden.
 @MainActor
 final class SettingsWindowController {
     private let store: SettingsStore
@@ -85,14 +69,12 @@ final class SettingsWindowController {
         ) { [weak panel] _ in
             MainActor.assumeIsolated { panel?.refresh() }
         }
-        observeUpdates()
     }
 
     /// Opens on `tab`, or on the tab used last, in front of every other app's windows.
     func show(tab: SettingsTab? = nil) {
         panel.refresh()
         let window = prepareWindow()
-        if !window.isVisible { fitHeight(allowShrink: true) }
         if let tab { select(tab) }
         // The dropdown is a non-activating panel, so Skreenrek isn't the active app when Settings is chosen, and
         // `activate()` is only a request on macOS 14 and later: the frontmost app may keep its place. Ordering front
@@ -100,33 +82,6 @@ final class SettingsWindowController {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-    }
-
-    /// Re-measures the tallest tab and gives the window that height, keeping its top edge, with no animation. While the
-    /// window is on screen it only grows (notes arrived), so a check that briefly hides the notes never resizes it.
-    func fitHeight(allowShrink: Bool) {
-        guard let window, let tabs else { return }
-        let height = Self.tallestTabHeight(store: store, panel: panel, actions: actions)
-        guard height > contentHeight || (allowShrink && height != contentHeight) else { return }
-        var frame = window.frame
-        frame.size.height += height - contentHeight
-        frame.origin.y -= height - contentHeight
-        contentHeight = height
-        window.setFrame(frame, display: true, animate: false)
-        tabs.setHeight(height)
-    }
-
-    /// Follows the update state, so notes that appear while the window exists refit it once.
-    private func observeUpdates() {
-        guard let updates = panel.updates else { return }
-        withObservationTracking {
-            _ = updates.state
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.fitHeight(allowShrink: false)
-                self?.observeUpdates()
-            }
-        }
     }
 
     /// Builds the window once, centred, at the fixed size.
@@ -177,8 +132,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
     private var hud: RecordingHUD?
-    private var updates: UpdateChecker?
-    private var updateTimer: Timer?
+    /// Sparkle, when this bundle is a release build (see `SparkleUpdater.isConfigured`).
+    private var updater: SparkleUpdater?
 
     public init(
         host: HeadlessHost, permissions: any PermissionProbe, requester: any PermissionRequester,
@@ -209,9 +164,9 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { NSWorkspace.shared.open(PrivacyPane.url($0)) })
         let onboarding = OnboardingWindowController(model: onboardingModel)
         self.onboarding = onboarding
-        let updates = makeUpdateChecker(model: model, effects: effects)
+        let updater = makeUpdater(model: model, effects: effects)
         let panel = SettingsPanelState(
-            permissions: permissions, loginItem: MainAppLoginItem(), agents: agents, updates: updates)
+            permissions: permissions, loginItem: MainAppLoginItem(), agents: agents, updates: updater)
         let settingsWindow = SettingsWindowController(
             store: store, panel: panel,
             actions: SettingsActions(
@@ -226,7 +181,6 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                     Task { await model.pushSettings() }
                 }))
         effects.showSettings = { [weak settingsWindow] in settingsWindow?.show() }
-        effects.showSettingsUpdates = { [weak settingsWindow] in settingsWindow?.show(tab: .general) }
         effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
         self.settingsWindow = settingsWindow
@@ -255,37 +209,33 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             }
             await model.start()
             if onboardingModel.shouldShowAtLaunch { onboarding.show() }
-            await updates.checkIfDue()
         }
     }
 
-    /// The update check: on launch, then hourly the timer asks whether 24 h have passed. The dropdown's footer
-    /// follows its state.
-    private func makeUpdateChecker(model: AppModel, effects: SystemEffects) -> UpdateChecker {
-        let method = HomebrewUpgrader.method()
-        let updates = UpdateChecker(
-            feed: GitHubReleaseFeed(), installer: method == .homebrew ? HomebrewUpgrader() : nil, method: method,
-            defaults: defaults, openURL: { effects.open($0) }, relaunch: { AppRelauncher.relaunch() })
-        updates.onChange = { [weak model, weak updates] in
-            model?.updateAvailable = updates?.availableVersion?.description
-        }
-        model.updateAvailable = updates.availableVersion?.description
-        let timer = Timer(timeInterval: 60 * 60, repeats: true) { [weak updates] _ in
-            MainActor.assumeIsolated {
-                guard let updates else { return }
-                Task { await updates.checkIfDue() }
+    /// Starts Sparkle in a release bundle; it schedules its own checks. The dropdown's Check for Updates… item follows
+    /// whether Sparkle can check right now. Elsewhere (dev and ad-hoc builds) there is no updater and no item.
+    private func makeUpdater(model: AppModel, effects: SystemEffects) -> SparkleUpdater? {
+        guard let updater = SparkleUpdater() else { return nil }
+        effects.checkForUpdatesNow = { [weak updater] in updater?.checkForUpdates() }
+        self.updater = updater
+        followUpdater(model: model)
+        return updater
+    }
+
+    private func followUpdater(model: AppModel) {
+        guard let updater else { return }
+        model.checkForUpdates = withObservationTracking {
+            updater.canCheckForUpdates ? .enabled : .disabled
+        } onChange: { [weak self, weak model] in
+            Task { @MainActor [weak self, weak model] in
+                guard let self, let model else { return }
+                self.followUpdater(model: model)
             }
         }
-        RunLoop.main.add(timer, forMode: .common)
-        updateTimer = timer
-        self.updates = updates
-        return updates
     }
 
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
-        // The cask's `uninstall quit:` asks the app to quit mid-upgrade; stay up so the upgrade can offer Relaunch.
-        if updates?.isInstalling == true { return .terminateCancel }
         switch model.quitDecision {
         case .now:
             return .terminateNow

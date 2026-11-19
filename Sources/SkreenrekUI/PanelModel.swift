@@ -751,15 +751,16 @@ public enum PanelModel {
 
     private static func footer(_ context: MenuContext) -> [PanelButton] {
         var rows: [PanelButton] = []
-        if let version = context.updateAvailable {
-            rows.append(
-                PanelButton(
-                    title: UIStrings.Updates.menuAvailable + UIStrings.Menu.separator + version, action: .showUpdate,
-                    role: .footer, symbol: "arrow.down.circle", tint: .accent))
-        }
         rows.append(
             PanelButton(
                 title: UIStrings.Menu.openOutputFolder, action: .openOutputFolder, role: .footer, symbol: "folder"))
+        if context.checkForUpdates != .hidden {
+            rows.append(
+                PanelButton(
+                    title: UIStrings.Menu.checkForUpdates, action: .checkForUpdates,
+                    enabled: context.checkForUpdates == .enabled, role: .footer,
+                    symbol: DropdownModel.symbol(for: .checkForUpdates)))
+        }
         rows.append(
             PanelButton(
                 title: UIStrings.Menu.settings, action: .openSettings, role: .footer, symbol: "gearshape",

@@ -210,7 +210,7 @@ public enum DropdownModel {
         case .copySnippet: "chevron.left.forwardslash.chevron.right"
         case .copyErrorDetails: "doc.on.clipboard"
         case .showPermissions: "hand.raised"
-        case .showUpdate: "arrow.down.circle"
+        case .checkForUpdates: "arrow.triangle.2.circlepath"
         default: nil
         }
     }
@@ -236,7 +236,6 @@ public enum DropdownModel {
 
     public static func iconTint(for item: MenuItemModel, context: MenuContext) -> IconTint {
         if item.action == .stop { return .red }
-        if item.action == .showUpdate { return .accent }
         guard isPrimary(item, context: context) else { return .neutral }
         return item.action == .record ? .red : .accent
     }

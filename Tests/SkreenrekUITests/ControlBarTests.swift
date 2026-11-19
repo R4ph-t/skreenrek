@@ -1304,7 +1304,7 @@ private final class FakeBarTracker: WindowFrameTracking {
     private func armed(clip: Bool, update: Bool) -> PanelContent {
         var context = RenderSamples.armed.context
         context.sizeChoice = .size(SizePreset.p1080.size)
-        context.updateAvailable = update ? "1.0.4" : nil
+        context.checkForUpdates = update ? .enabled : .hidden
         if !clip { context.snapshot.lastClip = nil }
         return PanelModel.content(
             for: context, preview: .ready(WindowStill(png: Data(), pixelWidth: 320, pixelHeight: 180)))

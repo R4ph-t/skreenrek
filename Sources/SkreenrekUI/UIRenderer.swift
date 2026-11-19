@@ -183,9 +183,9 @@ public enum UIRenderer {
     /// The spec's panel states, one file each. The 1.0.5 names (`nowindow`, `picked`, `recording`, `clear-hover`,
     /// `window-closed`) use the spec's samples, so their heights are the ones in its `sizes.json`.
     static func specPanels(preview: NSImage) -> [(name: String, view: NSView)] {
-        let idle = specArmed(update: "1.0.4")
+        let idle = specArmed(updates: true)
         let idleContent = PanelModel.content(for: idle, preview: readyStill)
-        let picked = PanelModel.content(for: specArmed(update: nil), preview: readyStill)
+        let picked = PanelModel.content(for: specArmed(updates: false), preview: readyStill)
         return [
             ("idle", panel(idleContent, preview: preview, clip: preview)),
             ("picked", panel(picked, preview: preview, clip: preview)),
@@ -218,13 +218,13 @@ public enum UIRenderer {
         .ready(WindowStill(png: Data(), pixelWidth: 320, pixelHeight: 180))
     }
 
-    /// Armed at 1080p with a last clip: 619.5 pt, or the 647.5 pt idle panel with an update.
-    private static func specArmed(update: String?) -> MenuContext {
+    /// Armed at 1080p with a last clip: 619.5 pt, or the 647.5 pt idle panel with Check for Updates….
+    private static func specArmed(updates: Bool) -> MenuContext {
         var context = RenderSamples.armed.context
         let size = SizePreset.p1080.size
         context.sizeChoice = .size(size)
         context.snapshot.size = size
-        context.updateAvailable = update
+        context.checkForUpdates = updates ? .enabled : .hidden
         if var clip = context.snapshot.lastClip {
             clip.recording.width = size.width
             clip.recording.height = size.height
@@ -279,25 +279,24 @@ public enum UIRenderer {
         return hosting
     }
 
-    /// One Settings render: a tab, its permission state, and the release the Updates row last saw.
+    /// One Settings render: a tab, its permission state, and what Sparkle's Updates section shows.
     struct SettingsSample {
         var name: String
         var tab: SettingsTab
         var screenRecording: PermissionStatus = .allowed
         var accessibility: PermissionStatus = .allowed
-        var latest = SkreenrekVersion.current
-        /// The newer release's notes, as GitHub returns them.
-        var notes = ""
+        /// A release build has the Updates section; a dev or ad-hoc build doesn't.
+        var updates = true
+        /// False while Sparkle is busy, which disables Check for Updates….
+        var canCheckForUpdates = true
     }
 
     static let settingsSamples = [
         SettingsSample(name: "default", tab: .general),
         SettingsSample(name: "general", tab: .general),
         SettingsSample(name: "general-control-bar", tab: .general),
-        SettingsSample(name: "updateavailable", tab: .general, latest: RenderSamples.newerVersion),
-        SettingsSample(
-            name: "updateavailable-notes", tab: .general, latest: RenderSamples.nextVersion,
-            notes: RenderSamples.releaseNotes),
+        SettingsSample(name: "updates-checking", tab: .general, canCheckForUpdates: false),
+        SettingsSample(name: "general-devbuild", tab: .general, updates: false),
         SettingsSample(name: "agents", tab: .agents),
         SettingsSample(name: "permissions", tab: .permissions),
         SettingsSample(
@@ -315,11 +314,7 @@ public enum UIRenderer {
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
         store.settingsTab = sample.tab
-        defaults.set(sample.latest, forKey: UpdateChecker.Key.latestVersion)
-        defaults.set(sample.notes, forKey: UpdateChecker.Key.latestNotes)
-        let updates = UpdateChecker(
-            feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
-            openURL: { _ in }, relaunch: {})
+        let updates = sample.updates ? StaticUpdater(canCheckForUpdates: sample.canCheckForUpdates) : nil
         let panel = SettingsPanelState(
             permissions: StaticPermissions(
                 screenRecording: sample.screenRecording, accessibility: sample.accessibility),
@@ -340,7 +335,7 @@ public enum UIRenderer {
 
     /// The menu panel next to Settings General on a neutral backdrop: both should sample the same base and cell.
     static func surfaceComparison(preview: NSImage, home: URL) -> NSView {
-        let content = PanelModel.content(for: specArmed(update: nil), preview: readyStill)
+        let content = PanelModel.content(for: specArmed(updates: false), preview: readyStill)
         let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
         let window = RoundedRectangle(cornerRadius: PanelMetrics.radiusPanel, style: .continuous)
         return RefitHostingView.fitted(
@@ -501,46 +496,16 @@ public enum RenderSamples {
 
     static func context(
         _ snapshot: ControllerSnapshot, actionError: SkreenrekError? = nil, title: String? = nil,
-        sizeChoice: SizeChoice = .size(size), permissionsMissing: Bool = false, updateAvailable: String? = nil
+        sizeChoice: SizeChoice = .size(size), permissionsMissing: Bool = false,
+        checkForUpdates: CheckForUpdatesItem = .hidden
     ) -> MenuContext {
         MenuContext(
             snapshot: snapshot, actionError: actionError, lastClipTitle: title, sizeChoice: sizeChoice,
-            permissionsMissing: permissionsMissing, updateAvailable: updateAvailable,
+            permissionsMissing: permissionsMissing, checkForUpdates: checkForUpdates,
             timeZone: TimeZone(identifier: "Europe/Paris")!, locale: Locale(identifier: "en_GB"))
     }
 
     static let clipTitle = "Safari — localhost:3000"
-    /// The newer release the update renders show.
-    public static let newerVersion = "1.0.3"
-    /// A release newer than this build, so the Updates row offers it.
-    public static var nextVersion: String {
-        let current = SemanticVersion(SkreenrekVersion.current) ?? SemanticVersion(major: 1, minor: 0, patch: 0)
-        return SemanticVersion(major: current.major, minor: current.minor, patch: current.patch + 1).description
-    }
-    /// A real release body (the 1.0.6 notes, as `make release` publishes them), long enough to scroll.
-    static let releaseNotes = """
-        ## [1.0.6] - 2026-11-19
-
-        ### Added
-
-        - A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
-        - The picked window gets an outline on screen while the menu is open, and for a moment right after you pick it. The outline never appears in a recording.
-        - A control bar under the picked window sets its size and starts or stops the recording without opening the menu. It never appears in a recording, and Show Control Bar turns it off.
-        - During a recording the control bar follows the recording indicator: `--no-hud` or turning off Show recording indicator hides it, and when an agent records a window that isn't picked, the bar shows the timer and Stop until the clip ends.
-        - An X button at the end of the control bar clears the picked window.
-
-        ### Changed
-
-        - Recordings are now named after their folder (for example 2026-11-19_091629_safari.mp4) instead of clip.mp4.
-        - Settings is now a standard window with General, Agents, and Permissions tabs.
-        - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
-
-        ### Fixed
-
-        - The window outline and the control bar now follow the picked window when it moves or resizes, including after a clip.
-        - Custom… in the Size menu opens a panel that stays on screen when another app becomes active.
-        """
-
     public static let idle = Sample(name: "idle", context: context(ControllerSnapshot(state: .idle, fps: .fps60)))
     public static let armed = Sample(
         name: "armed",
@@ -571,12 +536,12 @@ public enum RenderSamples {
                     state: .armed, window: safari, displayId: 1, size: PixelSize(width: 1286, height: 800),
                     readback: readback(actual: PixelSize(width: 1286, height: 800)), fps: .fps60))),
         Sample(
-            name: "updateavailable",
+            name: "checkforupdates",
             context: context(
                 ControllerSnapshot(
                     state: .armed, window: safari, displayId: 1, size: size, readback: readback(actual: size),
                     fps: .fps60),
-                updateAvailable: newerVersion)),
+                checkForUpdates: .enabled)),
         Sample(
             name: "permissionsneeded",
             context: context(ControllerSnapshot(state: .idle, fps: .fps60), permissionsMissing: true)),
@@ -657,11 +622,18 @@ extension OnboardingModel {
     }
 }
 
-/// A release feed and installer for previews: the renders never check or install, so neither is called.
-struct StaticReleaseFeed: ReleaseFeed, UpdateInstaller {
-    struct NotUsed: Error {}
-    func latestRelease() async throws -> ReleaseInfo { throw NotUsed() }
-    func upgrade(progress: @escaping @Sendable (String) -> Void) async throws { throw NotUsed() }
+/// An updater stand-in for previews and tests: it never starts Sparkle, and counts Check for Updates… clicks.
+@MainActor
+final class StaticUpdater: AppUpdater {
+    var canCheckForUpdates: Bool
+    var automaticallyChecksForUpdates = true
+    private(set) var checks = 0
+
+    init(canCheckForUpdates: Bool = true) {
+        self.canCheckForUpdates = canCheckForUpdates
+    }
+
+    func checkForUpdates() { checks += 1 }
 }
 
 /// An Open at login stand-in for previews: off, and never touches the system.

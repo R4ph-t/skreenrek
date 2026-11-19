@@ -8,7 +8,8 @@
 # end of the file when nothing follows. The default file is CHANGELOG.md at the repo root. A missing section is an
 # error, so `make release` can refuse to build. `make release` writes the same text to
 # dist/Skreenrek-<version>-notes.md, and publishing passes it to
-# `gh release create vX.Y.Z dist/Skreenrek-X.Y.Z.zip --notes-file dist/Skreenrek-X.Y.Z-notes.md`.
+# `gh release create vX.Y.Z dist/Skreenrek-X.Y.Z.zip dist/appcast.xml --notes-file dist/Skreenrek-X.Y.Z-notes.md`,
+# and scripts/make-appcast.sh puts it in dist/appcast.xml for Sparkle's update window.
 set -euo pipefail
 
 fail() { echo "release-notes: error: $*" >&2; exit 1; }

@@ -37,7 +37,7 @@ import Vision
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
             ]
             for state in [
-                "default", "general", "general-control-bar", "updateavailable", "updateavailable-notes", "agents", "permissions",
+                "default", "general", "general-control-bar", "updates-checking", "general-devbuild", "agents", "permissions",
                 "permissions-notallowed",
             ] {
                 expected.append("settings-\(state)-\(appearance)@2x.png")
@@ -305,10 +305,12 @@ import Vision
             for tab in ["General", "Agents", "Permissions"] {
                 #expect(toolbar.contains(tab), "\(toolbar)")
             }
-            // About: the Updates status, and no separate version line below the identity row.
+            // Updates: Sparkle's Check for Updates… and the automatic check switch, and no "Version" line below the
+            // identity row.
             let body = try Self.recognizedText(
                 in: try #require(cg.cropping(to: CGRect(x: 0, y: 290, width: 960, height: general.pixelsHigh - 290))))
-            #expect(body.contains("is up to date"), "\(body)")
+            #expect(body.contains("Check for Updates"), "\(body)")
+            #expect(body.contains("Automatically check for updates"), "\(body)")
             #expect(!body.contains("Version"), "\(body)")
         }
     }

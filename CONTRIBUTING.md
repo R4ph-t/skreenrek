@@ -51,8 +51,13 @@ items, never secrets:
 It never tags or publishes. To ship:
 
 ```sh
-gh release create vx.y.z dist/Skreenrek-x.y.z.zip --notes-file dist/Skreenrek-x.y.z-notes.md
+gh release create vx.y.z dist/Skreenrek-x.y.z.zip dist/appcast.xml --notes-file dist/Skreenrek-x.y.z-notes.md
 ```
+
+`dist/appcast.xml` is the Sparkle feed for that zip: `scripts/make-appcast.sh` signs the zip with Sparkle's
+`sign_update --account skreenrek` (the EdDSA key lives in the login Keychain; macOS may ask once to allow it) and puts
+the changelog section in as Markdown. The app reads it from `releases/latest/download/appcast.xml`, so it has to be
+uploaded with every release. `scripts/release.sh --dry-run x.y.z` builds, signs and verifies without notarizing.
 
 Then set `version` and `sha256` in `Casks/skreenrek.rb` to the new zip's. When you bump the version, move the lines
 under `## [Unreleased]` in `CHANGELOG.md` into `## [x.y.z] - YYYY-MM-DD` and leave `[Unreleased]` empty.

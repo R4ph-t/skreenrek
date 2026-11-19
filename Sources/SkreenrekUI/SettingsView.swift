@@ -34,15 +34,15 @@ public final class SettingsPanelState {
     /// Shown under the Open at login row after a failed change.
     public var loginError: String?
     public var agents: AgentsPanelState?
-    /// The Updates row; nil hides it.
-    public var updates: UpdateChecker?
+    /// Sparkle, for the Updates section; nil hides it (dev and ad-hoc builds).
+    public var updates: (any AppUpdater)?
 
     @ObservationIgnored private let permissions: any PermissionProbe
     @ObservationIgnored private let loginItem: any LoginItemService
 
     public init(
         permissions: any PermissionProbe, loginItem: any LoginItemService, agents: AgentsPanelState? = nil,
-        updates: UpdateChecker? = nil
+        updates: (any AppUpdater)? = nil
     ) {
         self.permissions = permissions
         self.loginItem = loginItem
@@ -246,8 +246,14 @@ public struct SettingsView: View {
         } header: {
             SettingsSectionHeader(title: UIStrings.Settings.recording)
         }
+        if let updates = panel.updates {
+            SettingsSection {
+                UpdatesRows(updater: updates)
+            } header: {
+                SettingsSectionHeader(title: UIStrings.Updates.title)
+            }
+        }
         SettingsSection {
-            if let updates = panel.updates { UpdatesRows(checker: updates) }
             GitHubRow()
         } header: {
             SettingsSectionHeader(title: UIStrings.Settings.about)
@@ -534,39 +540,27 @@ private struct PermissionRowAccessibility: ViewModifier {
     }
 }
 
-/// Updates: the state's line and button, then What's new while a newer release with notes is waiting. The version and
-/// the app name are carried by the line.
+/// Updates: the running version with Check for Updates…, then the automatic check switch. Sparkle does the rest in
+/// its own window, release notes included.
 struct UpdatesRows: View {
-    let checker: UpdateChecker
+    let updater: any AppUpdater
 
     var body: some View {
-        let row = UpdateRowModel(state: checker.state, current: checker.current, method: checker.method)
         SettingsRow {
-            SettingsRowText(title: UIStrings.Updates.title, detail: row.detail, detailHelp: row.detail)
+            SettingsRowText(title: UIStrings.Updates.currentVersion(SkreenrekVersion.current))
                 .monospacedDigit()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(UIStrings.Settings.updatesLabel(row.detail))
         } trailing: {
-            HStack(spacing: 8) {
-                if row.busy { ProgressView().controlSize(.small).accessibilityHidden(true) }
-                button(row.button)
-            }
+            SettingsButton(title: UIStrings.Updates.checkForUpdates) { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
         }
-        if let notes = row.notes {
-            WhatsNewNotes(markdown: notes)
-                .padding(.horizontal, SettingsMetrics.rowInset)
-                .padding(.vertical, 8)
-        }
-    }
-
-    @ViewBuilder
-    private func button(_ model: UpdateRowModel.Button) -> some View {
-        let button = SettingsButton(title: model.title) { Task { await checker.perform(model.action) } }
-            .disabled(!model.enabled)
-        if model.prominent {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button
+        SettingsRow {
+            SettingsRowText(title: UIStrings.Updates.automaticallyCheck)
+        } trailing: {
+            TrailingSwitch(
+                title: UIStrings.Updates.automaticallyCheck,
+                isOn: Binding(
+                    get: { updater.automaticallyChecksForUpdates },
+                    set: { updater.automaticallyChecksForUpdates = $0 }))
         }
     }
 }
@@ -593,78 +587,5 @@ struct GitHubRow: View {
         .help(UIStrings.Brand.repoHelp)
         .accessibilityLabel(UIStrings.Settings.viewOnGitHub)
         .accessibilityAddTraits(.isLink)
-    }
-}
-
-/// The newer release's notes, one line per heading, item and paragraph, open so they're visible, and capped so a long
-/// section scrolls instead of stretching Settings.
-struct WhatsNewNotes: View {
-    let markdown: String
-
-    /// Long notes scroll inside this height.
-    static let maxHeight: CGFloat = 160
-
-    @State private var open = true
-    @State private var contentHeight: CGFloat = 0
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $open) {
-            ScrollView {
-                notes
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear.preference(key: NotesHeightKey.self, value: proxy.size.height)
-                        }
-                    }
-            }
-            .frame(height: contentHeight > 0 ? min(contentHeight, Self.maxHeight) : Self.maxHeight)
-            .onPreferenceChange(NotesHeightKey.self) { contentHeight = $0 }
-        } label: {
-            Text(UIStrings.Updates.whatsNew)
-        }
-        .font(.system(size: 12))
-    }
-
-    /// `Text` ignores Markdown's blocks, so each block is its own line and only inline Markdown is parsed.
-    private var notes: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(ReleaseNotes.blocks(markdown).enumerated()), id: \.offset) { index, block in
-                switch block {
-                case .heading(let title):
-                    Self.inline(title)
-                        .fontWeight(.semibold)
-                        .padding(.top, index > 0 ? 6 : 0)
-                        .accessibilityAddTraits(.isHeader)
-                case .bullet(let item):
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(verbatim: "•").accessibilityHidden(true)
-                        Self.inline(item)
-                    }
-                case .paragraph(let text):
-                    Self.inline(text)
-                }
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private static func inline(_ markdown: String) -> Text {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        if let attributed = try? AttributedString(markdown: markdown, options: options) {
-            return Text(attributed)
-        } else {
-            return Text(verbatim: markdown)
-        }
-    }
-}
-
-/// The height of the notes text, so the scroll view can shrink to it and stop at `WhatsNewNotes.maxHeight`.
-private struct NotesHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

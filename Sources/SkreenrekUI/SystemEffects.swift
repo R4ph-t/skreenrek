@@ -8,7 +8,8 @@ import SwiftUI
 public final class SystemEffects: UIEffects {
     /// Opens the Settings window.
     public var showSettings: () -> Void = {}
-    public var showSettingsUpdates: () -> Void = {}
+    /// Asks Sparkle to check now.
+    public var checkForUpdatesNow: () -> Void = {}
     /// Opens onboarding on its permissions step.
     public var showOnboardingPermissions: () -> Void = {}
     private var sizePanel: NSPanel?
@@ -37,8 +38,8 @@ public final class SystemEffects: UIEffects {
         showSettings()
     }
 
-    public func showUpdates() {
-        showSettingsUpdates()
+    public func checkForUpdates() {
+        checkForUpdatesNow()
     }
 
     public func showPermissions() {

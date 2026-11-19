@@ -9,6 +9,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1"),
     ],
     targets: [
         .target(name: "SkreenrekCore"),
@@ -22,10 +23,16 @@ let package = Package(
                 "SkreenrekCore", "SkreenrekControl", "SkreenrekMCP",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]),
-        .target(name: "SkreenrekUI", dependencies: ["SkreenrekControl", "SkreenrekCore"]),
+        .target(
+            name: "SkreenrekUI",
+            dependencies: [
+                "SkreenrekControl", "SkreenrekCore", .product(name: "Sparkle", package: "Sparkle"),
+            ]),
         .executableTarget(
             name: "skreenrek",
-            dependencies: ["SkreenrekCore", "SkreenrekSystem", "SkreenrekControl", "SkreenrekCLI", "SkreenrekUI"]),
+            dependencies: ["SkreenrekCore", "SkreenrekSystem", "SkreenrekControl", "SkreenrekCLI", "SkreenrekUI"],
+            // Skreenrek.app embeds Sparkle.framework in Contents/Frameworks (scripts/bundle-app.sh).
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
         .testTarget(name: "SkreenrekCoreTests", dependencies: ["SkreenrekCore", "SkreenrekTesting"]),
         .testTarget(name: "SkreenrekSystemTests", dependencies: ["SkreenrekCore", "SkreenrekSystem"]),
         .testTarget(
