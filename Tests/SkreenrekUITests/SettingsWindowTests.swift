@@ -48,8 +48,9 @@ import Testing
 
     @Test func theLastTabIsRememberedAndABadValueFallsBack() async throws {
         try await onMain("settings tab") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             #expect(store.settingsTab == .general)
             store.settingsTab = .permissions
@@ -61,8 +62,9 @@ import Testing
 
     @Test func theWindowHasStandardToolbarTabsOnTheSolidSurfaceAndTheTabsNameAsItsTitle() async throws {
         try await onMain("settings window") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             store.settingsTab = .agents
             let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
@@ -90,8 +92,9 @@ import Testing
     /// repeatedly, never resizes the window, and laying a tab out again doesn't either: nothing reports a height back.
     @Test func switchingTabsNeverResizesTheWindow() async throws {
         try await onMain("settings tab switch") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             store.settingsTab = .permissions
             let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
@@ -118,8 +121,9 @@ import Testing
     /// rows, and the other tabs are the same either way.
     @Test func theUpdatesSectionAddsTwoRowsOnlyWithSparkle() async throws {
         try await onMain("settings updates rows") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             let with = try await Self.rowFrames(
                 tab: .general, count: 10, store: store, panel: Self.panel(updates: StaticUpdater()))
@@ -157,8 +161,9 @@ import Testing
     /// The identity row is on General only, above the first section; the other tabs start with their sections.
     @Test func theIdentityRowIsOnGeneralOnly() async throws {
         try await onMain("settings identity row") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             let panel = Self.panel()
             @MainActor func height(_ tab: SettingsTab) -> CGFloat {
@@ -188,8 +193,9 @@ import Testing
     @Test(arguments: [(SettingsTab.general, 10), (.agents, 4), (.permissions, 2)])
     func everyRowIsFortyFourTallOnTheLabelAndTrailingEdges(tab: SettingsTab, rows: Int) async throws {
         try await onMain("settings rows") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let frames = try await Self.rowFrames(
                 tab: tab, count: rows, store: SettingsStore(defaults: defaults), panel: Self.panel())
             #expect(frames.count == rows)
