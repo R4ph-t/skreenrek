@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-11-19
+
 ### Added
 
 - A Clear button next to the window's title forgets the picked window. Pick Another Window… is still there.
@@ -37,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The window picker's labels and the recording indicator are solid too, matching the menu.
 - The size shown while you drag a region has more room around its text, and its digits no longer shift as the numbers change.
 - Skreenrek's app ID is now com.raphaelterrier.skreenrek. macOS will ask once more for Screen Recording and Accessibility; your settings carry over.
+- If you use Open at login, turn it on again.
 
 ### Fixed
 
