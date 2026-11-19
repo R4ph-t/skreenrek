@@ -38,7 +38,7 @@ struct CustomSizeView: View {
         .frame(width: Self.width, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-                .fill(Color(nsColor: .windowBackgroundColor)))
+                .fill(Color(nsColor: SkreenrekSurface.baseColor)))
         .overlay(
             RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor)))
