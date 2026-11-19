@@ -434,9 +434,9 @@ public enum UIStrings {
     /// The floating helper beside System Settings (addendum 4).
     public enum DragHelper {
         public static let title = "Drag Skreenrek into the list"
-        /// `Drop it on Screen Recording to allow it.`
+        /// `Drop it on Screen Recording.`
         public static func detail(_ permission: Permission) -> String {
-            "Drop it on \(paneName(permission)) to allow it."
+            "Drop it on \(paneName(permission))."
         }
         public static let grantedTitle = "Skreenrek is allowed"
         public static let grantedDetail = "You can close System Settings."
