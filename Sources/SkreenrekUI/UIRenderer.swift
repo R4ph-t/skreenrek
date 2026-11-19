@@ -149,6 +149,9 @@ public enum UIRenderer {
                 try save(host(RegionOutline(increaseContrast: contrast), size: NSSize(width: 320, height: 200)),
                          "hud", contrast ? "regionoutline-contrast" : "regionoutline")
             }
+            for sample in DragHelperRenderer.samples() {
+                try save(sample.view, "drag-helper", sample.name)
+            }
             for sample in CaptureRenderSamples.onboardingStates {
                 let scratch = ScratchDefaults()
                 defer { scratch.remove() }

@@ -56,6 +56,9 @@ final class SettingsWindowController {
     private(set) var window: NSWindow?
     private var tabs: SettingsTabsController?
     private var observer: (any NSObjectProtocol)?
+    private var closeObserver: (any NSObjectProtocol)?
+    /// The window closed.
+    var onClose: () -> Void = {}
     /// The content height every tab gets: the tallest tab, measured once.
     private(set) var contentHeight: CGFloat = 0
 
@@ -100,6 +103,11 @@ final class SettingsWindowController {
         window.center()
         self.tabs = tabs
         self.window = window
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onClose() }
+        }
         return window
     }
 
@@ -132,6 +140,8 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
     private var hud: RecordingHUD?
+    /// The drag-to-authorize helper beside System Settings.
+    private var dragHelper: DragHelperController?
     /// Sparkle, when this bundle is a release build (see `SparkleUpdater.isConfigured`).
     private var updater: SparkleUpdater?
 
@@ -157,12 +167,19 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             executablePath: Bundle.main.executablePath ?? CommandLine.arguments[0],
             path: ProcessInfo.processInfo.environment["PATH"] ?? "")
         let agents = AgentsPanelState(installer: installer)
+        let dragHelper = DragHelperController(probe: permissions, windows: CGWindowListSystemSettings())
+        self.dragHelper = dragHelper
         let onboardingModel = OnboardingModel(
             permissions: permissions, requester: requester, defaults: defaults,
             agents: installer.connections().map { OnboardingAgent(agent: $0.agent, detected: $0.detected) },
             install: { installer.run(agents: $0) }, relaunch: { AppRelauncher.relaunch() },
-            openSettings: { NSWorkspace.shared.open(PrivacyPane.url($0)) })
+            openSettings: { [weak dragHelper] permission in
+                NSWorkspace.shared.open(PrivacyPane.url(permission))
+                dragHelper?.show(permission, from: .onboarding)
+            })
         let onboarding = OnboardingWindowController(model: onboardingModel)
+        onboarding.onClose = { [weak dragHelper] in dragHelper?.dismiss(from: .onboarding) }
+        onboardingModel.didLeaveStep = { [weak dragHelper] _ in dragHelper?.dismiss(from: .onboarding) }
         self.onboarding = onboarding
         let updater = makeUpdater(model: model, effects: effects)
         let panel = SettingsPanelState(
@@ -174,12 +191,17 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
                     guard let model else { return }
                     Task { await model.perform(.chooseOutputFolder) }
                 },
-                // The rows' "Open System Settings…" opens the pane. The prompts belong to onboarding.
-                openPrivacyPane: { NSWorkspace.shared.open(PrivacyPane.url($0)) },
+                // The rows' "Open System Settings…" opens the pane and shows the drag helper. The prompts belong
+                // to onboarding.
+                openPrivacyPane: { [weak dragHelper] permission in
+                    NSWorkspace.shared.open(PrivacyPane.url(permission))
+                    dragHelper?.show(permission, from: .settings)
+                },
                 settingsChanged: { [weak model] in
                     guard let model else { return }
                     Task { await model.pushSettings() }
                 }))
+        settingsWindow.onClose = { [weak dragHelper] in dragHelper?.dismiss(from: .settings) }
         effects.showSettings = { [weak settingsWindow] in settingsWindow?.show() }
         effects.showOnboardingPermissions = { [weak onboarding] in onboarding?.show() }
         self.model = model
@@ -253,6 +275,7 @@ public final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        dragHelper?.close(.appQuit)
         model?.stop()
         hud?.close()
         host.stop()
