@@ -386,6 +386,17 @@ public enum UIStrings {
         public static let recording = "Recording"
         public static let about = "About"
         public static let viewOnGitHub = "View on GitHub"
+        /// The window's title. It isn't drawn, but the Window menu, Mission Control and VoiceOver use it. It never
+        /// changes with the tab.
+        public static let windowTitle = "Skreenrek Settings"
+        /// The header's app name, capitalised like every other app name.
+        public static let headerName = "Skreenrek"
+        /// The header's segmented control.
+        public static let tabsLabel = "Settings tabs"
+        /// `Version 1.0.5`, under the name in the header.
+        public static func headerVersion(_ version: String) -> String { "Version \(version)" }
+        /// `Skreenrek, version 1.0.5`: the header as one VoiceOver element.
+        public static func headerLabel(_ version: String) -> String { "\(headerName), version \(version)" }
         public static let screenRecordingNotAllowed = "Screen Recording isn't allowed. Skreenrek can't record until you allow it."
         public static let accessibilityNotAllowed =
             "Accessibility isn't allowed. Skreenrek can record, but windows keep their current size."
