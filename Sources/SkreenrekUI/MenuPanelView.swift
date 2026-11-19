@@ -679,9 +679,12 @@ struct PanelIconButtonStyle: ButtonStyle {
     var rest: Color
     var active: Color
     var forcedState: PanelInteraction?
+    /// The hit area's side.
+    var size: CGFloat = PanelMetrics.iconButton
 
     func makeBody(configuration: Configuration) -> some View {
-        PanelIconButtonBody(configuration: configuration, rest: rest, active: active, forcedState: forcedState)
+        PanelIconButtonBody(
+            configuration: configuration, rest: rest, active: active, forcedState: forcedState, size: size)
     }
 }
 
@@ -690,6 +693,7 @@ struct PanelIconButtonBody: View {
     let rest: Color
     let active: Color
     let forcedState: PanelInteraction?
+    var size: CGFloat = PanelMetrics.iconButton
     @State private var hovering = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.isEnabled) private var isEnabled
@@ -699,7 +703,7 @@ struct PanelIconButtonBody: View {
             forcedState ?? PanelInteraction(enabled: isEnabled, hovering: hovering, pressed: configuration.isPressed)
         configuration.label
             .foregroundStyle(interaction == .rest ? rest : active)
-            .frame(width: PanelMetrics.iconButton, height: PanelMetrics.iconButton)
+            .frame(width: size, height: size)
             .background(
                 RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
                     .fill(PanelPalette(scheme).rowColor(interaction))

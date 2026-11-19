@@ -429,6 +429,39 @@ public enum UIStrings {
         }
     }
 
+    // MARK: - Drag-to-authorize helper
+
+    /// The floating helper beside System Settings (addendum 4).
+    public enum DragHelper {
+        public static let title = "Drag Skreenrek into the list"
+        /// `Drop it on Screen Recording to allow it.`
+        public static func detail(_ permission: Permission) -> String {
+            "Drop it on \(paneName(permission)) to allow it."
+        }
+        public static let grantedTitle = "Skreenrek is allowed"
+        public static let grantedDetail = "You can close System Settings."
+        /// The icon's tooltip, and its VoiceOver hint: a cross-app drag is hard with VoiceOver.
+        public static let iconHelp =
+            "Drag into the list in System Settings. Or click + under the list and choose Skreenrek in Applications."
+        public static let iconLabel = "Skreenrek app, draggable"
+        public static let close = "Close"
+        public static let closeLabel = "Close helper"
+        /// `Skreenrek helper. Drag Skreenrek into the Screen Recording list in System Settings.`
+        public static func panelLabel(_ permission: Permission) -> String {
+            "Skreenrek helper. Drag Skreenrek into the \(paneName(permission)) list in System Settings."
+        }
+
+        /// The list's name as System Settings shows it in the sentence.
+        static func paneName(_ permission: Permission) -> String {
+            switch permission {
+            case .screenRecording: Settings.screenRecording
+            case .accessibility: Settings.accessibility
+            // No helper: Direct Capture has no list (see `DragHelperPane`).
+            case .directCapture: Onboarding.directCapture
+            }
+        }
+    }
+
     // MARK: - Updates
 
     public enum Updates {
@@ -523,5 +556,9 @@ public enum UIStrings {
         ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked, ControlBar.accessibilityOff,
         ControlBar.clearWindow, ControlBar.clearPickedWindow, ControlBar.saved, ControlBar.copyFilePathLabel,
         ControlBar.copied,
+        DragHelper.title, DragHelper.detail(.screenRecording), DragHelper.detail(.accessibility),
+        DragHelper.grantedTitle, DragHelper.grantedDetail, DragHelper.iconHelp, DragHelper.iconLabel,
+        DragHelper.close, DragHelper.closeLabel, DragHelper.panelLabel(.screenRecording),
+        DragHelper.panelLabel(.accessibility),
     ]
 }

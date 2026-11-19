@@ -13,6 +13,8 @@ import Vision
 /// instead of hanging `swift test`.
 @Suite struct RenderUITests {
     static let timeoutSeconds = 120.0
+    static let dragHelperPanels = ["default", "mirrored", "docked", "midloop", "granted", "reducedmotion", "accessibility"]
+    static let dragHelperComposites = ["beside-default", "beside-mirrored", "beside-midloop", "beside-granted", "beside-docked"]
 
     @Test func rendersEverySurfaceInBothAppearances() async throws {
         let folder = FileManager.default.temporaryDirectory
@@ -67,6 +69,9 @@ import Vision
             }
             for state in ["window-recording", "region-recording", "saving-bar"] {
                 expected.append("red-outline-\(state)-\(appearance)@2x.png")
+            }
+            for state in Self.dragHelperPanels + Self.dragHelperComposites {
+                expected.append("drag-helper-\(state)-\(appearance)@2x.png")
             }
         }
         let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)
@@ -126,6 +131,13 @@ import Vision
             #expect(sizes["hud-recording-contrast-\(appearance)@2x.png"]?.0 == recording)
             for state in CaptureRenderSamples.onboardingStates {
                 #expect(sizes["onboarding-\(state.name)-\(appearance)@2x.png"] ?? (0, 0) == (1040, 856))
+            }
+            // The helper is 320 × 88 pt in every state; the composites put it beside a 480 × 360 stand-in.
+            for state in Self.dragHelperPanels {
+                #expect(sizes["drag-helper-\(state)-\(appearance)@2x.png"] ?? (0, 0) == (640, 176), "\(state)")
+            }
+            for state in ["beside-default", "beside-mirrored", "beside-midloop", "beside-granted"] {
+                #expect(sizes["drag-helper-\(state)-\(appearance)@2x.png"] ?? (0, 0) == (1784, 880), "\(state)")
             }
         }
         for (name, size) in sizes where name.hasPrefix("dropdown-") || name.hasPrefix("panel-") {

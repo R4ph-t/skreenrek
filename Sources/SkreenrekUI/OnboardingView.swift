@@ -162,6 +162,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     let model: OnboardingModel
     private var window: NSWindow?
     private var timer: Timer?
+    /// The window closed.
+    var onClose: () -> Void = {}
     init(model: OnboardingModel) {
         self.model = model
         super.init()
@@ -202,7 +204,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
-    func windowWillClose(_ notification: Notification) { timer?.invalidate(); timer = nil }
+    func windowWillClose(_ notification: Notification) { timer?.invalidate(); timer = nil; onClose() }
 }
 
 /// An onboarding permission with its status: Allowed (green check) or Open System Settings….

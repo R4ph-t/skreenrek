@@ -55,7 +55,9 @@ public final class OnboardingModel {
     /// What macOS was asked or allowed for one bundle ID. These don't carry over to a new ID, which starts unasked.
     static let permissionStateKeys: Set<String> = [screenRecordingRequestedKey, DirectCaptureApproval.key]
 
-    public private(set) var step: OnboardingStep
+    public private(set) var step: OnboardingStep {
+        didSet { if step != oldValue { didLeaveStep?(oldValue) } }
+    }
     public private(set) var completed: Bool
     public private(set) var screenRecording: PermissionStatus
     public private(set) var directCapture: PermissionStatus
@@ -72,6 +74,8 @@ public final class OnboardingModel {
     @ObservationIgnored private let relaunch: () -> Void
     @ObservationIgnored private let openSettings: (Permission) -> Void
     @ObservationIgnored public var didComplete: (() -> Void)?
+    /// The step shown before changed (the drag helper it opened goes with it).
+    @ObservationIgnored public var didLeaveStep: ((OnboardingStep) -> Void)?
 
     public init(permissions: any PermissionProbe, requester: any PermissionRequester, defaults: UserDefaults,
                 agents: [OnboardingAgent], install: @escaping ([AgentClient]) -> [AgentSetupResult],
