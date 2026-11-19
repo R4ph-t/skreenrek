@@ -299,8 +299,8 @@ public enum UIRenderer {
             name: "permissions-notallowed", tab: .permissions, screenRecording: .missing, accessibility: .missing),
     ]
 
-    /// A Settings window as it ships: a drawn stand-in for the title bar (an offscreen render has no traffic lights),
-    /// the real header and the tab's content, all on the shared surface.
+    /// A Settings window as it ships: a drawn stand-in for the title bar and toolbar tabs (an offscreen render can't
+    /// draw a window toolbar), then the tab's content at the window's fixed height, all on the shared surface.
     static func settingsView(_ sample: SettingsSample, home: URL) -> NSView {
         RefitHostingView.fitted(settingsWindow(sample, home: home))
     }
@@ -321,8 +321,13 @@ public enum UIRenderer {
             agents: AgentsPanelState(
                 installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")),
             updates: updates)
-        return SettingsWindowContent(store: store, panel: panel, actions: .none, drawsTrafficLights: true)
-            .fixedSize(horizontal: false, vertical: true)
+        let height = SettingsWindowController.tallestTabHeight(store: store, panel: panel, actions: .none)
+        return VStack(spacing: 0) {
+            SettingsToolbarPreview(selected: sample.tab)
+            SettingsTabContent(tab: sample.tab, store: store, panel: panel, actions: .none, height: height)
+        }
+        .background(Color(nsColor: SkreenrekSurface.baseColor))
+        .fixedSize(horizontal: false, vertical: true)
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true)
     }
@@ -633,6 +638,37 @@ final class StaticLoginItem: LoginItemService {
 }
 
 // MARK: - Preview views
+
+/// The window's title bar and toolbar as the Settings renders show them: traffic lights, the tab's name as the title,
+/// then the three tabs, on the window's base with no band of their own.
+private struct SettingsToolbarPreview: View {
+    let selected: SettingsTab
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                SettingsTitleBarBand(drawsTrafficLights: true)
+                Text(selected.title).font(.system(size: 13, weight: .semibold))
+            }
+            .frame(height: 22)
+            HStack(spacing: 8) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    VStack(spacing: 2) {
+                        Image(systemName: tab.symbol).font(.system(size: 16))
+                        Text(tab.title).font(.system(size: 11))
+                    }
+                    .foregroundStyle(tab == selected ? Color.accentColor : Color.secondary)
+                    .frame(width: 76, height: 42)
+                    .background(
+                        RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
+                            .fill(tab == selected ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear)))
+                }
+            }
+        }
+        .padding(.top, 6)
+        .frame(width: SettingsMetrics.width, height: 80, alignment: .top)
+    }
+}
 
 /// A sample window on a plain desktop, with the real outline view around it.
 final class SelectionOutlineSampleView: NSView {

@@ -2,39 +2,19 @@ import AppKit
 import SkreenrekCore
 import SwiftUI
 
-/// The Settings window's chrome (addendum 3): a transparent 28 pt title bar with only the traffic lights, then a
-/// 56 pt header in the same tone with the app icon, name and version on the left and the tab switch on the right.
+/// The Settings window's chrome: standard toolbar tabs over the shared solid surface, and the identity row (app icon,
+/// name and version) at the top of General.
 public enum SettingsChromeMetrics {
+    /// The onboarding window's transparent title bar band, where the traffic lights sit.
     public static let titleBarHeight: CGFloat = 28
-    public static let headerHeight: CGFloat = 56
-    /// The gap between the header and the first section.
-    public static let contentGap: CGFloat = 8
-    /// The title bar and the header: where the old toolbar was.
-    public static var headerBottom: CGFloat { titleBarHeight + headerHeight }
-    /// Where the content starts, from the top of the window.
-    public static var contentTop: CGFloat { headerBottom + contentGap }
-    /// The header's leading and trailing edges are at x 16 and x 464.
-    public static let headerInset: CGFloat = 16
+    /// The space above every tab's first element, under the toolbar.
+    public static let contentTopGap: CGFloat = 8
+    /// The identity row on General: 48 tall, the icon on the sections' leading edge (x 16).
+    public static let identityHeight: CGFloat = 48
     public static let iconSize: CGFloat = 32
-    /// The name and version start at x 56.
-    public static let textGap: CGFloat = 8
+    /// The name and version start 12 pt after the icon.
+    public static let textGap: CGFloat = 12
     public static let nameVersionSpacing: CGFloat = 2
-    public static let segmentWidth: CGFloat = 96
-    public static let segmentHeight: CGFloat = 24
-    public static var tabsWidth: CGFloat { segmentWidth * CGFloat(SettingsTab.allCases.count) }
-    /// The content crossfade on a tab switch. Instant under Reduce Motion.
-    public static let crossfade: Double = 0.15
-}
-
-extension SettingsTab {
-    /// The tab `offset` places away, stopping at the first and last tabs (←/→ on the segmented control).
-    public func moved(by offset: Int) -> SettingsTab {
-        let all = Self.allCases
-        let index = all.firstIndex(of: self) ?? 0
-        return all[min(max(index + offset, 0), all.count - 1)]
-    }
-
-    var index: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 }
 
 /// What the header says. The version is always `SkreenrekVersion.current`.
@@ -70,41 +50,8 @@ enum SettingsHeaderIcon {
     }
 }
 
-/// The whole Settings window content: the title bar band, the header, then the selected tab, all on `surface.base`.
-struct SettingsWindowContent: View {
-    @Bindable var store: SettingsStore
-    let panel: SettingsPanelState
-    let actions: SettingsActions
-    /// Each tab's content height as it lays out, so the window can fit it.
-    var contentHeight: (SettingsTab, CGFloat) -> Void = { _, _ in }
-    /// Draws stand-in traffic lights in the title bar band, for the offscreen renders.
-    var drawsTrafficLights = false
-
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        VStack(spacing: 0) {
-            SettingsTitleBarBand(drawsTrafficLights: drawsTrafficLights)
-            SettingsHeader(selection: $store.settingsTab)
-            Color.clear.frame(height: SettingsChromeMetrics.contentGap)
-            ZStack(alignment: .top) {
-                let tab = store.settingsTab
-                SettingsView(tab: tab, store: store, panel: panel, actions: actions)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight(tab, $0) }
-                    .id(tab)
-                    .transition(.opacity)
-            }
-            .animation(reduceMotion ? nil : .easeInOut(duration: SettingsChromeMetrics.crossfade), value: store.settingsTab)
-        }
-        .frame(width: SettingsMetrics.width, alignment: .top)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(SkreenrekSurface(scheme).base.color)
-        .ignoresSafeArea()
-    }
-}
-
-/// The title bar's 28 pt: the window draws the real traffic lights over it. Renders draw three dots in their place.
+/// The onboarding window's 28 pt title bar band: the window draws the real traffic lights over it. Renders draw three
+/// dots in their place.
 struct SettingsTitleBarBand: View {
     var drawsTrafficLights = false
 
@@ -123,116 +70,50 @@ struct SettingsTitleBarBand: View {
     }
 }
 
-/// The 56 pt header: icon, name and version on the left, the tab switch on the right, all on one centre line.
-struct SettingsHeader: View {
-    @Binding var selection: SettingsTab
+/// The identity row at the top of General: the app icon on the sections' leading edge, then `Skreenrek` over
+/// `Version 1.0.5`, centred together on the icon. On the window base, with no card. VoiceOver reads it as one element.
+struct SettingsIdentityRow: View {
     var model = SettingsHeaderModel()
 
     var body: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: SettingsChromeMetrics.textGap) {
-                Image(nsImage: SettingsHeaderIcon.current(size: SettingsChromeMetrics.iconSize))
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: SettingsChromeMetrics.iconSize, height: SettingsChromeMetrics.iconSize)
-                VStack(alignment: .leading, spacing: SettingsChromeMetrics.nameVersionSpacing) {
-                    Text(model.name)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(PanelSurface.primaryText)
-                    Text(model.version)
-                        .font(.system(size: 12))
-                        .foregroundStyle(PanelSurface.secondaryText)
-                        .monospacedDigit()
-                }
-                .lineLimit(1)
+        HStack(spacing: SettingsChromeMetrics.textGap) {
+            Image(nsImage: SettingsHeaderIcon.current(size: SettingsChromeMetrics.iconSize))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: SettingsChromeMetrics.iconSize, height: SettingsChromeMetrics.iconSize)
+            VStack(alignment: .leading, spacing: SettingsChromeMetrics.nameVersionSpacing) {
+                Text(model.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PanelSurface.primaryText)
+                Text(model.version)
+                    .font(.system(size: 12))
+                    .foregroundStyle(PanelSurface.secondaryText)
+                    .monospacedDigit()
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(model.accessibilityLabel)
-            Spacer(minLength: 12)
-            SettingsTabsControl(selection: $selection)
-                .frame(width: SettingsChromeMetrics.tabsWidth, height: SettingsChromeMetrics.segmentHeight)
+            .lineLimit(1)
         }
-        .padding(.horizontal, SettingsChromeMetrics.headerInset)
-        .frame(height: SettingsChromeMetrics.headerHeight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: SettingsChromeMetrics.identityHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.accessibilityLabel)
     }
 }
 
-/// `General | Agents | Permissions`: a system segmented control, 3 × 96 pt, Tab-reachable, with ←/→ switching tabs
-/// while it has focus.
-struct SettingsTabsControl: NSViewRepresentable {
-    @Binding var selection: SettingsTab
+/// One tab as the toolbar tab controller hosts it: the tab's content at the top of the window's one fixed height,
+/// on `surface.base`, so every tab is the same size and switching never resizes the window.
+struct SettingsTabContent: View {
+    let tab: SettingsTab
+    let store: SettingsStore
+    let panel: SettingsPanelState
+    let actions: SettingsActions
+    let height: CGFloat
 
-    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+    @Environment(\.colorScheme) private var scheme
 
-    func makeNSView(context: Context) -> SettingsSegmentedControl {
-        let control = SettingsSegmentedControl.make()
-        control.target = context.coordinator
-        control.action = #selector(Coordinator.changed(_:))
-        control.onMove = { [weak coordinator = context.coordinator] in coordinator?.move(by: $0) }
-        return control
-    }
-
-    func updateNSView(_ control: SettingsSegmentedControl, context: Context) {
-        context.coordinator.selection = $selection
-        if control.selectedSegment != selection.index { control.selectedSegment = selection.index }
-    }
-
-    @MainActor
-    final class Coordinator: NSObject {
-        var selection: Binding<SettingsTab>
-
-        init(selection: Binding<SettingsTab>) {
-            self.selection = selection
-        }
-
-        @objc func changed(_ sender: NSSegmentedControl) {
-            select(index: sender.selectedSegment)
-        }
-
-        /// A click on a segment.
-        func select(index: Int) {
-            guard SettingsTab.allCases.indices.contains(index) else { return }
-            selection.wrappedValue = SettingsTab.allCases[index]
-        }
-
-        /// ←/→ while the control has focus. Stops at the ends.
-        func move(by offset: Int) {
-            selection.wrappedValue = selection.wrappedValue.moved(by: offset)
-        }
-    }
-}
-
-/// The segmented control, made Tab-reachable even without Full Keyboard Access, with ←/→ reporting a move.
-final class SettingsSegmentedControl: NSSegmentedControl {
-    var onMove: ((Int) -> Void)?
-
-    static func make() -> SettingsSegmentedControl {
-        let control = SettingsSegmentedControl()
-        control.segmentCount = SettingsTab.allCases.count
-        control.trackingMode = .selectOne
-        control.controlSize = .regular
-        control.segmentDistribution = .fillEqually
-        for (index, tab) in SettingsTab.allCases.enumerated() {
-            control.setLabel(tab.title, forSegment: index)
-        }
-        control.setAccessibilityLabel(UIStrings.Settings.tabsLabel)
-        return control
-    }
-
-    /// The whole control is `tabsWidth` (3 × 96 pt), border included, and `fillEqually` splits it into three equal
-    /// segments. Fixed 96 pt segments would make it 2 pt wider than its slot, overhanging x 464 by 1 pt.
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: SettingsChromeMetrics.tabsWidth, height: super.intrinsicContentSize.height)
-    }
-
-    override var canBecomeKeyView: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
-
-    override func keyDown(with event: NSEvent) {
-        switch event.specialKey {
-        case .leftArrow?: onMove?(-1)
-        case .rightArrow?: onMove?(1)
-        default: super.keyDown(with: event)
-        }
+    var body: some View {
+        SettingsView(tab: tab, store: store, panel: panel, actions: actions)
+            .padding(.top, SettingsChromeMetrics.contentTopGap)
+            .frame(width: SettingsMetrics.width, height: height, alignment: .top)
+            .background(SkreenrekSurface(scheme).base.color)
     }
 }

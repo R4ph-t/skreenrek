@@ -4,18 +4,59 @@ import SkreenrekCore
 import SwiftUI
 import os
 
-/// The Settings window: one tone from the top edge down (addendum 3). A transparent title bar with only the traffic
-/// lights, the header with the app icon, name, version and the segmented tab switch, then the selected tab's content.
-/// The window fits that content, with no scroll view, and its title stays `Skreenrek Settings` on every tab.
+/// The three standard toolbar tabs (gearshape, terminal, hand.raised) with the system's selection styling; the
+/// window title is the selected tab's name, as macOS does. This is what a SwiftUI `Settings` scene builds, which isn't
+/// available to an app with an AppKit delegate and no `App`. Every tab has the same fixed size (the tallest tab's),
+/// so the tab controller never resizes the window: a tab click just swaps the content, with no animation.
+final class SettingsTabsController: NSTabViewController {
+    private let store: SettingsStore
+
+    init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions, height: CGFloat) {
+        self.store = store
+        super.init(nibName: nil, bundle: nil)
+        tabStyle = .toolbar
+        transitionOptions = []
+        let size = NSSize(width: SettingsMetrics.width, height: height)
+        for tab in SettingsTab.allCases {
+            let hosting = NSHostingController(
+                rootView: SettingsTabContent(tab: tab, store: store, panel: panel, actions: actions, height: height))
+            hosting.sizingOptions = []
+            hosting.preferredContentSize = size
+            hosting.title = tab.title
+            let item = NSTabViewItem(viewController: hosting)
+            item.label = tab.title
+            item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: nil)
+            addTabViewItem(item)
+        }
+        selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: store.settingsTab) ?? 0
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    func select(_ tab: SettingsTab) {
+        selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: tab) ?? 0
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: tabViewItem)
+        store.settingsTab = SettingsTab.allCases[selectedTabViewItemIndex]
+    }
+}
+
+/// The Settings window: standard toolbar tabs on the shared solid surface, one tone from the top edge down (the
+/// toolbar draws no band of its own). One fixed content height, the tallest tab's, measured once when the window is
+/// built; shorter tabs sit at the top. Nothing reports heights back and nothing resizes the window on a tab switch.
 @MainActor
 final class SettingsWindowController {
     private let store: SettingsStore
     private let panel: SettingsPanelState
     private let actions: SettingsActions
     private(set) var window: NSWindow?
+    private var tabs: SettingsTabsController?
     private var observer: (any NSObjectProtocol)?
-    /// Each tab's content height, as last laid out.
-    private var heights: [SettingsTab: CGFloat] = [:]
+    /// The content height every tab gets: the tallest tab, measured once.
+    private(set) var contentHeight: CGFloat = 0
 
     init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions) {
         self.store = store
@@ -27,83 +68,46 @@ final class SettingsWindowController {
         ) { [weak panel] _ in
             MainActor.assumeIsolated { panel?.refresh() }
         }
-        withObservationTracking { _ = store.settingsTab } onChange: { [weak self] in
-            Task { @MainActor in self?.tabChanged() }
-        }
     }
 
     /// Opens on `tab`, or on the tab used last.
     func show(tab: SettingsTab? = nil) {
         panel.refresh()
-        let opening = window == nil
         let window = prepareWindow()
         if let tab { select(tab) }
         NSApp.activate()
-        if opening {
-            fitWindow(animated: false)
-            window.center()
-        }
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Builds the window once, off screen, laid out at the selected tab's height.
+    /// Builds the window once, centred, at the fixed size.
     @discardableResult
     func prepareWindow() -> NSWindow {
         if let window { return window }
-        let hosting = NSHostingController(
-            rootView: SettingsWindowContent(
-                store: store, panel: panel, actions: actions,
-                contentHeight: { [weak self] tab, height in self?.contentHeightChanged(tab, height) }))
-        hosting.sizingOptions = []
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: SettingsMetrics.width, height: 600),
-            styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: true)
-        window.contentViewController = hosting
-        window.title = UIStrings.Settings.windowTitle
-        window.titleVisibility = .hidden
+        contentHeight = Self.tallestTabHeight(store: store, panel: panel, actions: actions)
+        let tabs = SettingsTabsController(store: store, panel: panel, actions: actions, height: contentHeight)
+        let window = NSWindow(contentViewController: tabs)
+        window.styleMask = [.titled, .closable]
+        window.toolbarStyle = .preference
         window.titlebarAppearsTransparent = true
         window.backgroundColor = SkreenrekSurface.baseColor
         window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: SettingsMetrics.width, height: contentHeight))
+        window.center()
+        self.tabs = tabs
         self.window = window
-        window.layoutIfNeeded()
-        hosting.view.layoutSubtreeIfNeeded()
-        fitWindow(animated: false)
         return window
     }
 
     func select(_ tab: SettingsTab) {
-        store.settingsTab = tab
+        tabs?.select(tab)
     }
 
-    /// What the window's height should be for the selected tab: the title bar, the header, the gap and the content.
-    var fittedHeight: CGFloat? {
-        heights[store.settingsTab].map { SettingsChromeMetrics.contentTop + $0 }
-    }
-
-    /// Resizes to the selected tab, keeping the top edge where it is. The system animation, instant under Reduce
-    /// Motion.
-    func fitWindow(animated: Bool = true) {
-        guard let window, let height = fittedHeight, abs(window.frame.height - height) >= 0.5
-            || window.frame.width != SettingsMetrics.width
-        else { return }
-        let animate = animated && window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        var frame = window.frame
-        frame.size = NSSize(width: SettingsMetrics.width, height: height)
-        frame.origin.y = window.frame.maxY - height
-        window.setFrame(frame, display: true, animate: animate)
-    }
-
-    private func contentHeightChanged(_ tab: SettingsTab, _ height: CGFloat) {
-        guard height > 0 else { return }
-        heights[tab] = height
-        if tab == store.settingsTab { fitWindow() }
-    }
-
-    private func tabChanged() {
-        withObservationTracking { _ = store.settingsTab } onChange: { [weak self] in
-            Task { @MainActor in self?.tabChanged() }
-        }
-        fitWindow()
+    /// The tallest tab's content (General, with the identity row), measured once off screen.
+    static func tallestTabHeight(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions) -> CGFloat {
+        SettingsTab.allCases.map { tab in
+            NSHostingView(rootView: SettingsView(tab: tab, store: store, panel: panel, actions: actions))
+                .fittingSize.height + SettingsChromeMetrics.contentTopGap
+        }.max() ?? 0
     }
 }
 
