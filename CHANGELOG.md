@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Recordings are now named after their folder (for example 2026-11-19_091629_safari.mp4) instead of clip.mp4.
 - While the control bar is on, a window you record from the menu or the bar stays picked after the clip is saved.
 - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
 - The preview has an accent outline while a window is picked, and a red one while recording.

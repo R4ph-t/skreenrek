@@ -2,7 +2,12 @@ import Foundation
 
 public enum VideoContainer: String, Sendable, Hashable, Codable, CaseIterable {
     case mp4, mov
-    public var fileName: String { "clip.\(rawValue)" }
+    /// The movie file name for a recording folder: `<folder name>.<mp4|mov>`, collision suffix included (for
+    /// example `2026-11-19_091629_safari-2.mp4`). The one place the movie's name is decided.
+    public func fileName(forFolderNamed folderName: String) -> String { "\(folderName).\(rawValue)" }
+
+    /// `fileName(forFolderNamed:)` for the folder's last path component.
+    public func fileName(forFolder folder: URL) -> String { fileName(forFolderNamed: folder.lastPathComponent) }
 }
 
 public enum QualityPreset: String, Sendable, Hashable, Codable, CaseIterable {

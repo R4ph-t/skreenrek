@@ -76,7 +76,8 @@ import Testing
                 let recording = try #require(try stopped.json()["recording"] as? [String: Any])
                 let video = try #require(recording["video"] as? [String: Any])
                 #expect(recording["codec"] as? String == "h264")
-                #expect(video["file"] as? String == "clip.mp4" && video["profile"] as? String == "high")
+                let id = try #require(recording["id"] as? String)
+                #expect(video["file"] as? String == "\(id).mp4" && video["profile"] as? String == "high")
                 #expect(video["quality"] as? String == "high" && video["bitrateMbps"] is Double)
                 let human = try await h.run(["last"])
                 #expect(!human.out.contains("H.264 MP4"))
@@ -104,7 +105,7 @@ import Testing
             guard case .saved(let saved) = end else { Issue.record("Expected a saved clip"); return }
             #expect(saved.recording.video.container == .mov && saved.recording.video.bitrateMbps != nil)
             #expect(saved.recording.codec == saved.recording.video.codec)
-            #expect(saved.files.clip.hasSuffix("/clip.mov") && saved.snippet.contains(".mov\""))
+            #expect(saved.files.clip.hasSuffix("/\(saved.recording.id)/\(saved.recording.id).mov") && saved.snippet.contains(".mov\""))
             let events = try JSONDecoder().decode(EventsFile.self, from: Data(contentsOf: URL(fileURLWithPath: saved.files.events!)))
             #expect(events.recording.video == saved.recording.video)
             let human = try await h.run(["last"])
@@ -119,7 +120,7 @@ import Testing
     @Test func humanAddsTheExactNoteImmediatelyAfterSaved() {
         var body = FormatTests.body(stats: RecordingStats(encoder: .hardware))
         body.recording.codec = .prores
-        body.recording.video = VideoReadback(width: 1280, height: 800, scale: 2, codec: .prores,
+        body.recording.video = VideoReadback(file: "2026-11-17_104207_safari.mov", width: 1280, height: 800, scale: 2, codec: .prores,
             container: .mov, bitrateMbps: 9.8)
         let output = HumanFormat(style: Style(enabled: false), home: "/").saved(body).split(separator: "\n")
         #expect(output[0] == "✓ Saved 0:42 · 1280 × 800 px · 60 fps · ProRes MOV · 9.8 Mbps")

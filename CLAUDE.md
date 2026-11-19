@@ -3,7 +3,8 @@
 A small standalone macOS agent screen-capture tool: one Swift binary that is a menu-bar app, a CLI, a stdio MCP server, and
 an agent skill. It lists windows, resizes one to an exact pixel size through Accessibility and reads the frame back,
 records it with ScreenCaptureKit and AVAssetWriter at native resolution (H.264, constant 30 or 60 fps), and writes one
-folder per clip with `clip.mp4`, `events.json`, and `hyperframes.html`.
+folder per clip with the movie (named after the folder, e.g. `2026-11-17_104207_safari.mp4`), `events.json`, and
+`hyperframes.html`.
 
 Free and open source (MIT). Unsandboxed. Releases are Developer ID signed, notarized and stapled by `make release`
 (Raph's, by hand) and installed with the Homebrew cask in `Casks/`. Before it builds, `make release` writes that

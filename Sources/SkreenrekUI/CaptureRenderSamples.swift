@@ -21,7 +21,7 @@ public enum CaptureRenderSamples {
         HUDSample(name: "recording", state: .recording(target: "Safari", seconds: 12)),
         HUDSample(name: "recording-tenminutes", state: .recording(target: "Safari", seconds: 600)),
         HUDSample(name: "writing", state: .writing),
-        HUDSample(name: "saved", state: .saved(duration: 42, path: "/unused/clip.mp4")),
+        HUDSample(name: "saved", state: .saved(duration: 42, path: "/unused/2026-11-17_104207_safari/2026-11-17_104207_safari.mp4")),
         HUDSample(name: "error", state: .error(reason: "the window closed")),
         HUDSample(name: "writing-reducedmotion", state: .writing),
         HUDSample(name: "recording-contrast", state: .recording(target: "Safari", seconds: 12)),

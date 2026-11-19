@@ -23,6 +23,48 @@ extension RecorderSuites {
             try await Self.check(codec: .prores, container: .mov, quality: quality)
         }
 
+        /// A folder that took the `-2` collision suffix names its movie `<base>-2.mp4`, and the snippet's copy line and
+        /// events.json point at that real file.
+        @Test func aCollisionFolderNamesTheMovieWithItsSuffix() async throws {
+            try await withTestDeadline(seconds: 60) {
+                let temp = try TempFolder("collision")
+                defer { temp.cleanUp() }
+                let date = Date(timeIntervalSince1970: 1_794_908_527)
+                let paris = TimeZone(identifier: "Europe/Paris")!
+                func make() throws -> URL {
+                    try OutputFolder.create(in: temp.url, target: .window(Fixtures.safari), name: nil, date: date,
+                        timeZone: paris)
+                }
+                _ = try make()
+                let folder = try make()
+                #expect(folder.lastPathComponent == "2026-11-17_104207_safari-2")
+                let session = RecordingSession(source: SyntheticFrameSource(count: 31, fps: 30), clock: ManualClock(),
+                    disk: FakeDiskSpaceProbe(), encoder: .software, realTimeWriter: false)
+                try await session.start(target: .window(Fixtures.safari), size: Fixtures.size1280x800,
+                    options: RecordingOptions(fps: .fps30, duration: 1), folder: folder)
+                let result = await session.waitForEnd()
+                #expect(result.complete)
+                #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path)
+                    == ["2026-11-17_104207_safari-2.mp4"])
+                #expect(result.video.file == "2026-11-17_104207_safari-2.mp4")
+                #expect(result.clipURL == folder.appendingPathComponent("2026-11-17_104207_safari-2.mp4"))
+
+                let recording = EventsFile.Recording(id: result.id, startedAt: "", duration: 1, fps: 30,
+                    video: result.video, source: .init(target: .window(Fixtures.safari)), startedBy: .cli, client: nil,
+                    stats: result.stats)
+                let written = try ClipArtifacts.write(recording: recording, complete: true, log: EventLog(),
+                    events: true, assetsDir: nil, clipFolder: folder, homeDirectory: temp.url)
+                #expect(written.snippet.contains(
+                    "cp ~/2026-11-17_104207_safari-2/2026-11-17_104207_safari-2.mp4 assets/2026-11-17_104207_safari-2.mp4"))
+                #expect(written.snippet.contains("src=\"assets/2026-11-17_104207_safari-2.mp4\""))
+                let json = try JSONSerialization.jsonObject(with: Data(contentsOf: try #require(written.eventsFile)))
+                let video = (json as? [String: Any])?["recording"] as? [String: Any]
+                #expect((video?["video"] as? [String: Any])?["file"] as? String == "2026-11-17_104207_safari-2.mp4")
+                #expect(Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
+                    == ["2026-11-17_104207_safari-2.mp4", "events.json", "hyperframes.html"])
+            }
+        }
+
         private static func check(codec: VideoCodec, container: VideoContainer, quality: QualityPreset = .high) async throws {
             try await withTestDeadline(seconds: 60) {
                 let temp = try TempFolder("format")
@@ -40,7 +82,10 @@ extension RecorderSuites {
                 #expect(video.container == container && video.codec == codec)
                 #expect(video.profile == (try OutputSettings.resolve(container: container.rawValue,
                     codec: codec.rawValue, quality: quality.rawValue)).profile)
-                #expect(video.file == container.fileName && result.clipURL.lastPathComponent == video.file)
+                // The movie is named after its folder: `<folder>.mp4` / `<folder>.mov`.
+                #expect(video.file == "\(folder.lastPathComponent).\(container.rawValue)")
+                #expect(result.clipURL == folder.appendingPathComponent(video.file))
+                #expect(FileManager.default.fileExists(atPath: result.clipURL.path))
                 #expect(video.width == 1280 && video.height == 800)
                 #expect(result.codec == video.codec)
                 let samples = try await VideoFile.samples(result.clipURL)

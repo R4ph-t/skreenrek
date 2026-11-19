@@ -15,7 +15,7 @@ Skreenrek gives an agent what it needs to record a window and use the result:
 - **Size.** It resizes the window to an exact pixel size and reads the frame back, so the agent can verify the size
   instead of assuming it.
 - **Quality.** It records at native resolution and a constant 30 or 60 fps, in H.264 by default.
-- **Output.** Each recording gets its own folder with `clip.mp4`, `events.json` and a HyperFrames snippet, so the agent
+- **Output.** Each recording gets its own folder with the movie (named after the folder, like `2026-11-17_104207_safari.mp4`), `events.json` and a HyperFrames snippet, so the agent
   has the video, the cursor and click data, and a paste-ready clip element.
 
 ## Install
@@ -97,7 +97,7 @@ somewhere else.
 
 | File | Contents |
 | --- | --- |
-| `clip.mp4` | The video: H.264 at a constant frame rate. `--codec` and `--format` select HEVC, ProRes or MOV, and a MOV is written as `clip.mov`. |
+| `<folder>.mp4` | The video, named after its folder (for example `2026-11-17_104207_safari.mp4`): H.264 at a constant frame rate. `--codec` and `--format` select HEVC, ProRes or MOV, and a MOV is written as `<folder>.mov`. |
 | `events.json` | Cursor samples, mouse downs and ups, and clicks, in video pixels and timed from the first frame. It also holds the recording's details and stats. It contains no keystrokes. `--no-events` skips it. |
 | `hyperframes.html` | A `<video>` element to paste into a HyperFrames composition, with a comment showing how to copy the clip into `assets/`. `--assets DIR` copies the clip there for you. |
 

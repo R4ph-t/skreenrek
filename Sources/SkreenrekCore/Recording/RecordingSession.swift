@@ -102,8 +102,8 @@ public actor RecordingSession {
 
     // MARK: - Public API
 
-    /// Starts the writer and the source. `folder` is the clip folder (see `OutputFolder.create`); `clip.mp4` or
-    /// `clip.mov` is written inside it. `size` is the target's native pixel size, which is also the output size.
+    /// Starts the writer and the source. `folder` is the clip folder (see `OutputFolder.create`); the movie,
+    /// `<folder name>.mp4` or `.mov`, is written inside it. `size` is the target's native pixel size, which is also the output size.
     ///
     /// Throws `wrong_state` when already started, `recording_failed` when the clip can't be written, or whatever the
     /// source throws (e.g. `permission_denied`). On a throw the clip folder is removed when it is empty.
@@ -122,7 +122,7 @@ public actor RecordingSession {
         scheduler = CFRScheduler(fps: fps.framesPerSecond, outputSize: size, slotLimit: limit)
 
         let settings = ClipWriterSettings(
-            url: folder.appendingPathComponent(output.container.fileName), size: size, fps: fps,
+            url: OutputFolder.movieURL(in: folder, container: output.container), size: size, fps: fps,
             encoder: encoderPolicy, realTime: realTimeWriter, output: output)
         let sink: any PixelBufferSink
         do {
@@ -370,7 +370,9 @@ public actor RecordingSession {
             startedAt: context.startedAt, origin: context.origin, folder: context.folder,
             complete: reason.isComplete, stopReason: reason, stats: currentStats(stopToFinalizedMs: stopToFinalizedMs),
             firstFrameHostTime: scheduler?.t0,
-            video: writtenVideo ?? VideoReadback(settings: context.output, size: context.size))
+            video: writtenVideo ?? VideoReadback(
+                settings: context.output, size: context.size,
+                file: context.output.container.fileName(forFolder: context.folder)))
         self.result = result
         phase = .finished
         let waiters = endWaiters

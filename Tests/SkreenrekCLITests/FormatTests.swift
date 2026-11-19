@@ -99,7 +99,7 @@ import Testing
                 id: "2026-11-17_104207_safari", duration: 42, fps: 60, width: 1280, height: 800, codec: .h264,
                 startedAt: "2026-11-17T10:42:07.120+01:00", startedBy: .cli, stats: stats),
             files: StopBody.Files(
-                clip: "\(folder)/clip.mp4", events: events ? "\(folder)/events.json" : nil,
+                clip: "\(folder)/2026-11-17_104207_safari.mp4", events: events ? "\(folder)/events.json" : nil,
                 snippet: "\(folder)/hyperframes.html"),
             snippet: "<video>", readback: nil)
     }
@@ -109,7 +109,7 @@ import Testing
         let clean = Self.body(stats: RecordingStats(slotsWritten: 2520, framesFresh: 2520, encoder: .hardware))
         #expect(format.saved(clean) == """
             ✓ Saved 0:42 · 1280 × 800 px · 60 fps
-              clip    ~/Movies/Skreenrek/2026-11-17_104207_safari/clip.mp4
+              clip    ~/Movies/Skreenrek/2026-11-17_104207_safari/2026-11-17_104207_safari.mp4
               events  ~/Movies/Skreenrek/2026-11-17_104207_safari/events.json
               snippet ~/Movies/Skreenrek/2026-11-17_104207_safari/hyperframes.html
 
