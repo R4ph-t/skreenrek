@@ -108,7 +108,7 @@ struct MenuHarness {
     let effects = RecordingEffects()
     let controller: SkreenrekController
     let model: AppModel
-    let defaultsName = "skreenrek.tests.\(UUID().uuidString)"
+    let scratch = ScratchDefaults()
 
     /// - Parameter frames: frames the fake recorder delivers at once (31 records a one-second clip).
     init(frames count: Int = 1, endError: (any Error)? = nil) {
@@ -120,7 +120,7 @@ struct MenuHarness {
             permissions: permissions, disk: FakeDiskSpaceProbe(), picker: picker, ownPid: 99, encoder: .software,
             makeSink: sinks.factory(clock: clock, encode: false))
         controller = SkreenrekController(seams: seams)
-        let store = SettingsStore(defaults: UserDefaults(suiteName: defaultsName)!)
+        let store = SettingsStore(defaults: scratch.defaults)
         model = AppModel(controller: controller, settings: store, effects: effects, permissions: permissions)
     }
 
@@ -133,7 +133,7 @@ struct MenuHarness {
     var firstLine: String { model.entries.first?.line ?? "" }
 
     func cleanUp() {
-        UserDefaults.standard.removePersistentDomain(forName: defaultsName)
+        scratch.remove()
     }
 }
 

@@ -137,9 +137,9 @@ import Testing
     }
 
     @Test func theRecordingHUDWindowCarriesTheShadowAndThePickerPanelDoesNot() throws {
-        let name = "skreenrek.hud-surface.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: name))
-        defer { defaults.removePersistentDomain(forName: name) }
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let defaults = scratch.defaults
         let hud = RecordingHUD(defaults: defaults)
         #expect(hud.panel.hasShadow)
         #expect(!hud.panel.isOpaque)

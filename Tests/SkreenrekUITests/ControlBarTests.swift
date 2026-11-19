@@ -1053,8 +1053,9 @@ private final class FakeBarTracker: WindowFrameTracking {
 
     @Test func theSwitchDefaultsOnAndIsSharedByThePanelAndSettings() async throws {
         try await onMain("control bar switch") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let store = SettingsStore(defaults: defaults)
             #expect(store.showControlBar)
             store.showControlBar = false

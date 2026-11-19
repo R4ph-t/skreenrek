@@ -15,9 +15,9 @@ import Testing
             #expect(OnboardingView.titleBarHeight == 28)
             #expect(OnboardingView.windowSize == CGSize(width: 520, height: 428))
             for sample in CaptureRenderSamples.onboardingStates {
-                let name = "skreenrek-onboarding-layout.\(UUID().uuidString)"
-                let defaults = UserDefaults(suiteName: name)!
-                defer { defaults.removePersistentDomain(forName: name) }
+                let scratch = ScratchDefaults()
+                defer { scratch.remove() }
+                let defaults = scratch.defaults
                 let model = OnboardingModel.preview(sample, defaults: defaults)
                 let size = NSHostingView(rootView: OnboardingView(model: model)).fittingSize
                 #expect(size == OnboardingView.windowSize, "\(sample.name)")
@@ -29,9 +29,9 @@ import Testing
     /// Window menu and VoiceOver.
     @Test func theWindowIsOneToneUnderATransparentTitleBar() async throws {
         try await onMain("onboarding window chrome") {
-            let name = "skreenrek-onboarding-chrome.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let model = OnboardingModel.preview(CaptureRenderSamples.onboardingStates[0], defaults: defaults)
             let window = OnboardingWindowController.makeWindow(model: model)
             defer { window.close() }
@@ -48,8 +48,9 @@ import Testing
     @Test func windowGrowsToFitConnectErrors() async throws {
         try await onMain("onboarding window grows") {
             let name = "skreenrek-onboarding-layout.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let home = FileManager.default.temporaryDirectory.appendingPathComponent(name).resolvingSymlinksInPath()
             defer { try? FileManager.default.removeItem(at: home) }
             let files = FileManager.default

@@ -24,9 +24,9 @@ import Testing
 
     @Test func quitAndReopenShowsOnlyAfterARequestThatStillReadsMissing() async throws {
         try await onMain("quit and reopen") {
-            let name = "skreenrek-permissions-reach.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
-            defer { defaults.removePersistentDomain(forName: name) }
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let defaults = scratch.defaults
             let probe = FakePermissionProbe(screenRecording: .missing, accessibility: .missing)
             let requester = CountingRequester()
             var relaunches = 0
