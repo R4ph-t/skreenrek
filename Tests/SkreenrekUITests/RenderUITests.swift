@@ -37,7 +37,7 @@ import Vision
                 "screen-outline-\(appearance)@2x.png", "screen-outline-contrast-\(appearance)@2x.png",
             ]
             for state in [
-                "default", "general", "general-control-bar", "updateavailable", "agents", "permissions",
+                "default", "general", "general-control-bar", "updateavailable", "updateavailable-notes", "agents", "permissions",
                 "permissions-notallowed",
             ] {
                 expected.append("settings-\(state)-\(appearance)@2x.png")

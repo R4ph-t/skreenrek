@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SkreenrekCore
+import SkreenrekTesting
 @testable import SkreenrekUI
 import SwiftUI
 import Testing
@@ -113,6 +114,42 @@ import Testing
         }
     }
 
+    /// Release notes found after the window was built (the launch or hourly check) make General taller: the window
+    /// grows once to fit them, keeping its top edge, and tab switches still never resize it.
+    @Test func notesThatArriveAfterTheWindowIsBuiltGrowItOnceAndNothingClips() async throws {
+        try await onMain("settings notes refit") {
+            let (defaults, name) = SettingsStoreTests.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let store = SettingsStore(defaults: defaults)
+            let feed = FakeReleaseFeed(latest: "99.0.0", notes: RenderSamples.releaseNotes)
+            let updates = UpdateChecker(
+                feed: feed, installer: nil, method: .releasePage, defaults: defaults, openURL: { _ in }, relaunch: {})
+            let panel = Self.panel(updates: updates)
+            let controller = SettingsWindowController(store: store, panel: panel, actions: .none)
+            let window = controller.prepareWindow()
+            defer { window.contentViewController = nil }
+            let before = controller.contentHeight
+            let top = window.frame.maxY
+            await updates.checkNow()
+            // The refit runs on the main actor right after the state change; yield until it has (no clock involved).
+            for _ in 0..<100 where controller.contentHeight == before { await Task.yield() }
+            let needed = SettingsWindowController.tallestTabHeight(store: store, panel: panel, actions: .none)
+            #expect(needed > before + WhatsNewNotes.maxHeight)
+            #expect(controller.contentHeight == needed)
+            #expect(window.contentLayoutRect.height == needed, "\(window.contentLayoutRect)")
+            #expect(window.frame.maxY == top)
+            let frame = window.frame
+            for tab in SettingsTab.allCases + SettingsTab.allCases {
+                controller.select(tab)
+                window.contentView?.layoutSubtreeIfNeeded()
+                #expect(window.frame == frame, "\(tab)")
+            }
+            // Measuring again with nothing new changes nothing.
+            controller.fitHeight(allowShrink: true)
+            #expect(window.frame == frame)
+        }
+    }
+
     @Test func theIdentityRowShowsTheNameAndTheCurrentVersion() {
         let header = SettingsHeaderModel()
         #expect(header.name == "Skreenrek")
@@ -173,9 +210,9 @@ import Testing
     }
 
     @MainActor
-    private static func panel() -> SettingsPanelState {
+    private static func panel(updates: UpdateChecker? = nil) -> SettingsPanelState {
         let defaults = UserDefaults(suiteName: "skreenrek.tests.\(UUID().uuidString)")!
-        let updates = UpdateChecker(
+        let updates = updates ?? UpdateChecker(
             feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
             openURL: { _ in }, relaunch: {})
         // An empty home folder: the installer only reads it, and every agent shows as not installed.

@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SkreenrekControl
 import SkreenrekCore
 import SwiftUI
@@ -10,9 +11,13 @@ import os
 /// so the tab controller never resizes the window: a tab click just swaps the content, with no animation.
 final class SettingsTabsController: NSTabViewController {
     private let store: SettingsStore
+    private let panel: SettingsPanelState
+    private let actions: SettingsActions
 
     init(store: SettingsStore, panel: SettingsPanelState, actions: SettingsActions, height: CGFloat) {
         self.store = store
+        self.panel = panel
+        self.actions = actions
         super.init(nibName: nil, bundle: nil)
         tabStyle = .toolbar
         transitionOptions = []
@@ -38,6 +43,16 @@ final class SettingsTabsController: NSTabViewController {
         selectedTabViewItemIndex = SettingsTab.allCases.firstIndex(of: tab) ?? 0
     }
 
+    /// Gives every tab the window's new fixed height. The window is resized first, so the tab controller has nothing
+    /// to animate.
+    func setHeight(_ height: CGFloat) {
+        for (tab, item) in zip(SettingsTab.allCases, tabViewItems) {
+            guard let hosting = item.viewController as? NSHostingController<SettingsTabContent> else { continue }
+            hosting.rootView = SettingsTabContent(tab: tab, store: store, panel: panel, actions: actions, height: height)
+            hosting.preferredContentSize = NSSize(width: SettingsMetrics.width, height: height)
+        }
+    }
+
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         super.tabView(tabView, didSelect: tabViewItem)
         store.settingsTab = SettingsTab.allCases[selectedTabViewItemIndex]
@@ -47,6 +62,8 @@ final class SettingsTabsController: NSTabViewController {
 /// The Settings window: standard toolbar tabs on the shared solid surface, one tone from the top edge down (the
 /// toolbar draws no band of its own). One fixed content height, the tallest tab's, measured once when the window is
 /// built; shorter tabs sit at the top. Nothing reports heights back and nothing resizes the window on a tab switch.
+/// The one exception is What's new: release notes that arrive while the window exists (the launch or hourly check)
+/// make General taller, so the window grows once to fit them, without animation. It shrinks back only while hidden.
 @MainActor
 final class SettingsWindowController {
     private let store: SettingsStore
@@ -68,15 +85,48 @@ final class SettingsWindowController {
         ) { [weak panel] _ in
             MainActor.assumeIsolated { panel?.refresh() }
         }
+        observeUpdates()
     }
 
-    /// Opens on `tab`, or on the tab used last.
+    /// Opens on `tab`, or on the tab used last, in front of every other app's windows.
     func show(tab: SettingsTab? = nil) {
         panel.refresh()
         let window = prepareWindow()
+        if !window.isVisible { fitHeight(allowShrink: true) }
         if let tab { select(tab) }
+        // The dropdown is a non-activating panel, so Skreenrek isn't the active app when Settings is chosen, and
+        // `activate()` is only a request on macOS 14 and later: the frontmost app may keep its place. Ordering front
+        // regardless puts the window above it either way; it becomes key as soon as the activation goes through.
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    /// Re-measures the tallest tab and gives the window that height, keeping its top edge, with no animation. While the
+    /// window is on screen it only grows (notes arrived), so a check that briefly hides the notes never resizes it.
+    func fitHeight(allowShrink: Bool) {
+        guard let window, let tabs else { return }
+        let height = Self.tallestTabHeight(store: store, panel: panel, actions: actions)
+        guard height > contentHeight || (allowShrink && height != contentHeight) else { return }
+        var frame = window.frame
+        frame.size.height += height - contentHeight
+        frame.origin.y -= height - contentHeight
+        contentHeight = height
+        window.setFrame(frame, display: true, animate: false)
+        tabs.setHeight(height)
+    }
+
+    /// Follows the update state, so notes that appear while the window exists refit it once.
+    private func observeUpdates() {
+        guard let updates = panel.updates else { return }
+        withObservationTracking {
+            _ = updates.state
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.fitHeight(allowShrink: false)
+                self?.observeUpdates()
+            }
+        }
     }
 
     /// Builds the window once, centred, at the fixed size.

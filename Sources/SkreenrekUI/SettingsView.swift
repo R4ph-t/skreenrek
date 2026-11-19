@@ -596,9 +596,9 @@ struct GitHubRow: View {
     }
 }
 
-/// The newer release's notes, as simple Markdown, open so they're visible, and capped so a long section scrolls
-/// instead of stretching Settings.
-private struct WhatsNewNotes: View {
+/// The newer release's notes, one line per heading, item and paragraph, open so they're visible, and capped so a long
+/// section scrolls instead of stretching Settings.
+struct WhatsNewNotes: View {
     let markdown: String
 
     /// Long notes scroll inside this height.
@@ -610,7 +610,7 @@ private struct WhatsNewNotes: View {
     var body: some View {
         DisclosureGroup(isExpanded: $open) {
             ScrollView {
-                notesText
+                notes
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -628,12 +628,35 @@ private struct WhatsNewNotes: View {
         .font(.system(size: 12))
     }
 
-    private var notesText: Text {
-        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+    /// `Text` ignores Markdown's blocks, so each block is its own line and only inline Markdown is parsed.
+    private var notes: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(ReleaseNotes.blocks(markdown).enumerated()), id: \.offset) { index, block in
+                switch block {
+                case .heading(let title):
+                    Self.inline(title)
+                        .fontWeight(.semibold)
+                        .padding(.top, index > 0 ? 6 : 0)
+                        .accessibilityAddTraits(.isHeader)
+                case .bullet(let item):
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(verbatim: "•").accessibilityHidden(true)
+                        Self.inline(item)
+                    }
+                case .paragraph(let text):
+                    Self.inline(text)
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private static func inline(_ markdown: String) -> Text {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         if let attributed = try? AttributedString(markdown: markdown, options: options) {
             return Text(attributed)
         } else {
-            return Text(markdown)
+            return Text(verbatim: markdown)
         }
     }
 }
