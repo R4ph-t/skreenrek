@@ -108,12 +108,16 @@ public struct ControllerSnapshot: Sendable, Hashable {
     public var picking: Bool
     /// Windows picked so far. It moves on every pick, including a second pick of the same window.
     public var pickCount: Int
+    /// While recording or writing: the recorded window stays picked after a saved clip (a menu or control-bar
+    /// recording with the control bar on). False for agent recordings, which drop the pick, and when idle.
+    public var keepsWindowPicked: Bool
 
     public init(
         state: ControllerState, elapsed: TimeInterval? = nil, window: WindowInfo? = nil, region: PixelRect? = nil,
         displayId: DisplayID? = nil, size: PixelSize? = nil, readback: Readback? = nil, fps: FrameRate,
         startedBy: StartedBy? = nil, client: String? = nil, lastClip: StopBody? = nil, error: SkreenrekError? = nil,
-        hud: Bool = true, display: DisplayInfo? = nil, picking: Bool = false, pickCount: Int = 0
+        hud: Bool = true, display: DisplayInfo? = nil, picking: Bool = false, pickCount: Int = 0,
+        keepsWindowPicked: Bool = false
     ) {
         self.state = state
         self.elapsed = elapsed
@@ -131,5 +135,6 @@ public struct ControllerSnapshot: Sendable, Hashable {
         self.display = display
         self.picking = picking
         self.pickCount = pickCount
+        self.keepsWindowPicked = keepsWindowPicked
     }
 }
