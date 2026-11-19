@@ -38,6 +38,8 @@ public enum DragHelperMetrics {
     public static let pollInterval: TimeInterval = 0.25
     /// No System Settings window by then: show the panel docked.
     public static let appearTimeout: TimeInterval = 3
+    /// Armed by a permission request: no System Settings window by then, and it gives up without showing.
+    public static let requestTimeout: TimeInterval = 60
     public static let fadeIn: TimeInterval = 0.2
     public static let fadeOut: TimeInterval = 0.2
     public static let crossfade: TimeInterval = 0.2
@@ -170,6 +172,10 @@ public enum DragHelperCloseReason: Sendable, Equatable {
     case appQuit
     /// Granted, held 1.5 s, then faded out.
     case granted
+    /// Armed by a request, and the permission was granted before System Settings showed: never shown.
+    case notNeeded
+    /// Armed by a request, and System Settings never showed within 60 s (the prompt was denied or closed).
+    case timedOut
 }
 
 /// The ghost's frame of the loop: how far it has slid toward System Settings and how opaque it is.
@@ -181,6 +187,16 @@ public struct DragHelperGhost: Sendable, Equatable {
 /// The helper's state over time: waiting for System Settings, shown (looping), granted, closed. Every input carries
 /// `now`, so the tests drive it like a manual clock.
 public struct DragHelperState: Sendable, Equatable {
+    /// What brought the helper up.
+    public enum Trigger: Sendable, Equatable {
+        /// Our own `Open System Settings…`: System Settings is opening, so the panel docks after 3 s without it.
+        case openedSettings
+        /// A permission request: macOS's prompt may send the user to System Settings (its own `Open System
+        /// Settings` button), or not (Deny, closed). The panel waits for System Settings' window, never docks
+        /// first, and gives up after 60 s.
+        case requested
+    }
+
     public enum Phase: Sendable, Equatable {
         case waiting
         case shown
@@ -190,6 +206,7 @@ public struct DragHelperState: Sendable, Equatable {
 
     public private(set) var permission: Permission
     public let reduceMotion: Bool
+    public private(set) var trigger: Trigger
     public private(set) var phase: Phase = .waiting
     public private(set) var placement: DragHelperPlacement?
     /// Whether the panel is on screen: shown, and System Settings isn't minimised or hidden.
@@ -198,15 +215,18 @@ public struct DragHelperState: Sendable, Equatable {
     public private(set) var appearedAt: TimeInterval?
     public private(set) var hovering = false
     public private(set) var dragging = false
-    private let openedAt: TimeInterval
+    private var openedAt: TimeInterval
     private var seenSettings = false
     /// Loop time banked while running, and since when it has been running (nil while paused).
     private var banked: TimeInterval = 0
     private var runningSince: TimeInterval?
 
-    public init(permission: Permission, now: TimeInterval, reduceMotion: Bool) {
+    public init(
+        permission: Permission, now: TimeInterval, reduceMotion: Bool, trigger: Trigger = .openedSettings
+    ) {
         self.permission = permission
         self.reduceMotion = reduceMotion
+        self.trigger = trigger
         openedAt = now
     }
 
@@ -221,6 +241,14 @@ public struct DragHelperState: Sendable, Equatable {
         guard !isClosed else { return }
         if case .granted(let at) = phase, now - at >= DragHelperMetrics.grantedHold {
             return close(.granted, now: now)
+        }
+        if trigger == .requested, appearedAt == nil {
+            // Armed by a request: only a System Settings window brings it up, never the docked fallback.
+            if granted { return close(.notNeeded, now: now) }
+            guard case .visible = window else {
+                if now - openedAt >= DragHelperMetrics.requestTimeout { close(.timedOut, now: now) }
+                return
+            }
         }
         switch window {
         case .visible(let bounds):
@@ -246,9 +274,18 @@ public struct DragHelperState: Sendable, Equatable {
         if runningSince != nil, loopsCompleted(at: now) >= DragHelperMetrics.maxLoops { pause(now: now) }
     }
 
-    /// Another pane's `Open System Settings…` while the helper is up: the copy changes in place.
-    public mutating func switchPane(to permission: Permission, now: TimeInterval) {
-        guard !isClosed, permission != self.permission else { return }
+    /// Another pane's `Open System Settings…` (or request) while the helper is up: the copy changes in place.
+    /// `Open System Settings…` on a helper armed by a request that hasn't shown yet makes it an opened one, with
+    /// the 3 s dock fallback counted from now.
+    public mutating func switchPane(
+        to permission: Permission, now: TimeInterval, trigger: Trigger = .openedSettings
+    ) {
+        guard !isClosed else { return }
+        if trigger == .openedSettings, self.trigger == .requested {
+            self.trigger = .openedSettings
+            if appearedAt == nil { openedAt = now }
+        }
+        guard permission != self.permission else { return }
         self.permission = permission
         if isGranted {
             phase = .shown

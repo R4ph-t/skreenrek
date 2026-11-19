@@ -19,6 +19,27 @@ import Testing
                         openSettings: opened)
     }
 
+    /// "Allow …" raises macOS's prompt, whose Open System Settings button the app never sees: every request tells
+    /// the app first, so it can arm the drag helper.
+    @Test(.timeLimit(.minutes(1))) func everyRequestIsAnnouncedBeforeMacOSIsAsked() async throws {
+        try await onMain("onboarding didRequest", seconds: 10) {
+            let scratch = ScratchDefaults()
+            defer { scratch.remove() }
+            let probe = FakePermissionProbe(screenRecording: .missing, directCapture: .missing, accessibility: .missing)
+            let requester = TestPermissionRequester()
+            let model = Self.make(probe, requester, scratch.defaults)
+            var announced: [(Permission, Int)] = []
+            model.didRequest = { announced.append(($0, requester.requests.count)) }
+            model.begin()
+            #expect(announced.isEmpty)
+            model.requestCurrent()
+            model.request(.accessibility)
+            #expect(announced.map(\.0) == [.screenRecording, .accessibility])
+            // Announced before the requester ran.
+            #expect(announced.map(\.1) == [0, 1])
+        }
+    }
+
     /// First launch on a fresh Mac: one step per permission, in order, each asking macOS only when its step asks.
     @Test(.timeLimit(.minutes(1))) func walksThePermissionsInOrderAndAsksOnlyOnItsStep() async throws {
         try await onMain("onboarding step order", seconds: 10) {

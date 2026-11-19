@@ -76,6 +76,9 @@ public final class OnboardingModel {
     @ObservationIgnored public var didComplete: (() -> Void)?
     /// The step shown before changed (the drag helper it opened goes with it).
     @ObservationIgnored public var didLeaveStep: ((OnboardingStep) -> Void)?
+    /// A permission is about to be requested. macOS's prompt has its own `Open System Settings` button, so the app
+    /// arms the drag helper here.
+    @ObservationIgnored public var didRequest: ((Permission) -> Void)?
 
     public init(permissions: any PermissionProbe, requester: any PermissionRequester, defaults: UserDefaults,
                 agents: [OnboardingAgent], install: @escaping ([AgentClient]) -> [AgentSetupResult],
@@ -226,6 +229,7 @@ public final class OnboardingModel {
     public func request(_ permission: Permission) {
         requested.insert(permission)
         if permission == .screenRecording { defaults.set(true, forKey: Self.screenRecordingRequestedKey) }
+        didRequest?(permission)
         requester.request(permission)
         refresh()
     }
