@@ -16,10 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The control bar's timer shows hours from the first hour on, like 1:02:03. While a clip saves, the spinner and "Saving clip…" sit together in the middle of the bar.
 - Without Accessibility, the control bar warns that it can't resize the window, and Record captures the window at its current size.
 - An X button at the end of the control bar clears the picked window.
+- While recording, the outline around the window turns red, and a region recording gets a red frame just outside the region. It stays solid, never appears in the clip, and hides with the recording indicator.
+- When a clip finishes saving with the control bar up, the bar shows Saved with Show in Finder and Copy File Path for a few seconds, in place of the separate Saved indicator.
 
 ### Changed
 
 - While the control bar is on, a window you record from the menu or the bar stays picked after the clip is saved.
+- The control bar's X button is hidden while recording and saving. The bar keeps its width, so nothing moves.
+- With `--no-hud` or Show recording indicator off, the Saved indicator no longer appears after a clip.
 - With no window picked, the menu is much shorter: no empty preview and no disabled Record button, just Pick Window…. A window that closed uses the same layout.
 - The preview has an accent outline while a window is picked, and a red one while recording.
 - Settings is now a standard window with General, Agents, and Permissions tabs.
