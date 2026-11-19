@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-11-19
+
 ### Fixed
 
 - The drag helper now also appears when System Settings is opened from macOS's own Screen Recording or Accessibility prompt (after Allow Screen Recording or Allow Accessibility in onboarding).
