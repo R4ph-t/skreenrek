@@ -58,7 +58,7 @@ import Testing
         }
     }
 
-    @Test func theWindowIsOneToneUnderATransparentTitleBarWithAConstantTitle() async throws {
+    @Test func theWindowHasStandardToolbarTabsOnTheSolidSurfaceAndTheTabsNameAsItsTitle() async throws {
         try await onMain("settings window") {
             let (defaults, name) = SettingsStoreTests.suite()
             defer { defaults.removePersistentDomain(forName: name) }
@@ -67,72 +67,80 @@ import Testing
             let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
             let window = controller.prepareWindow()
             defer { window.contentViewController = nil }
-            #expect(window.styleMask.contains(.fullSizeContentView))
+            let tabs = try #require(window.contentViewController as? NSTabViewController)
+            #expect(tabs.tabStyle == .toolbar)
+            #expect(tabs.tabViewItems.map(\.label) == ["General", "Agents", "Permissions"])
+            #expect(tabs.tabViewItems.map { $0.image != nil } == [true, true, true])
+            #expect(window.toolbarStyle == .preference)
             #expect(window.titlebarAppearsTransparent)
-            #expect(window.titleVisibility == .hidden)
-            #expect(window.toolbar == nil)
             #expect(window.backgroundColor == SkreenrekSurface.baseColor)
-            #expect(window.contentViewController is NSHostingController<SettingsWindowContent>)
-            // It opens on the tab used last.
+            // It opens on the tab used last, and the title is the selected tab's name.
             #expect(store.settingsTab == .agents)
-            #expect(window.title == "Skreenrek Settings")
+            #expect(window.title == "Agents")
             for tab in SettingsTab.allCases.reversed() + SettingsTab.allCases {
                 controller.select(tab)
                 #expect(store.settingsTab == tab)
-                #expect(window.title == "Skreenrek Settings", "\(tab)")
+                #expect(window.title == tab.title, "\(tab)")
             }
         }
     }
 
-    @Test func theHeaderShowsTheNameAndTheCurrentVersion() {
+    /// One fixed content height, the tallest tab's (General with the identity row). Switching tabs, quickly and
+    /// repeatedly, never resizes the window, and laying a tab out again doesn't either: nothing reports a height back.
+    @Test func switchingTabsNeverResizesTheWindow() async throws {
+        try await onMain("settings tab switch") {
+            let (defaults, name) = SettingsStoreTests.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let store = SettingsStore(defaults: defaults)
+            store.settingsTab = .permissions
+            let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
+            let window = controller.prepareWindow()
+            defer { window.contentViewController = nil }
+            let general = NSHostingView(
+                rootView: SettingsView(tab: .general, store: store, panel: Self.panel(), actions: .none))
+            #expect(controller.contentHeight == general.fittingSize.height + SettingsChromeMetrics.contentTopGap)
+            #expect(window.contentLayoutRect.height == controller.contentHeight, "\(window.contentLayoutRect)")
+            #expect(window.contentLayoutRect.width == SettingsMetrics.width)
+            let frame = window.frame
+            for tab in Array(repeating: SettingsTab.allCases, count: 5).flatMap({ $0 }) + [.permissions, .agents] {
+                controller.select(tab)
+                window.contentView?.layoutSubtreeIfNeeded()
+                #expect(window.frame == frame, "\(tab)")
+            }
+            window.contentView?.needsLayout = true
+            window.contentView?.layoutSubtreeIfNeeded()
+            #expect(window.frame == frame)
+        }
+    }
+
+    @Test func theIdentityRowShowsTheNameAndTheCurrentVersion() {
         let header = SettingsHeaderModel()
         #expect(header.name == "Skreenrek")
         #expect(header.version == "Version \(SkreenrekVersion.current)")
         #expect(header.accessibilityLabel == "Skreenrek, version \(SkreenrekVersion.current)")
         #expect(SettingsHeaderModel(version: "2.0.0").version == "Version 2.0.0")
-        #expect(UIStrings.Settings.windowTitle == "Skreenrek Settings")
-        #expect(UIStrings.Settings.tabsLabel == "Settings tabs")
-    }
-
-    @Test func theHeaderLayoutIsTheAddendums() {
-        #expect(SettingsChromeMetrics.titleBarHeight == 28)
-        #expect(SettingsChromeMetrics.headerHeight == 56)
-        #expect(SettingsChromeMetrics.headerBottom == 84)
-        #expect(SettingsChromeMetrics.contentTop == 92)
-        #expect(SettingsChromeMetrics.headerInset == 16)
+        #expect(SettingsChromeMetrics.identityHeight == 48)
         #expect(SettingsChromeMetrics.iconSize == 32)
-        #expect(SettingsChromeMetrics.headerInset + SettingsChromeMetrics.iconSize + SettingsChromeMetrics.textGap == 56)
-        #expect(SettingsChromeMetrics.segmentWidth == 96)
-        #expect(SettingsChromeMetrics.tabsWidth == 288)
-        #expect(SettingsChromeMetrics.segmentHeight == 24)
-        #expect(SettingsMetrics.width - SettingsChromeMetrics.headerInset == 464)
-        #expect(SettingsChromeMetrics.crossfade == 0.15)
+        #expect(SettingsChromeMetrics.textGap == 12)
+        #expect(SettingsChromeMetrics.contentTopGap == 8)
     }
 
-    /// The tabs are 3 × 96 pt, right-aligned so they end at x 464, and the name and version fit to their left.
-    @Test func theTabsEndAtX464AndTheNameAndVersionFitBesideThem() async throws {
-        try await onMain("settings header layout") {
-            let host = NSHostingView(rootView: SettingsHeader(selection: .constant(.general)))
-            host.frame = NSRect(x: 0, y: 0, width: SettingsMetrics.width, height: SettingsChromeMetrics.headerHeight)
-            host.layoutSubtreeIfNeeded()
-            @MainActor func controls(_ view: NSView) -> [NSSegmentedControl] {
-                ((view as? NSSegmentedControl).map { [$0] } ?? []) + view.subviews.flatMap(controls)
+    /// The identity row is on General only, above the first section; the other tabs start with their sections.
+    @Test func theIdentityRowIsOnGeneralOnly() async throws {
+        try await onMain("settings identity row") {
+            let (defaults, name) = SettingsStoreTests.suite()
+            defer { defaults.removePersistentDomain(forName: name) }
+            let store = SettingsStore(defaults: defaults)
+            let panel = Self.panel()
+            @MainActor func height(_ tab: SettingsTab) -> CGFloat {
+                NSHostingView(rootView: SettingsView(tab: tab, store: store, panel: panel, actions: .none)).fittingSize.height
             }
-            let control = try #require(controls(host).first)
-            // Three equal segments across the control.
-            #expect(control.segmentDistribution == .fillEqually)
-            #expect(control.segmentCount == 3)
-            let frame = control.convert(control.bounds, to: host)
-            #expect(frame.width == 288, "\(frame)")
-            #expect(frame.maxX == 464, "\(frame)")
-            #expect(frame.minX == 176, "\(frame)")
-            // The text starts at x 56 and keeps a 12 pt gap before the tabs, without truncating.
-            let model = SettingsHeaderModel()
-            let name = (model.name as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold)])
-            let version = (model.version as NSString).size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)])
-            let room = frame.minX - 12 - 56
-            #expect(name.width < room, "\(name.width) of \(room)")
-            #expect(version.width < room, "\(version.width) of \(room)")
+            let withRow = height(.general)
+            let row = NSHostingView(rootView: SettingsIdentityRow()).fittingSize
+            #expect(row.height == 48)
+            #expect(withRow > row.height)
+            #expect(withRow > height(.agents))
+            #expect(withRow > height(.permissions))
         }
     }
 
@@ -146,55 +154,6 @@ import Testing
         #expect(SettingsHeaderIcon.isAppBundle(Bundle(path: "/System/Applications/Calculator.app") ?? .main))
         // swift test runs from an .xctest bundle, not an app.
         #expect(!SettingsHeaderIcon.isAppBundle(.main))
-    }
-
-    @Test func arrowsMoveOneTabAndStopAtTheEnds() {
-        #expect(SettingsTab.general.moved(by: 1) == .agents)
-        #expect(SettingsTab.agents.moved(by: 1) == .permissions)
-        #expect(SettingsTab.permissions.moved(by: 1) == .permissions)
-        #expect(SettingsTab.permissions.moved(by: -1) == .agents)
-        #expect(SettingsTab.general.moved(by: -1) == .general)
-        #expect(SettingsTab.general.moved(by: 5) == .permissions)
-    }
-
-    @Test func theSegmentedControlSwitchesAndRemembersTheTab() async throws {
-        try await onMain("settings segmented control") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
-            let store = SettingsStore(defaults: defaults)
-            let coordinator = SettingsTabsControl.Coordinator(
-                selection: Binding(get: { store.settingsTab }, set: { store.settingsTab = $0 }))
-            let control = SettingsSegmentedControl.make()
-            control.target = coordinator
-            control.action = #selector(SettingsTabsControl.Coordinator.changed(_:))
-            control.onMove = { coordinator.move(by: $0) }
-            #expect(control.segmentCount == 3)
-            #expect((0..<3).map { control.label(forSegment: $0) } == ["General", "Agents", "Permissions"])
-            // Equal segments filling the 288 pt control (3 × 96 pt, border included).
-            #expect(control.segmentDistribution == .fillEqually)
-            #expect(control.intrinsicContentSize.width == 288)
-            #expect(control.accessibilityLabel() == "Settings tabs")
-            #expect(control.canBecomeKeyView)
-            #expect(control.acceptsFirstResponder)
-
-            // A click on Permissions.
-            control.selectedSegment = 2
-            coordinator.changed(control)
-            #expect(store.settingsTab == .permissions)
-            #expect(SettingsStore(defaults: defaults).settingsTab == .permissions)
-
-            // → at the last tab stays there; ← walks back and stops at General.
-            control.keyDown(with: Self.arrow(right: true))
-            #expect(store.settingsTab == .permissions)
-            control.keyDown(with: Self.arrow(right: false))
-            #expect(store.settingsTab == .agents)
-            control.keyDown(with: Self.arrow(right: false))
-            control.keyDown(with: Self.arrow(right: false))
-            #expect(store.settingsTab == .general)
-            control.keyDown(with: Self.arrow(right: true))
-            #expect(store.settingsTab == .agents)
-            #expect(SettingsStore(defaults: defaults).settingsTab == .agents)
-        }
     }
 
     @Test(arguments: [(SettingsTab.general, 9), (.agents, 4), (.permissions, 2)])
@@ -211,34 +170,6 @@ import Testing
                 #expect(frame.maxX == SettingsMetrics.trailingX, "\(frame)")
             }
         }
-    }
-
-    @Test func theWindowFitsEachTabsContentUnderTheHeader() async throws {
-        try await onMain("settings window height") {
-            let (defaults, name) = SettingsStoreTests.suite()
-            defer { defaults.removePersistentDomain(forName: name) }
-            let store = SettingsStore(defaults: defaults)
-            let controller = SettingsWindowController(store: store, panel: Self.panel(), actions: .none)
-            let window = controller.prepareWindow()
-            defer { window.contentViewController = nil }
-            // The title bar and header (84) and the gap (8) over each tab's sections. No scroll view.
-            for (tab, height) in [(SettingsTab.general, 627.5), (.permissions, 196.5), (.agents, 306.5)] {
-                controller.select(tab)
-                window.contentView?.layoutSubtreeIfNeeded()
-                controller.fitWindow(animated: false)
-                #expect(abs(window.frame.height - height) <= 4, "\(tab) is \(window.frame.height)")
-                #expect(window.frame.width == SettingsMetrics.width)
-            }
-        }
-    }
-
-    @MainActor
-    private static func arrow(right: Bool) -> NSEvent {
-        let key = String(UnicodeScalar(UInt16(right ? NSRightArrowFunctionKey : NSLeftArrowFunctionKey))!)
-        return NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: [.numericPad, .function], timestamp: 0, windowNumber: 0,
-            context: nil, characters: key, charactersIgnoringModifiers: key, isARepeat: false,
-            keyCode: right ? 124 : 123)!
     }
 
     @MainActor

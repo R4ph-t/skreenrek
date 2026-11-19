@@ -234,7 +234,7 @@ import Vision
     }
 
     /// Addendum 3: the panel, Settings and onboarding sample the same base and cell, Settings is one tone from its top
-    /// edge through the header, and the header carries the name and version on the left and the tabs on the right.
+    /// edge through the toolbar, every tab has the same height, and General starts with the name and version.
     @Test func panelAndSettingsShareOneSurface() async throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("skreenrek-render-shared-\(UUID().uuidString)", isDirectory: true)
@@ -256,31 +256,30 @@ import Vision
             // At 2×: the panel at x 40–340 pt, Settings at x 380–860 pt, both 40 pt down.
             let panelBase = pixel(both, 100, 1000)
             let panelCell = pixel(both, 200, 605)
-            let settingsBase = pixel(both, 1100, 230)
+            let settingsBase = pixel(both, 1100, 340)
             let settingsCell = pixel(both, 1300, 420)
             #expect(panelBase == [base, base, base], "\(appearance) panel base \(panelBase)")
             #expect(settingsBase == panelBase, "\(appearance) settings base \(settingsBase)")
             #expect(panelCell == [cell, cell, cell], "\(appearance) panel cell \(panelCell)")
             #expect(settingsCell == panelCell, "\(appearance) settings cell \(settingsCell)")
-            for tab in ["general", "agents", "permissions"] {
+            // At 2×: the stand-in title bar and toolbar tabs take y 0–160, then 8 pt (16 px) before each tab's content.
+            // General starts with the 48 pt identity row and 16 pt of space, so its first section is at y 304 px; the
+            // other tabs start with their first section at y 176 px. All three are the same, fixed height.
+            var heights: Set<Int> = []
+            for (tab, sectionTop) in [("general", 304), ("agents", 176), ("permissions", 176)] {
                 let name = "settings-\(tab)-\(appearance)@2x.png"
                 let rep = try image(name)
-                // The top edge, the title bar, the header and the gap above the first section: one tone.
-                for y in [1, 30, 60, 100, 170, 180] {
-                    let value = pixel(rep, 300, y)
+                heights.insert(rep.pixelsHigh)
+                // The top edge, the title bar, the toolbar and the gap above the content: one tone, no toolbar band.
+                for y in [1, 30, 60, 100, 150, 170] {
+                    let value = pixel(rep, 900, y)
                     #expect(value == [base, base, base], "\(name) y \(y): \(value)")
                 }
-                let section = pixel(rep, 500, 300)
+                let section = pixel(rep, 700, sectionTop + 20)
                 #expect(section == [cell, cell, cell], "\(name) section \(section)")
+                #expect(pixel(rep, 700, sectionTop - 8) == [base, base, base], "\(name) above the section")
             }
-            // The tabs: 288 pt wide, ending at x 464 (x 352–928 at 2×), on the base either side.
-            let tabs = try image("settings-general-\(appearance)@2x.png")
-            for x in [330, 940] {
-                #expect(pixel(tabs, x, 112) == [base, base, base], "\(appearance) beside the tabs x \(x)")
-            }
-            for x in [360, 920] {
-                #expect(pixel(tabs, x, 112) != [base, base, base], "\(appearance) inside the tabs x \(x)")
-            }
+            #expect(heights.count == 1, "\(heights)")
             // Onboarding: the same base from the title bar band down, the cards on surface.cell, and the agent card's
             // separators inset 12 pt from its leading edge (the card starts at x 24 pt).
             let agents = try image("onboarding-4-agents-\(appearance)@2x.png")
@@ -296,19 +295,19 @@ import Vision
             let permissionCard = pixel(permission, 300, 410)
             #expect(permissionCard == [cell, cell, cell], "\(appearance) onboarding permission card \(permissionCard)")
             #expect(pixel(permission, 20, 600) == [base, base, base], "\(appearance) onboarding permission base")
-            // The header at 2×: y 56–168. Name and version left of x 176 pt, the tabs from x 176 to 464 pt.
+            // The identity row at the top of General (y 176–272 px): the name and version, and nowhere else below it.
             let general = try image("settings-general-\(appearance)@2x.png")
             let cg = try #require(general.cgImage)
-            let left = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 100, y: 56, width: 240, height: 112))))
-            #expect(left.contains("Skreenrek"), "\(left)")
-            #expect(left.contains("Version \(SkreenrekVersion.current)"), "\(left)")
-            let right = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 340, y: 56, width: 620, height: 112))))
+            let identity = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 0, y: 176, width: 480, height: 96))))
+            #expect(identity.contains("Skreenrek"), "\(identity)")
+            #expect(identity.contains("Version \(SkreenrekVersion.current)"), "\(identity)")
+            let toolbar = try Self.recognizedText(in: try #require(cg.cropping(to: CGRect(x: 0, y: 0, width: 960, height: 160))))
             for tab in ["General", "Agents", "Permissions"] {
-                #expect(right.contains(tab), "\(right)")
+                #expect(toolbar.contains(tab), "\(toolbar)")
             }
-            // About: the Updates status, and no separate version line below the header.
+            // About: the Updates status, and no separate version line below the identity row.
             let body = try Self.recognizedText(
-                in: try #require(cg.cropping(to: CGRect(x: 0, y: 184, width: 960, height: general.pixelsHigh - 184))))
+                in: try #require(cg.cropping(to: CGRect(x: 0, y: 290, width: 960, height: general.pixelsHigh - 290))))
             #expect(body.contains("is up to date"), "\(body)")
             #expect(!body.contains("Version"), "\(body)")
         }

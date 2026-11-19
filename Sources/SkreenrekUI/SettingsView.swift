@@ -210,6 +210,7 @@ public struct SettingsView: View {
 
     @ViewBuilder
     private var general: some View {
+        SettingsIdentityRow()
         SettingsSection {
             SettingsRow {
                 SettingsRowText(
