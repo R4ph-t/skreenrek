@@ -100,6 +100,8 @@ struct RecordingHUDView: View {
     }
 }
 
+/// The 1 pt region frame of the first HUD spec, kept for its `render-ui` case. Live recordings draw the 3 pt
+/// `record-red` frame of the selection outline instead (control bar addendum 2, §A).
 struct RegionOutline: View {
     var increaseContrast = false
     var body: some View {
@@ -114,7 +116,6 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
     private var placement = HUDPlacement()
     private let defaults: UserDefaults
     let panel = CapturePanel(frame: .zero, carriesShadow: true)
-    private var outline: CapturePanel?
     private var timer: Timer?
     private let presentation = HUDPresentation()
     private var display: DisplayInfo?
@@ -135,10 +136,13 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
         panel.isMovableByWindowBackground = true
     }
 
-    func update(_ snapshot: ControllerSnapshot, indicatorEnabled: Bool, controlBarVisible: Bool = false) {
+    func update(
+        _ snapshot: ControllerSnapshot, indicatorEnabled: Bool, controlBarVisible: Bool = false,
+        controlBarSaved: Bool = false
+    ) {
         model.observe(
             snapshot, now: ProcessInfo.processInfo.systemUptime, indicatorEnabled: indicatorEnabled,
-            controlBarVisible: controlBarVisible)
+            controlBarVisible: controlBarVisible, controlBarSaved: controlBarSaved)
         if snapshot.state == .recording || snapshot.state == .writing { updateTarget(snapshot) }
         render()
     }
@@ -168,22 +172,10 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
                                y: display.frame.y + Double(region.y) / display.scale,
                                width: Double(region.width) / display.scale, height: Double(region.height) / display.scale)
         }
-        if snapshot.state == .recording, snapshot.region != nil, let target, model.state != .hidden {
-            if outline == nil {
-                let outline = CapturePanel(frame: .zero)
-                outline.ignoresMouseEvents = true
-                outline.contentView = NSHostingView(rootView: RegionOutline(
-                    increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast))
-                self.outline = outline
-            }
-            outline?.setFrame(geometry.appKit(fromTopLeft: target), display: true)
-            outline?.orderFrontRegardless()
-        } else { outline?.orderOut(nil) }
     }
 
     private func render() {
         guard model.state != .hidden else {
-            outline?.orderOut(nil)
             timer?.invalidate(); timer = nil
             renderedKind = nil
             renderedTimeLength = nil
@@ -264,6 +256,6 @@ final class RecordingHUD: NSObject, NSWindowDelegate {
 
     func close() {
         timer?.invalidate(); timer = nil
-        panel.orderOut(nil); outline?.orderOut(nil)
+        panel.orderOut(nil)
     }
 }

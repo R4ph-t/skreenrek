@@ -5,6 +5,9 @@ import SwiftUI
 /// The branded dropdown's and Settings' shared tones. The accent is the system accent (switches, the selected
 /// segment, the primary item); red stays for record and stop, orange for errors. Everything else is neutral.
 enum BrandTheme {
+    /// Token `record-red`: the Stop button's red and the recording outline. The system red, never a custom one.
+    static let recordRed = NSColor.systemRed
+
     /// The header tile behind the V1 mark: graphite, a touch lighter in dark mode (the kit keeps it graphite, not red).
     static let graphite = Color(
         nsColor: NSColor(name: nil) { appearance in

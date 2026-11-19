@@ -61,8 +61,12 @@ import Vision
             for state in [
                 "below", "above", "docked", "narrow", "size-menu", "recording", "recording-hour", "saving",
                 "saving-reducedmotion", "disabled", "disabled-size", "custom", "resizing", "not-exact", "refused",
+                "saved", "saved-compact", "saved-copied",
             ] {
                 expected.append("control-bar-\(state)-\(appearance)@2x.png")
+            }
+            for state in ["window-recording", "region-recording", "saving-bar"] {
+                expected.append("red-outline-\(state)-\(appearance)@2x.png")
             }
         }
         let written = try FileManager.default.contentsOfDirectory(atPath: folder.path)

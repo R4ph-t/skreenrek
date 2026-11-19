@@ -36,9 +36,10 @@ public struct HUDModel: Sendable {
     public init() {}
 
     /// `controlBarVisible`: the bar under the window already has the timer and Stop, so the HUD leaves them to it.
+    /// `controlBarSaved`: the bar turned into Saved when the clip finished, so the HUD's Saved stays away.
     public mutating func observe(
         _ snapshot: ControllerSnapshot, now: TimeInterval, indicatorEnabled: Bool = true,
-        controlBarVisible: Bool = false
+        controlBarVisible: Bool = false, controlBarSaved: Bool = false
     ) {
         if !observed { lastClipID = snapshot.lastClip?.recording.id; observed = true }
         if snapshot.state == .recording || snapshot.state == .writing {
@@ -57,8 +58,15 @@ public struct HUDModel: Sendable {
             savedAt = nil
             wasCapturing = false
         } else if let clip = snapshot.lastClip, clip.recording.id != lastClipID, wasCapturing {
-            state = .saved(duration: clip.recording.duration, path: clip.files.clip)
-            savedAt = now
+            // Saved is a recording indicator too (addendum 2, §C): the bar shows it when it was up, and `--no-hud` or
+            // the setting turned off shows it nowhere.
+            if controlBarSaved || !enabled || !indicatorEnabled {
+                state = .hidden
+                savedAt = nil
+            } else {
+                state = .saved(duration: clip.recording.duration, path: clip.files.clip)
+                savedAt = now
+            }
             wasCapturing = false
         } else if wasCapturing || { if case .error = state { return true }; return false }() {
             dismiss()
@@ -66,7 +74,7 @@ public struct HUDModel: Sendable {
         }
         lastClipID = snapshot.lastClip?.recording.id
         // The indicator option (Settings, `--no-hud`) hides the HUD while capturing, when it could get in the way.
-        // Saved and Stopped show after the clip ends, so they always appear: a recording never ends silently.
+        // Stopped shows after the clip ends whatever the option, so a failed recording never ends silently.
         if !enabled || !indicatorEnabled || controlBarVisible, state.kind == .recording || state.kind == .writing {
             state = .hidden
         }

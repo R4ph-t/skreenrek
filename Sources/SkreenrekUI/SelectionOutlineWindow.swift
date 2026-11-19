@@ -10,17 +10,39 @@ final class SelectionOutlineView: NSView {
 
     override var isOpaque: Bool { false }
 
+    nonisolated static func color(_ tone: SelectionOutlineTone) -> NSColor {
+        switch tone {
+        case .accent: .controlAccentColor
+        case .record: BrandTheme.recordRed
+        }
+    }
+
+    /// Sets the next appearance. A change of colour crossfades over `crossfade` seconds; 0 swaps it in one frame.
+    func set(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+        if crossfade > 0, let old = appearanceModel, old.tone != appearance.tone {
+            wantsLayer = true
+            let transition = CATransition()
+            transition.type = .fade
+            transition.duration = crossfade
+            transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer?.add(transition, forKey: "tone")
+        }
+        appearanceModel = appearance
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let model = appearanceModel else { return }
-        stroke(inset: model.strokeWidth / 2, width: model.strokeWidth, radius: model.cornerRadius, .controlAccentColor)
+        stroke(
+            inset: model.strokeWidth / 2, width: model.strokeWidth, radius: model.cornerRadius,
+            Self.color(model.tone))
         stroke(
             inset: model.hairlineWidth / 2, width: model.hairlineWidth, radius: model.cornerRadius,
             NSColor.black.withAlphaComponent(model.hairlineOpacity))
     }
 
     private func stroke(inset: CGFloat, width: CGFloat, radius: CGFloat, _ color: NSColor) {
-        let path = NSBezierPath(
-            roundedRect: bounds.insetBy(dx: inset, dy: inset), xRadius: radius - inset, yRadius: radius - inset)
+        let corner = max(0, radius - inset)
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: inset, dy: inset), xRadius: corner, yRadius: corner)
         path.lineWidth = width
         color.setStroke()
         path.stroke()
@@ -28,7 +50,8 @@ final class SelectionOutlineView: NSView {
 }
 
 /// The outline overlay. `.transient` is omitted: it would hide the outline when focus returns to the picked
-/// window, the same bug that hid the control bar.
+/// window, the same bug that hid the control bar. `sharingType = .none` keeps the red recording frame out of every
+/// clip, so it must never be added to a content filter's excepted windows.
 final class SelectionOutlinePanel: NSPanel {
     init() {
         super.init(
@@ -57,13 +80,13 @@ final class SelectionOutlineWindow: SelectionOutlineSurface {
         panel.contentView = outlineView
     }
 
-    func show(_ appearance: SelectionOutlineAppearance) {
-        place(appearance)
+    func show(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+        place(appearance, crossfade: crossfade)
         setAlpha(1)
     }
 
     func fadeOut(_ appearance: SelectionOutlineAppearance, duration: TimeInterval) {
-        place(appearance)
+        place(appearance, crossfade: 0)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -94,11 +117,18 @@ final class SelectionOutlineWindow: SelectionOutlineSurface {
         }
     }
 
-    private func place(_ appearance: SelectionOutlineAppearance) {
-        outlineView.appearanceModel = appearance
+    private func place(_ appearance: SelectionOutlineAppearance, crossfade: TimeInterval) {
+        outlineView.set(appearance, crossfade: crossfade)
         let geometry = ScreenGeometry(primaryHeight: Double(NSScreen.screens.first?.frame.height ?? 0))
         panel.setFrame(geometry.appKit(fromTopLeft: appearance.frame), display: true)
-        keepAbove(appearance.windowID)
+        if let windowID = appearance.windowID {
+            panel.level = .normal
+            keepAbove(windowID)
+        } else {
+            // A region has no window to sit above, so its frame floats over everything, like the picker's.
+            panel.level = .floating
+            panel.orderFrontRegardless()
+        }
     }
 }
 

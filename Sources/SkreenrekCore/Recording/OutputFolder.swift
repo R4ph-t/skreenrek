@@ -64,6 +64,11 @@ public enum OutputFolder {
         return "\(c.year ?? 0)-\(two(c.month))-\(two(c.day))_\(two(c.hour))\(two(c.minute))\(two(c.second))_\(slug)"
     }
 
+    /// The movie inside a clip folder: `<folder>/<folder name>.<mp4|mov>` (see `VideoContainer.fileName(forFolder:)`).
+    public static func movieURL(in folder: URL, container: VideoContainer) -> URL {
+        folder.appendingPathComponent(container.fileName(forFolder: folder))
+    }
+
     /// Creates the clip folder under `parent` (default `~/Movies/Skreenrek/`, created if missing). A name taken in
     /// the same second gets `-2`, `-3`, …. Throws `recording_failed` (`The output folder isn't writable.`) when the
     /// parent can't be created or written.

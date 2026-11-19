@@ -195,7 +195,16 @@ public enum UIStrings {
     public enum ControlBar {
         public static let sizeHelp = "Clip size. Skreenrek resizes the window to fit."
         public static let recordHelp = "Record this window."
-        public static let clearWindow = "Clear window"
+        /// Clear's tooltip and VoiceOver label: the panel's strings.
+        public static let clearWindow = Panel.clearWindow
+        public static let clearPickedWindow = Panel.clearPickedWindow
+        /// Saved on the bar (addendum 2, §C).
+        public static let saved = "Saved"
+        public static let showInFinder = Menu.showInFinder
+        /// Copy's tooltip, and its VoiceOver label.
+        public static let copyFilePath = Menu.copyFilePath
+        public static let copyFilePathLabel = "Copy file path"
+        public static let copied = "Copied"
         public static let outputFolderNotWritable =
             "The output folder isn't writable. Choose another folder in Settings."
         public static let accessibilityOff =
@@ -217,6 +226,17 @@ public enum UIStrings {
 
         /// `1920 by 1080 pixels`.
         public static func spokenSize(_ size: PixelSize) -> String { "\(size.width) by \(size.height) pixels" }
+
+        /// `Saved · 0:07`: the full bar's status, and the compact bar's tooltip.
+        public static func savedTitle(_ duration: Double) -> String { HUD.saved(duration) }
+
+        /// `Saved, 7 seconds, clip.mp4`: VoiceOver, for the Saved status.
+        public static func savedStatus(seconds: Int, file: String) -> String {
+            "Saved, \(Icon.spokenDuration(seconds)), \(file)"
+        }
+
+        /// `Clip saved, 7 seconds`: announced when Saved appears on the bar.
+        public static func savedAnnouncement(seconds: Int) -> String { "Clip saved, \(Icon.spokenDuration(seconds))" }
     }
 
     // MARK: - Error rows (the design spec's error-copy table)
@@ -531,6 +551,7 @@ public enum UIStrings {
         Updates.menuAvailable, Updates.whatsNew,
         Menu.showControlBar, Settings.showControlBar, ControlBar.sizeHelp, ControlBar.recordHelp,
         ControlBar.outputFolderNotWritable, ControlBar.directCaptureBlocked, ControlBar.accessibilityOff,
-        ControlBar.clearWindow,
+        ControlBar.clearWindow, ControlBar.clearPickedWindow, ControlBar.saved, ControlBar.copyFilePathLabel,
+        ControlBar.copied,
     ]
 }

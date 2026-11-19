@@ -165,7 +165,8 @@ public struct StopBody: Sendable, Hashable, Codable {
             self.width = width
             self.height = height
             self.codec = video?.codec ?? codec
-            self.video = video ?? VideoReadback(width: width, height: height, scale: 1, codec: codec)
+            self.video = video ?? VideoReadback(
+                file: VideoContainer.mp4.fileName(forFolderNamed: id), width: width, height: height, scale: 1, codec: codec)
             self.window = window
             self.startedAt = startedAt
             self.startedBy = startedBy

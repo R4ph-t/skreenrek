@@ -109,6 +109,9 @@ public enum UIRenderer {
             for sample in ControlBarRenderer.samples() {
                 try save(sample.view, "control-bar", sample.name, active: true)
             }
+            for sample in ControlBarRenderer.recordingOutlineSamples() {
+                try save(sample.view, "red-outline", sample.name, active: true)
+            }
             try save(selectionOutline(increaseContrast: false), "screen", "outline")
             try save(selectionOutline(increaseContrast: true), "screen", "outline-contrast")
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
@@ -359,10 +362,17 @@ public enum UIRenderer {
             SelectionOutlineInput(
                 target: SelectionOutlineTarget(window: window), panelOpen: true, increaseContrast: increaseContrast),
             now: 0)
+        return outlineSample(window: frame, size: size, appearance: model.display(at: 0).appearance)
+    }
+
+    /// A stand-in window on a desktop of `size`, with the outline drawn as `appearance` says.
+    static func outlineSample(
+        window frame: PointRect, size: NSSize, appearance: SelectionOutlineAppearance?
+    ) -> NSView {
         let view = SelectionOutlineSampleView(frame: NSRect(origin: .zero, size: size))
-        view.sampleFrame = window.frame.cgRect
-        view.outline.appearanceModel = model.display(at: 0).appearance
-        if let frame = view.outline.appearanceModel?.frame { view.outline.frame = frame.cgRect }
+        view.sampleFrame = frame.cgRect
+        view.outline.appearanceModel = appearance
+        if let frame = appearance?.frame { view.outline.frame = frame.cgRect }
         return view
     }
 
@@ -460,15 +470,17 @@ public enum RenderSamples {
             exact: actual == size, attempts: actual == size ? 1 : 3)
     }
 
-    public static func clip(codec: VideoCodec = .h264, file: String = "clip.mp4") -> StopBody {
-        let folder = "/Users/you/Movies/Skreenrek/2026-11-17_104207_safari"
+    public static func clip(codec: VideoCodec = .h264, container: VideoContainer = .mp4) -> StopBody {
+        let id = "2026-11-17_104207_safari"
+        let folder = "/Users/you/Movies/Skreenrek/\(id)"
+        let file = container.fileName(forFolderNamed: id)
         return StopBody(
             recording: StopBody.Recording(
-                id: "2026-11-17_104207_safari", duration: 42.0, fps: 60, width: 1280, height: 800, codec: codec,
+                id: id, duration: 42.0, fps: 60, width: 1280, height: 800, codec: codec,
                 startedAt: "2026-11-17T10:24:07.120+01:00", startedBy: .mcp,
                 stats: RecordingStats(slotsWritten: 2520, framesFresh: 2400, encoder: .hardware),
                 video: VideoReadback(file: file, width: 1280, height: 800, scale: 2, codec: codec,
-                    container: file.hasSuffix(".mov") ? .mov : .mp4)),
+                    container: container)),
             files: StopBody.Files(
                 clip: "\(folder)/\(file)", events: "\(folder)/events.json", snippet: "\(folder)/hyperframes.html"),
             snippet: "<video class=\"clip\"></video>", readback: readback(actual: size))
@@ -505,11 +517,11 @@ public enum RenderSamples {
         Sample(
             name: "lastclipmov",
             context: context(
-                ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(file: "clip.mov")), title: clipTitle)),
+                ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(container: .mov)), title: clipTitle)),
         Sample(
             name: "lastclipprores",
             context: context(
-                ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(codec: .prores, file: "clip.mov")), title: clipTitle)),
+                ControllerSnapshot(state: .idle, fps: .fps60, lastClip: clip(codec: .prores, container: .mov)), title: clipTitle)),
         armed,
         Sample(
             name: "armednotexact",

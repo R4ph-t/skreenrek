@@ -27,7 +27,7 @@ final class FakePerfRecorder: PerfRecorder {
                 width: params.width ?? 1280, height: params.height ?? 800, codec: .h264, startedAt: "", startedBy: .cli,
                 stats: stats(params)),
             files: StopBody.Files(
-                clip: folder.appendingPathComponent("clip.mp4").path, events: nil,
+                clip: OutputFolder.movieURL(in: folder, container: .mp4).path, events: nil,
                 snippet: folder.appendingPathComponent("hyperframes.html").path),
             snippet: "", readback: nil)
     }

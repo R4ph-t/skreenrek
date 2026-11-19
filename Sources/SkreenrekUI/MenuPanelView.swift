@@ -675,7 +675,7 @@ private struct PanelHeroButtonBody: View {
 }
 
 /// The 24 pt hit area of an icon button, with the row's hover and pressed tones at the control radius.
-private struct PanelIconButtonStyle: ButtonStyle {
+struct PanelIconButtonStyle: ButtonStyle {
     var rest: Color
     var active: Color
     var forcedState: PanelInteraction?
@@ -685,7 +685,7 @@ private struct PanelIconButtonStyle: ButtonStyle {
     }
 }
 
-private struct PanelIconButtonBody: View {
+struct PanelIconButtonBody: View {
     let configuration: ButtonStyle.Configuration
     let rest: Color
     let active: Color

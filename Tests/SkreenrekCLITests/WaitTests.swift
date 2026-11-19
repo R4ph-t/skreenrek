@@ -24,7 +24,7 @@ import Testing
         #expect(result.out == """
             ● Recording at 60 fps. Stop with: skreenrek stop
             ✓ Saved \(TimeFormat.minutesSeconds(body.recording.duration)) · 1280 × 800 px · 60 fps
-              clip    \(folder)/clip.mp4
+              clip    \(folder)/\(body.recording.id).mp4
               events  \(folder)/events.json
               snippet \(folder)/hyperframes.html
               note    software encoder
