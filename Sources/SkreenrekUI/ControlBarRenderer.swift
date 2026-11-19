@@ -40,8 +40,57 @@ enum ControlBarRenderer {
             ("resizing", plate(resizingTo: SizePreset.p720.size)),
             ("not-exact", plate(readback: notExactReadback)),
             ("refused", plate(refusedFrom: SizePreset.p720.size)),
+            ("saved", plate(saved(window: standardWindow))),
+            ("saved-compact", plate(saved(window: narrowWindow, choice: .keepCurrent))),
+            ("saved-copied", plate(saved(window: standardWindow, copied: true))),
         ]
         return cases
+    }
+
+    /// The recording outline (addendum 2, §A): `red-outline-<name>-<light|dark>@2x.png`. The overlay is kept out of
+    /// screen capture, so it is drawn offscreen over a stand-in window or region.
+    static func recordingOutlineSamples() -> [(name: String, view: NSView)] {
+        [
+            ("window-recording", outlineScene(capture: .recordingWindow, activity: .recording(seconds: 12))),
+            ("region-recording", regionScene()),
+            ("saving-bar", outlineScene(capture: .saving(keepsPick: true), activity: .saving)),
+        ]
+    }
+
+    /// A region inside a stand-in window, so the square frame shows against content.
+    static let sampleRegion = PointRect(x: 250, y: 150, width: 600, height: 340)
+
+    private static func outlineScene(capture: SelectionOutlineCapture, activity: ControlBarActivity) -> NSView {
+        var info = RenderSamples.safari
+        info.frame = standardWindow
+        var outline = SelectionOutlineModel(macOSMajorVersion: 26)
+        outline.update(
+            SelectionOutlineInput(target: SelectionOutlineTarget(window: info), capture: capture, controlBarVisible: true),
+            now: 0)
+        let view = UIRenderer.outlineSample(
+            window: standardWindow, size: sceneSize, appearance: outline.display(at: 0).appearance)
+        if let display = model(window: standardWindow, activity: activity).display(at: 0) {
+            addBar(display.content, frame: display.frame.cgRect, to: view)
+        }
+        return view
+    }
+
+    private static func regionScene() -> NSView {
+        var outline = SelectionOutlineModel(macOSMajorVersion: 26)
+        outline.update(SelectionOutlineInput(target: nil, capture: .recordingRegion(sampleRegion)), now: 0)
+        return UIRenderer.outlineSample(
+            window: standardWindow, size: sceneSize, appearance: outline.display(at: 0).appearance)
+    }
+
+    /// Saved after a 7 s clip, at the moment it appears.
+    private static func saved(window: PointRect, choice: SizeChoice = p1080, copied: Bool = false) -> ControlBarModel {
+        var model = model(window: window, choice: choice, activity: .saving)
+        var input = model.input
+        input.activity = .idle
+        input.lastClip = ControlBarClip(id: "render-saved", duration: 7, path: RenderSamples.clip().files.clip)
+        model.update(input, now: 0)
+        if copied { model.copied(now: 0) }
+        return model
     }
 
     private static var notExactReadback: Readback {

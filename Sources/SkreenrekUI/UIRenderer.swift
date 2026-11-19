@@ -106,6 +106,9 @@ public enum UIRenderer {
             for sample in ControlBarRenderer.samples() {
                 try save(sample.view, "control-bar", sample.name, active: true)
             }
+            for sample in ControlBarRenderer.recordingOutlineSamples() {
+                try save(sample.view, "red-outline", sample.name, active: true)
+            }
             try save(selectionOutline(increaseContrast: false), "screen", "outline")
             try save(selectionOutline(increaseContrast: true), "screen", "outline-contrast")
             try save(host(PickerLabel(title: RenderSamples.clipTitle, detail: UIStrings.Picker.detail(RenderSamples.size)),
@@ -333,10 +336,17 @@ public enum UIRenderer {
             SelectionOutlineInput(
                 target: SelectionOutlineTarget(window: window), panelOpen: true, increaseContrast: increaseContrast),
             now: 0)
+        return outlineSample(window: frame, size: size, appearance: model.display(at: 0).appearance)
+    }
+
+    /// A stand-in window on a desktop of `size`, with the outline drawn as `appearance` says.
+    static func outlineSample(
+        window frame: PointRect, size: NSSize, appearance: SelectionOutlineAppearance?
+    ) -> NSView {
         let view = SelectionOutlineSampleView(frame: NSRect(origin: .zero, size: size))
-        view.sampleFrame = window.frame.cgRect
-        view.outline.appearanceModel = model.display(at: 0).appearance
-        if let frame = view.outline.appearanceModel?.frame { view.outline.frame = frame.cgRect }
+        view.sampleFrame = frame.cgRect
+        view.outline.appearanceModel = appearance
+        if let frame = appearance?.frame { view.outline.frame = frame.cgRect }
         return view
     }
 
