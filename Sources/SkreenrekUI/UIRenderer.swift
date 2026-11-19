@@ -103,6 +103,9 @@ public enum UIRenderer {
             for sample in settingsSamples {
                 try save(settingsView(sample, home: home), "settings", sample.name, active: true)
             }
+            try save(
+                surfaceComparison(preview: thumbnail ?? swatch(width: 320, height: 200), home: home), "surface",
+                "panel-settings-general", active: true)
             for sample in ControlBarRenderer.samples() {
                 try save(sample.view, "control-bar", sample.name, active: true)
             }
@@ -291,11 +294,17 @@ public enum UIRenderer {
             name: "permissions-notallowed", tab: .permissions, screenRecording: .missing, accessibility: .missing),
     ]
 
-    /// A Settings tab under a drawn stand-in for the window's toolbar, which an offscreen render can't show.
+    /// A Settings window as it ships: a drawn stand-in for the title bar (an offscreen render has no traffic lights),
+    /// the real header and the tab's content, all on the shared surface.
     static func settingsView(_ sample: SettingsSample, home: URL) -> NSView {
+        RefitHostingView.fitted(settingsWindow(sample, home: home))
+    }
+
+    static func settingsWindow(_ sample: SettingsSample, home: URL) -> some View {
         let defaults = UserDefaults(suiteName: "skreenrek.render-ui.\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults, home: URL(fileURLWithPath: "/Users/you", isDirectory: true))
         store.outputFolder = URL(fileURLWithPath: "/Users/you/Movies/Skreenrek", isDirectory: true)
+        store.settingsTab = sample.tab
         defaults.set(sample.latest, forKey: UpdateChecker.Key.latestVersion)
         let updates = UpdateChecker(
             feed: StaticReleaseFeed(), installer: StaticReleaseFeed(), method: .homebrew, defaults: defaults,
@@ -307,12 +316,29 @@ public enum UIRenderer {
             agents: AgentsPanelState(
                 installer: AgentInstaller(home: home, executablePath: "/unused/skreenrek", path: "")),
             updates: updates)
+        return SettingsWindowContent(store: store, panel: panel, actions: .none, drawsTrafficLights: true)
+            .fixedSize(horizontal: false, vertical: true)
+            .environment(\.controlActiveState, .key)
+            .environment(\.drawsActiveControls, true)
+    }
+
+    /// The menu panel next to Settings General on a neutral backdrop: both should sample the same base and cell.
+    static func surfaceComparison(preview: NSImage, home: URL) -> NSView {
+        let content = PanelModel.content(for: specArmed(update: nil), preview: readyStill)
+        let height = min(PanelMetrics.contentHeight(content), PanelMetrics.availableHeight())
+        let window = RoundedRectangle(cornerRadius: PanelMetrics.radiusPanel, style: .continuous)
         return RefitHostingView.fitted(
-            VStack(spacing: 0) {
-                SettingsToolbarPreview(selected: sample.tab)
-                SettingsView(tab: sample.tab, store: store, panel: panel, actions: .none)
+            HStack(alignment: .top, spacing: 40) {
+                MenuPanelView(
+                    content: content, maxHeight: PanelMetrics.availableHeight(), previewImage: preview,
+                    clipImage: preview, reduceMotion: true, onAction: { _ in })
+                    .frame(width: PanelMetrics.width, height: height)
+                settingsWindow(SettingsSample(name: "general", tab: .general), home: home)
+                    .clipShape(window)
+                    .overlay(window.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
             }
-            .background(Color(nsColor: .windowBackgroundColor))
+            .padding(40)
+            .background(Color(nsColor: .systemGray))
             .environment(\.controlActiveState, .key)
             .environment(\.drawsActiveControls, true))
     }
@@ -593,32 +619,6 @@ final class StaticLoginItem: LoginItemService {
 }
 
 // MARK: - Preview views
-
-/// The window toolbar as the Settings renders show it: the title over the three tabs.
-private struct SettingsToolbarPreview: View {
-    let selected: SettingsTab
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(selected.title).font(.system(size: 13, weight: .semibold))
-            HStack(spacing: 8) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    VStack(spacing: 2) {
-                        Image(systemName: tab.symbol).font(.system(size: 16))
-                        Text(tab.title).font(.system(size: 11))
-                    }
-                    .foregroundStyle(tab == selected ? Color.accentColor : Color.secondary)
-                    .frame(width: 76, height: 42)
-                    .background(
-                        RoundedRectangle(cornerRadius: PanelMetrics.radiusControl, style: .continuous)
-                            .fill(tab == selected ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear)))
-                }
-            }
-        }
-        .frame(width: SettingsMetrics.width, height: 80)
-        .overlay(alignment: .bottom) { Divider() }
-    }
-}
 
 /// A sample window on a plain desktop, with the real outline view around it.
 final class SelectionOutlineSampleView: NSView {
